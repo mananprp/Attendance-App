@@ -1,0 +1,609 @@
+openapi: 3.0.3
+info:
+  title: Attendance App Backend API
+  version: 1.0.0
+  description: API contract for Face-Verified Geofenced Attendance App
+
+servers:
+  - url: https://api.attendance.company.com/v1
+    description: Production Server
+  - url: http://localhost:3000/v1
+    description: Local Development Server
+
+paths:
+  /auth/login:
+    post:
+      summary: User authentication
+      description: Logs in user with user ID and password. Returns JWT token and profile metadata.
+      operationId: login
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/LoginRequest'
+      responses:
+        '200':
+          description: Login successful
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/LoginResponse'
+        '401':
+          description: Invalid credentials
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiError'
+        '429':
+          description: Too many login attempts
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiError'
+
+  /config:
+    get:
+      summary: Fetch app configuration
+      description: Returns geofence office coordinates, radius, sync windows, jitter, timezone, and face match threshold.
+      operationId: getConfig
+      security:
+        - BearerAuth: []
+      responses:
+        '200':
+          description: Configuration retrieved successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AppConfigResponse'
+        '401':
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiError'
+
+  /users/me/photo:
+    post:
+      summary: Upload onboarding profile photo (Version 1)
+      description: Uploads initial profile photo during onboarding. Allowed only if no photo exists.
+      operationId: uploadPhotoV1
+      security:
+        - BearerAuth: []
+      requestBody:
+        required: true
+        content:
+          multipart/form-data:
+            schema:
+              type: object
+              required:
+                - photo
+              properties:
+                photo:
+                  type: string
+                  format: binary
+                  description: Profile image (JPEG/PNG, single face)
+      responses:
+        '201':
+          description: Photo v1 uploaded successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PhotoUploadResponse'
+        '400':
+          description: Invalid image or photo v1 already uploaded
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiError'
+        '401':
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiError'
+
+    put:
+      summary: Replace profile photo (Version 2)
+      description: Replaces profile photo with version 2. Allowed exactly once per user lifetime.
+      operationId: replacePhotoV2
+      security:
+        - BearerAuth: []
+      requestBody:
+        required: true
+        content:
+          multipart/form-data:
+            schema:
+              type: object
+              required:
+                - photo
+              properties:
+                photo:
+                  type: string
+                  format: binary
+                  description: New profile image (JPEG/PNG, single face)
+      responses:
+        '200':
+          description: Photo v2 replaced successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PhotoUploadResponse'
+        '400':
+          description: Photo v1 missing or invalid image
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiError'
+        '403':
+          description: Photo change already used (one-time replacement rule violation)
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiError'
+        '401':
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiError'
+
+    get:
+      summary: Get active profile photo
+      description: Fetches metadata and download URL of the user's active profile photo.
+      operationId: getActivePhoto
+      security:
+        - BearerAuth: []
+      responses:
+        '200':
+          description: Active photo details
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PhotoDetailResponse'
+        '404':
+          description: No photo found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiError'
+        '401':
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiError'
+
+  /attendance/sync:
+    post:
+      summary: Batch upload punch records
+      description: Idempotent batch upload of local punch records along with captured verification images.
+      operationId: syncPunches
+      security:
+        - BearerAuth: []
+      requestBody:
+        required: true
+        content:
+          multipart/form-data:
+            schema:
+              type: object
+              required:
+                - batch_json
+              properties:
+                batch_json:
+                  type: string
+                  description: JSON stringified array of SyncPunchItem
+                images:
+                  type: array
+                  items:
+                    type: string
+                    format: binary
+                  description: Captured punch frame images keyed/named by punch_uuid (e.g. punch_uuid.jpg)
+      responses:
+        '200':
+          description: Batch processed with individual record statuses
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SyncBatchResponse'
+        '400':
+          description: Invalid payload format
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiError'
+        '401':
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiError'
+
+  /attendance:
+    get:
+      summary: Fetch monthly attendance history
+      description: Retrieves day summary records and punches for a given calendar month (YYYY-MM).
+      operationId: getMonthlyAttendance
+      security:
+        - BearerAuth: []
+      parameters:
+        - name: month
+          in: query
+          required: true
+          description: Target month in format YYYY-MM
+          schema:
+            type: string
+            pattern: '^\d{4}-(0[1-9]|1[0-2])$'
+            example: "2026-09"
+      responses:
+        '200':
+          description: Monthly attendance records
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/MonthlyAttendanceResponse'
+        '400':
+          description: Invalid month format
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiError'
+        '401':
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiError'
+
+  /models/manifest:
+    get:
+      summary: Fetch ONNX face model download manifest
+      description: Returns list of model files, sizes, SHA-256 checksums, and download URLs for first launch setup.
+      operationId: getModelManifest
+      responses:
+        '200':
+          description: Model manifest list
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ModelManifestResponse'
+
+components:
+  securitySchemes:
+    BearerAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT
+
+  schemas:
+    ApiError:
+      type: object
+      required:
+        - code
+        - message
+      properties:
+        code:
+          type: string
+          example: "INVALID_CREDENTIALS"
+        message:
+          type: string
+          example: "The user ID or password provided is incorrect."
+        details:
+          type: object
+          nullable: true
+
+    LoginRequest:
+      type: object
+      required:
+        - user_id
+        - password
+      properties:
+        user_id:
+          type: string
+          example: "EMP1001"
+        password:
+          type: string
+          example: "SecureP@ss123"
+
+    LoginResponse:
+      type: object
+      required:
+        - token
+        - user
+      properties:
+        token:
+          type: string
+          example: "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9..."
+        user:
+          $ref: '#/components/schemas/UserProfile'
+
+    UserProfile:
+      type: object
+      required:
+        - user_id
+        - display_name
+        - photo_change_used
+        - has_photo
+      properties:
+        user_id:
+          type: string
+          example: "EMP1001"
+        display_name:
+          type: string
+          example: "Alice Sharma"
+        photo_change_used:
+          type: boolean
+          example: false
+        has_photo:
+          type: boolean
+          example: true
+        active_photo_version:
+          type: integer
+          nullable: true
+          example: 1
+
+    AppConfigResponse:
+      type: object
+      required:
+        - office_lat
+        - office_lng
+        - radius_m
+        - timezone
+        - sync_windows
+        - sync_jitter_minutes
+        - match_threshold
+      properties:
+        office_lat:
+          type: number
+          format: double
+          example: 28.613939
+        office_lng:
+          type: number
+          format: double
+          example: 77.209021
+        radius_m:
+          type: integer
+          example: 100
+        timezone:
+          type: string
+          example: "Asia/Kolkata"
+        sync_windows:
+          type: array
+          items:
+            type: string
+            example: "16:00"
+          example: ["16:00", "00:00"]
+        sync_jitter_minutes:
+          type: integer
+          example: 30
+        match_threshold:
+          type: number
+          format: float
+          example: 0.55
+
+    PhotoUploadResponse:
+      type: object
+      required:
+        - version
+        - photo_url
+        - photo_change_used
+      properties:
+        version:
+          type: integer
+          enum: [1, 2]
+          example: 1
+        photo_url:
+          type: string
+          example: "/uploads/photos/EMP1001_v1.jpg"
+        photo_change_used:
+          type: boolean
+          example: false
+
+    PhotoDetailResponse:
+      type: object
+      required:
+        - version
+        - photo_url
+        - uploaded_at
+        - hash
+      properties:
+        version:
+          type: integer
+          enum: [1, 2]
+          example: 1
+        photo_url:
+          type: string
+          example: "/uploads/photos/EMP1001_v1.jpg"
+        uploaded_at:
+          type: string
+          format: date-time
+          example: "2026-09-30T09:00:00.000Z"
+        hash:
+          type: string
+          example: "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+
+    SyncPunchItem:
+      type: object
+      required:
+        - punch_uuid
+        - user_id
+        - date_local
+        - type
+        - punch_time_utc
+        - time_source
+        - time_unverified
+        - latitude
+        - longitude
+        - distance_m
+        - match_score
+      properties:
+        punch_uuid:
+          type: string
+          format: uuid
+          example: "550e8400-e29b-41d4-a716-446655440000"
+        user_id:
+          type: string
+          example: "EMP1001"
+        date_local:
+          type: string
+          format: date
+          example: "2026-09-30"
+        type:
+          type: string
+          enum: [IN, OUT]
+          example: "IN"
+        punch_time_utc:
+          type: string
+          format: date-time
+          example: "2026-09-30T03:45:00.000Z"
+        time_source:
+          type: string
+          enum: [NTP, DEVICE]
+          example: "NTP"
+        time_unverified:
+          type: boolean
+          example: false
+        latitude:
+          type: number
+          format: double
+          example: 28.613940
+        longitude:
+          type: number
+          format: double
+          example: 77.209025
+        distance_m:
+          type: number
+          format: float
+          example: 12.4
+        match_score:
+          type: number
+          format: float
+          example: 0.8842
+        image_file_name:
+          type: string
+          nullable: true
+          example: "550e8400-e29b-41d4-a716-446655440000.jpg"
+
+    PunchSyncResult:
+      type: object
+      required:
+        - punch_uuid
+        - status
+      properties:
+        punch_uuid:
+          type: string
+          format: uuid
+          example: "550e8400-e29b-41d4-a716-446655440000"
+        status:
+          type: string
+          enum: [ACCEPTED, DUPLICATE, REJECTED]
+          example: "ACCEPTED"
+        reason:
+          type: string
+          nullable: true
+          example: null
+
+    SyncBatchResponse:
+      type: object
+      required:
+        - batch_id
+        - processed_count
+        - results
+      properties:
+        batch_id:
+          type: string
+          format: uuid
+          example: "9b1deb4d-3b7d-4bad-9bdd-2b0d7b3dcb6d"
+        processed_count:
+          type: integer
+          example: 2
+        results:
+          type: array
+          items:
+            $ref: '#/components/schemas/PunchSyncResult'
+
+    DaySummaryDto:
+      type: object
+      required:
+        - date_local
+        - status
+      properties:
+        date_local:
+          type: string
+          format: date
+          example: "2026-09-30"
+        in_time:
+          type: string
+          format: date-time
+          nullable: true
+          example: "2026-09-30T03:45:00.000Z"
+        out_time:
+          type: string
+          format: date-time
+          nullable: true
+          example: "2026-09-30T12:30:00.000Z"
+        status:
+          type: string
+          enum: [COMPLETE, MISSED_PUNCH, NO_RECORD]
+          example: "COMPLETE"
+        time_unverified:
+          type: boolean
+          example: false
+
+    MonthlyAttendanceResponse:
+      type: object
+      required:
+        - month
+        - days
+        - punches
+      properties:
+        month:
+          type: string
+          example: "2026-09"
+        days:
+          type: array
+          items:
+            $ref: '#/components/schemas/DaySummaryDto'
+        punches:
+          type: array
+          items:
+            $ref: '#/components/schemas/SyncPunchItem'
+
+    ModelManifestItem:
+      type: object
+      required:
+        - name
+        - file_name
+        - size_bytes
+        - sha256
+        - download_url
+      properties:
+        name:
+          type: string
+          example: "det_10g"
+        file_name:
+          type: string
+          example: "det_10g.onnx"
+        size_bytes:
+          type: integer
+          example: 17825792
+        sha256:
+          type: string
+          example: "9f86d081884c7d659a2feaa0c55ad015a3bf4f1b2b0b822cd15d6c15b0f00a08"
+        download_url:
+          type: string
+          example: "https://models.attendance.company.com/det_10g.onnx"
+
+    ModelManifestResponse:
+      type: object
+      required:
+        - models
+        - total_size_bytes
+      properties:
+        models:
+          type: array
+          items:
+            $ref: '#/components/schemas/ModelManifestItem'
+        total_size_bytes:
+          type: integer
+          example: 351272960

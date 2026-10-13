@@ -1,0 +1,172 @@
+package com.company.attendance.feature.admin
+
+import androidx.lifecycle.ViewModel
+import androidx.lifecycle.viewModelScope
+import com.company.attendance.core.network.AttendanceApiService
+import com.company.attendance.core.network.NetworkHelper
+import com.company.attendance.core.network.model.AdminUserDto
+import com.company.attendance.core.network.model.CreateUserRequestDto
+import com.company.attendance.core.network.model.UpdateUserSiteRequestDto
+import dagger.hilt.android.lifecycle.HiltViewModel
+import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.StateFlow
+import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.flow.update
+import kotlinx.coroutines.launch
+import javax.inject.Inject
+
+@HiltViewModel
+class AdminViewModel @Inject constructor(
+    private val apiService: AttendanceApiService
+) : ViewModel() {
+
+    private val _uiState = MutableStateFlow(AdminUiState())
+    val uiState: StateFlow<AdminUiState> = _uiState.asStateFlow()
+
+    init {
+        loadData()
+    }
+
+    fun loadData() {
+        viewModelScope.launch {
+            _uiState.update { it.copy(isLoading = true, errorMessage = null) }
+            try {
+                val sitesResponse = apiService.getAdminSites()
+                val sitesResult = NetworkHelper.parseResponse(sitesResponse)
+
+                val usersResponse = apiService.getAdminUsers()
+                val usersResult = NetworkHelper.parseResponse(usersResponse)
+
+                if (sitesResult.isSuccess && usersResult.isSuccess) {
+                    _uiState.update {
+                        it.copy(
+                            isLoading = false,
+                            sites = sitesResult.getOrDefault(emptyList()),
+                            users = usersResult.getOrDefault(emptyList())
+                        )
+                    }
+                } else {
+                    val error = sitesResult.exceptionOrNull()?.message
+                        ?: usersResult.exceptionOrNull()?.message
+                        ?: "Failed to load admin data."
+                    _uiState.update {
+                        it.copy(isLoading = false, errorMessage = error)
+                    }
+                }
+            } catch (e: Exception) {
+                _uiState.update {
+                    it.copy(isLoading = false, errorMessage = e.message ?: "Failed to connect to server.")
+                }
+            }
+        }
+    }
+
+    fun openCreateUserDialog(targetSiteCode: String? = null) {
+        _uiState.update {
+            it.copy(
+                isCreateUserDialogOpen = true,
+                targetSiteForNewUser = targetSiteCode,
+                errorMessage = null,
+                successMessage = null
+            )
+        }
+    }
+
+    fun closeCreateUserDialog() {
+        _uiState.update { it.copy(isCreateUserDialogOpen = false, targetSiteForNewUser = null) }
+    }
+
+    fun openSiteChangeDialog(user: AdminUserDto) {
+        _uiState.update { it.copy(selectedUserForSiteChange = user, errorMessage = null, successMessage = null) }
+    }
+
+    fun closeSiteChangeDialog() {
+        _uiState.update { it.copy(selectedUserForSiteChange = null) }
+    }
+
+    fun dismissMessages() {
+        _uiState.update { it.copy(errorMessage = null, successMessage = null) }
+    }
+
+    fun createUser(
+        userId: String,
+        name: String,
+        password: String,
+        siteCode: String,
+        role: String
+    ) {
+        val trimmedId = userId.trim()
+        val trimmedName = name.trim()
+
+        if (trimmedId.isBlank() || trimmedName.isBlank() || password.isBlank()) {
+            _uiState.update { it.copy(errorMessage = "Please fill in all required fields.") }
+            return
+        }
+
+        viewModelScope.launch {
+            _uiState.update { it.copy(isActionLoading = true, errorMessage = null) }
+            try {
+                val request = CreateUserRequestDto(
+                    userId = trimmedId,
+                    name = trimmedName,
+                    password = password,
+                    siteCode = siteCode,
+                    role = role
+                )
+                val response = apiService.createAdminUser(request)
+                val result = NetworkHelper.parseResponse(response)
+
+                result.onSuccess { createdUser ->
+                    _uiState.update { current ->
+                        current.copy(
+                            isActionLoading = false,
+                            isCreateUserDialogOpen = false,
+                            users = listOf(createdUser) + current.users.filter { it.userId != createdUser.userId },
+                            successMessage = "User '${createdUser.userId}' created successfully!"
+                        )
+                    }
+                }.onFailure { err ->
+                    _uiState.update {
+                        it.copy(isActionLoading = false, errorMessage = err.message ?: "Failed to create user.")
+                    }
+                }
+            } catch (e: Exception) {
+                _uiState.update {
+                    it.copy(isActionLoading = false, errorMessage = e.message ?: "Failed to create user.")
+                }
+            }
+        }
+    }
+
+    fun updateUserSite(userId: String, newSiteCode: String) {
+        viewModelScope.launch {
+            _uiState.update { it.copy(isActionLoading = true, errorMessage = null) }
+            try {
+                val response = apiService.updateAdminUserSite(
+                    userId = userId,
+                    request = UpdateUserSiteRequestDto(siteCode = newSiteCode)
+                )
+                val result = NetworkHelper.parseResponse(response)
+
+                result.onSuccess { updatedUser ->
+                    _uiState.update { current ->
+                        current.copy(
+                            isActionLoading = false,
+                            selectedUserForSiteChange = null,
+                            users = current.users.map { if (it.userId == updatedUser.userId) updatedUser else it },
+                            successMessage = "Assigned '${updatedUser.userId}' to ${updatedUser.siteName}."
+                        )
+                    }
+                }.onFailure { err ->
+                    _uiState.update {
+                        it.copy(isActionLoading = false, errorMessage = err.message ?: "Failed to update user site.")
+                    }
+                }
+            } catch (e: Exception) {
+                _uiState.update {
+                    it.copy(isActionLoading = false, errorMessage = e.message ?: "Failed to update user site.")
+                }
+            }
+        }
+    }
+}

@@ -1,0 +1,15 @@
+## Android Local Properties Configuration
+## Copy this file or add the following properties to android/local.properties
+
+# Location of the Android SDK on your local machine
+# sdk.dir=C\:\\Users\\YourUsername\\AppData\\Local\\Android\\Sdk
+
+# Backend Server Base URL
+# Option 1: Local development (leave commented to use auto-detected Wi-Fi / Emulator IP)
+# SERVER_BASE_URL=http://172.31.122.136:3000/v1/
+
+# Option 2: AWS / Cloud Production Deployment (Domain with SSL)
+# SERVER_BASE_URL=https://api.yourdomain.com/v1/
+
+# Option 3: AWS EC2 Elastic IP
+# SERVER_BASE_URL=http://54.210.12.34:3000/v1/

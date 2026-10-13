@@ -1,0 +1,135 @@
+# ==============================================================================
+# Attendance App - Global .gitignore
+# Monorepo covering Android (Kotlin/Gradle), Server (NestJS/Node), and FaceAPI (Python)
+# ==============================================================================
+
+# ------------------------------------------------------------------------------
+# Operating System Files
+# ------------------------------------------------------------------------------
+.DS_Store
+.DS_Store?
+._*
+.Spotlight-V100
+.Trashes
+ehthumbs.db
+Thumbs.db
+Desktop.ini
+$RECYCLE.BIN/
+
+# ------------------------------------------------------------------------------
+# IDE & Editor Configurations
+# ------------------------------------------------------------------------------
+.idea/
+*.iml
+*.iws
+*.ipr
+.vscode/
+*.swp
+*.swo
+*~
+.project
+.classpath
+.settings/
+
+# ------------------------------------------------------------------------------
+# Android / Gradle
+# ------------------------------------------------------------------------------
+.gradle/
+**/build/
+build/
+local.properties
+captures/
+.externalNativeBuild/
+.cxx/
+*.apk
+*.ap_
+*.aab
+output.json
+
+# Android keystores / signing keys
+*.jks
+*.keystore
+
+# ------------------------------------------------------------------------------
+# Node.js / NestJS Backend (server/)
+# ------------------------------------------------------------------------------
+node_modules/
+**/node_modules/
+dist/
+**/dist/
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+pnpm-debug.log*
+lerna-debug.log*
+.npm/
+.eslintcache
+
+# NestJS local SQLite databases & state
+*.db
+*.db-journal
+*.sqlite
+*.sqlite3
+
+# Uploaded test media (keep directory structures via .gitkeep if needed)
+server/uploads/photos/*
+!server/uploads/photos/.gitkeep
+server/uploads/punches/*
+!server/uploads/punches/.gitkeep
+uploads/
+
+# ------------------------------------------------------------------------------
+# Python / FaceAPI / Tools
+# ------------------------------------------------------------------------------
+__pycache__/
+**/__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+env/
+venv/
+.venv/
+ENV/
+env.bak/
+venv.bak/
+.pytest_cache/
+.coverage
+htmlcov/
+*.egg-info/
+.eggs/
+
+# ------------------------------------------------------------------------------
+# Environment Variables & Secrets (Keep .example files)
+# ------------------------------------------------------------------------------
+.env
+.env.*
+!.env.example
+!.env.test
+*.pem
+*.key
+*.pfx
+*.cert
+*.crt
+
+# ------------------------------------------------------------------------------
+# Large Binary Files & Backups (Exceeds GitHub 100MB limit)
+# ------------------------------------------------------------------------------
+# Unquantized FP32 backup models (143MB - 174MB, violates GitHub file limit)
+tools/fp32_models_backup/
+
+# Archives & Temporary Zip files
+*.zip
+*.tar
+*.tar.gz
+*.rar
+*.7z
+
+# ------------------------------------------------------------------------------
+# Scratch & Logs
+# ------------------------------------------------------------------------------
+scratch/
+*.log
+logs/
+tmp/
+temp/

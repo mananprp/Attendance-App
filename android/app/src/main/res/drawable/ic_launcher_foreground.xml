@@ -1,0 +1,62 @@
+<?xml version="1.0" encoding="utf-8"?>
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="108dp"
+    android:height="108dp"
+    android:viewportWidth="108"
+    android:viewportHeight="108">
+
+    <!-- Biometric Face Scanning Corners (White/Light Blue) -->
+    <!-- Top-Left Corner -->
+    <path
+        android:strokeColor="#FFFFFF"
+        android:strokeWidth="3.5"
+        android:strokeLineCap="round"
+        android:strokeLineJoin="round"
+        android:pathData="M32,44 L32,36 A4,4 0 0,1 36,32 L44,32" />
+
+    <!-- Top-Right Corner -->
+    <path
+        android:strokeColor="#FFFFFF"
+        android:strokeWidth="3.5"
+        android:strokeLineCap="round"
+        android:strokeLineJoin="round"
+        android:pathData="M64,32 L72,32 A4,4 0 0,1 76,36 L76,44" />
+
+    <!-- Bottom-Left Corner -->
+    <path
+        android:strokeColor="#FFFFFF"
+        android:strokeWidth="3.5"
+        android:strokeLineCap="round"
+        android:strokeLineJoin="round"
+        android:pathData="M32,64 L32,72 A4,4 0 0,0 36,76 L44,76" />
+
+    <!-- Bottom-Right Corner -->
+    <path
+        android:strokeColor="#FFFFFF"
+        android:strokeWidth="3.5"
+        android:strokeLineCap="round"
+        android:strokeLineJoin="round"
+        android:pathData="M64,76 L72,76 A4,4 0 0,0 76,72 L76,64" />
+
+    <!-- Head / Face Silhouette -->
+    <!-- Head Circle -->
+    <path
+        android:fillColor="#FFFFFF"
+        android:pathData="M54,49m-9,0a9,9 0,1 1,18 0a9,9 0,1 1,-18 0" />
+
+    <!-- Shoulders -->
+    <path
+        android:fillColor="#FFFFFF"
+        android:pathData="M40,68 C40,62 46,60 54,60 C62,60 68,62 68,68 Z" />
+
+    <!-- Green Verified Checkmark Badge -->
+    <path
+        android:fillColor="#16A34A"
+        android:pathData="M73,71m-7,0a7,7 0,1 1,14 0a7,7 0,1 1,-14 0" />
+    <path
+        android:strokeColor="#FFFFFF"
+        android:strokeWidth="1.8"
+        android:strokeLineCap="round"
+        android:strokeLineJoin="round"
+        android:pathData="M70,71 L72,73 L76,68.5" />
+</vector>
