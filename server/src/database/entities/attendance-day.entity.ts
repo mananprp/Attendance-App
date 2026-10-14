@@ -46,6 +46,9 @@ export class AttendanceDayEntity {
   @Column({ name: 'time_unverified', type: 'boolean', default: false })
   timeUnverified: boolean;
 
+  @Column({ name: 'shift_type', type: 'varchar', length: 16, default: 'GENERAL' })
+  shiftType: string;
+
   @UpdateDateColumn({ name: 'updated_at' })
   updatedAt: Date;
 

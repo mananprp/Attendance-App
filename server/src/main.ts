@@ -29,7 +29,7 @@ async function autoSeedIfEmpty(app: any) {
       const longitude = 77.060544;
       const radiusM = 100;
       const timezone = 'Asia/Kolkata';
-      const matchThreshold = 0.46;
+      const matchThreshold = 0.38;
       const syncWindows = ['16:00', '00:00'];
       const syncJitterMinutes = 30;
 
@@ -47,11 +47,11 @@ async function autoSeedIfEmpty(app: any) {
         }),
       );
     } else {
-      // Ensure all existing offices are set to 0.46 threshold
+      // Ensure all existing offices are set to 0.38 threshold
       await officeRepo
         .createQueryBuilder()
         .update(OfficeConfigEntity)
-        .set({ matchThreshold: 0.46 })
+        .set({ matchThreshold: 0.38 })
         .execute();
     }
 
@@ -66,7 +66,7 @@ async function autoSeedIfEmpty(app: any) {
           userId: 'EMP1001',
           name: 'Alice Sharma',
           passwordHash: defaultPasswordHash,
-          role: UserRole.EMPLOYEE,
+          role: UserRole.ADMIN,
           siteCode: 'DEFAULT_OFFICE',
           status: UserStatus.ACTIVE,
           photoChangeUsed: false,
@@ -108,9 +108,19 @@ async function autoSeedIfEmpty(app: any) {
           photoChangeUsed: false,
         }),
       ]);
-      console.log('[AutoSeed] Initial accounts created (EMP1001, EMP1002, EMP1003, EMP2001, ADMIN01 / Password@123)');
+      console.log('[AutoSeed] Initial accounts created (EMP1001 [ADMIN], EMP1002, EMP1003, EMP2001 [ADMIN], ADMIN01 / Password@123)');
     } else {
-      // If admin accounts exist, ensure their role is ADMIN; if not, create ADMIN01
+      // Ensure admin accounts EMP1001 and EMP2001 have ADMIN role
+      const emp1001 = await userRepo.findOne({ where: { userId: 'EMP1001' } });
+      if (emp1001) {
+        await userRepo.update({ userId: 'EMP1001' }, { role: UserRole.ADMIN });
+      }
+
+      const mananUser = await userRepo.findOne({ where: { userId: 'EMP2001' } });
+      if (mananUser) {
+        await userRepo.update({ userId: 'EMP2001' }, { role: UserRole.ADMIN });
+      }
+
       const adminUser = await userRepo.findOne({ where: { userId: 'ADMIN01' } });
       if (adminUser) {
         await userRepo.update({ userId: 'ADMIN01' }, { role: UserRole.ADMIN });
@@ -127,11 +137,6 @@ async function autoSeedIfEmpty(app: any) {
             photoChangeUsed: false,
           }),
         );
-      }
-
-      const mananUser = await userRepo.findOne({ where: { userId: 'EMP2001' } });
-      if (mananUser) {
-        await userRepo.update({ userId: 'EMP2001' }, { role: UserRole.ADMIN });
       }
     }
   } catch (err) {
@@ -157,6 +162,13 @@ async function bootstrap() {
   const uploadsDir = process.env.UPLOAD_DIR || 'uploads';
   const uploadsPath = path.resolve(process.cwd(), uploadsDir);
   app.use('/uploads', express.static(uploadsPath));
+
+  // Serve admin web portal statically
+  const adminDistPath = path.resolve(process.cwd(), 'admin-ui', 'dist');
+  app.use('/admin', express.static(adminDistPath));
+  app.use('/admin/*', (req: express.Request, res: express.Response) => {
+    res.sendFile(path.join(adminDistPath, 'index.html'));
+  });
 
   const config = new DocumentBuilder()
     .setTitle('Attendance App Backend API')

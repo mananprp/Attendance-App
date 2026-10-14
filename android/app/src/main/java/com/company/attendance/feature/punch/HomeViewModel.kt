@@ -25,8 +25,11 @@ import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
 import java.time.Instant
 import java.time.LocalDate
+import java.time.LocalDateTime
 import java.time.ZoneId
 import java.time.format.DateTimeFormatter
+import com.company.attendance.core.model.ShiftType
+import com.company.attendance.core.util.ShiftEvaluator
 import android.content.Context
 import com.company.attendance.core.network.AttendanceApiService
 import com.company.attendance.core.network.NetworkHelper
@@ -72,6 +75,7 @@ class HomeViewModel @Inject constructor(
     private val timeFormatter = DateTimeFormatter.ofPattern("hh:mm:ss a", Locale.getDefault())
     private val punchTimeFormatter = DateTimeFormatter.ofPattern("hh:mm a", Locale.getDefault())
     private val syncTimeFormatter = DateTimeFormatter.ofPattern("hh:mm a", Locale.getDefault())
+    private var currentDaySummary: DaySummary? = null
 
     init {
         loadUserSession()
@@ -111,7 +115,30 @@ class HomeViewModel @Inject constructor(
                     is LocationStatus.MockLocationDetected -> LocationCardState.MockDetected
                     is LocationStatus.Fix -> {
                         val ageSec = ((System.currentTimeMillis() - status.fixTimestampMs) / 1000L).coerceAtLeast(0L)
-                        if (status.isInside) {
+                        val summary = currentDaySummary
+                        if (summary?.locationType == "NEW_LOCATION" && summary.inTimeUtcEpochMs != null && summary.outTimeUtcEpochMs == null) {
+                            val anchorLat = summary.anchorLat
+                            val anchorLng = summary.anchorLng
+                            if (anchorLat != null && anchorLng != null && (anchorLat != 0.0 || anchorLng != 0.0)) {
+                                val fieldDistance = locationChecker.calculateDistanceMeters(
+                                    status.latitude,
+                                    status.longitude,
+                                    anchorLat,
+                                    anchorLng
+                                )
+                                LocationCardState.FieldVisit(
+                                    distanceMeters = fieldDistance,
+                                    isInside = fieldDistance <= 100f,
+                                    updatedAgoSeconds = ageSec
+                                )
+                            } else {
+                                LocationCardState.FieldVisit(
+                                    distanceMeters = 0f,
+                                    isInside = true,
+                                    updatedAgoSeconds = ageSec
+                                )
+                            }
+                        } else if (status.isInside) {
                             // Warm up ONNX models in background so capture screen opens instantly with models in RAM
                             viewModelScope.launch {
                                 try {
@@ -257,12 +284,24 @@ class HomeViewModel @Inject constructor(
                     )
                 }
 
-                // Detect date rollover (e.g. 00:00 midnight transition)
-                if (lastObservedDate != trustedTime.localDate) {
+                val localDateTime = zonedDateTime.toLocalDateTime()
+
+                // Detect date rollover or shift cutoff expiry
+                val shouldRebind = lastObservedDate != trustedTime.localDate || currentDaySummary?.let {
+                    val isExpired = it.inTimeUtcEpochMs != null && it.outTimeUtcEpochMs == null &&
+                            ShiftEvaluator.isSessionExpired(
+                                it.shiftType,
+                                LocalDate.parse(it.dateLocal),
+                                localDateTime
+                            )
+                    isExpired
+                } ?: false
+
+                if (shouldRebind) {
                     lastObservedDate = trustedTime.localDate
                     val userId = tokenStorage.getUserId() ?: ""
                     if (userId.isNotBlank()) {
-                        observeDaySummaryForDate(userId, trustedTime.localDate.toString(), zoneId)
+                        bindActiveShiftObservation(userId, trustedTime.localDate, zoneId, localDateTime)
                     }
                 }
             }
@@ -270,25 +309,66 @@ class HomeViewModel @Inject constructor(
     }
 
     /**
-     * Re-binds observation of the DaySummary for the specified date string (YYYY-MM-DD).
+     * Re-binds observation of the DaySummary taking shifts and rollover cutoffs into account.
+     * If yesterday has an active, unclosed session whose cutoff has NOT yet passed (e.g. Night Shift crossing midnight),
+     * that session remains the actively observed session!
      */
-    private fun observeDaySummaryForDate(userId: String, dateLocal: String, zoneId: ZoneId) {
+    private fun bindActiveShiftObservation(
+        userId: String,
+        localDate: LocalDate,
+        zoneId: ZoneId,
+        currentDateTime: LocalDateTime
+    ) {
         daySummaryJob?.cancel()
         daySummaryJob = viewModelScope.launch {
-            punchRepository.observeDaySummary(userId, dateLocal).collectLatest { summary ->
-                updateStateFromDaySummary(summary, zoneId)
+            val todayStr = localDate.toString()
+            val yesterdayStr = localDate.minusDays(1).toString()
+
+            val yesterdaySummary = punchRepository.getDaySummary(userId, yesterdayStr)
+            val isYesterdayActive = yesterdaySummary != null &&
+                    yesterdaySummary.inTimeUtcEpochMs != null &&
+                    yesterdaySummary.outTimeUtcEpochMs == null &&
+                    !ShiftEvaluator.isSessionExpired(
+                        yesterdaySummary.shiftType,
+                        localDate.minusDays(1),
+                        currentDateTime
+                    )
+
+            val targetDateStr = if (isYesterdayActive) yesterdayStr else todayStr
+
+            if (yesterdaySummary != null && yesterdaySummary.inTimeUtcEpochMs != null && yesterdaySummary.outTimeUtcEpochMs == null &&
+                ShiftEvaluator.isSessionExpired(yesterdaySummary.shiftType, localDate.minusDays(1), currentDateTime)) {
+                punchRepository.resolvePastMissedPunches(userId, todayStr)
+            }
+
+            punchRepository.observeDaySummary(userId, targetDateStr).collectLatest { summary ->
+                updateStateFromDaySummary(summary, zoneId, currentDateTime)
             }
         }
     }
 
     /**
-     * Applies the Home State Machine business rules:
-     * 1. No punch today: Punch In ENABLED, Punch Out DISABLED.
-     * 2. After Punch In: Punch In BLOCKED (with time), Punch Out ENABLED.
-     * 3. After Punch Out: Both BLOCKED (with times).
-     * 4. Reset at midnight for the new day.
+     * Applies the Home State Machine business rules with shift awareness:
+     * 1. No punch for shift: Punch In ENABLED, Punch Out DISABLED.
+     * 2. Active Shift: Punch In BLOCKED (with time), Punch Out ENABLED until shift cutoff.
+     * 3. Completed Shift: Both BLOCKED.
+     * 4. Expired Cutoff: Marked MISSED_PUNCH and reset.
      */
-    private fun updateStateFromDaySummary(summary: DaySummary?, zoneId: ZoneId) {
+    private fun updateStateFromDaySummary(summary: DaySummary?, zoneId: ZoneId, currentDateTime: LocalDateTime) {
+        currentDaySummary = summary
+
+        val shift = summary?.shiftType ?: ShiftEvaluator.determineShift(currentDateTime).first
+        val shiftDisplayName = ShiftEvaluator.getShiftDisplayName(shift)
+
+        // Check if active session cutoff has expired
+        val isExpired = if (summary != null && summary.inTimeUtcEpochMs != null && summary.outTimeUtcEpochMs == null) {
+            val workDate = runCatching { LocalDate.parse(summary.dateLocal) }.getOrDefault(currentDateTime.toLocalDate())
+            ShiftEvaluator.isSessionExpired(summary.shiftType, workDate, currentDateTime)
+        } else false
+
+        val hasIn = summary?.inTimeUtcEpochMs != null && !isExpired
+        val hasOut = summary?.outTimeUtcEpochMs != null || (summary != null && isExpired)
+
         val inTimeFormatted = summary?.inTimeUtcEpochMs?.let { epochMs ->
             Instant.ofEpochMilli(epochMs).atZone(zoneId).format(punchTimeFormatter)
         }
@@ -296,16 +376,17 @@ class HomeViewModel @Inject constructor(
             Instant.ofEpochMilli(epochMs).atZone(zoneId).format(punchTimeFormatter)
         }
 
-        val hasIn = summary?.inTimeUtcEpochMs != null
-        val hasOut = summary?.outTimeUtcEpochMs != null
-
         val isPunchInEnabled = !hasIn
         val isPunchInBlocked = hasIn
         val punchInButtonText = if (hasIn) "Punched In at $inTimeFormatted" else "Punch In"
 
         val isPunchOutEnabled = hasIn && !hasOut
-        val isPunchOutBlocked = hasOut
-        val punchOutButtonText = if (hasOut) "Punched Out at $outTimeFormatted" else "Punch Out"
+        val isPunchOutBlocked = hasOut || !hasIn
+        val punchOutButtonText = if (hasOut) {
+            if (isExpired && summary?.outTimeUtcEpochMs == null) "Shift Expired (Missed)" else "Punched Out at $outTimeFormatted"
+        } else "Punch Out"
+
+        val isNewLocationDay = summary?.locationType == "NEW_LOCATION"
 
         _uiState.update { current ->
             current.copy(
@@ -316,7 +397,9 @@ class HomeViewModel @Inject constructor(
                 punchInButtonText = punchInButtonText,
                 isPunchOutEnabled = isPunchOutEnabled,
                 isPunchOutBlocked = isPunchOutBlocked,
-                punchOutButtonText = punchOutButtonText
+                punchOutButtonText = punchOutButtonText,
+                isNewLocationDay = isNewLocationDay,
+                shiftDisplayName = shiftDisplayName
             )
         }
     }
@@ -351,12 +434,201 @@ class HomeViewModel @Inject constructor(
     }
 
     /**
+     * User initiated Punch In at a dynamic / on-site location.
+     * Records current coordinates without requiring office geofence.
+     */
+    fun onPunchInNewLocationClicked() {
+        if (!_uiState.value.isPunchInEnabled) return
+        viewModelScope.launch {
+            _uiState.update { it.copy(isCheckingGeofence = true) }
+
+            val locationStatus = locationMonitor.freshFixOrRefresh(
+                maxAgeMs = 90_000L,
+                maxAccuracyMeters = 50f
+            )
+
+            _uiState.update { it.copy(isCheckingGeofence = false) }
+
+            when (locationStatus) {
+                is LocationStatus.Fix -> {
+                    val userId = tokenStorage.getUserId() ?: ""
+                    val todayDateLocal = trustedTimeProvider.getOfficeLocalDate().toString()
+                    if (userId.isNotBlank()) {
+                        punchRepository.resolvePastMissedPunches(userId, todayDateLocal)
+                    }
+
+                    _navigationEvents.send(
+                        HomeNavigationEvent.NavigateToPunchCapture(
+                            punchType = PunchType.IN,
+                            latitude = locationStatus.latitude,
+                            longitude = locationStatus.longitude,
+                            distanceMeters = 0f,
+                            locationType = "NEW_LOCATION"
+                        )
+                    )
+                }
+                is LocationStatus.MockLocationDetected -> {
+                    _uiState.update { it.copy(geofenceDialogState = GeofenceDialogState.MockLocationDetected) }
+                }
+                is LocationStatus.PermissionDenied -> {
+                    _uiState.update { it.copy(geofenceDialogState = GeofenceDialogState.PermissionRequired) }
+                }
+                is LocationStatus.ServicesDisabled -> {
+                    _uiState.update { it.copy(geofenceDialogState = GeofenceDialogState.LocationServicesDisabled) }
+                }
+                is LocationStatus.Unavailable -> {
+                    _uiState.update { it.copy(geofenceDialogState = GeofenceDialogState.LocationUnavailable(locationStatus.reason)) }
+                }
+                is LocationStatus.Idle,
+                is LocationStatus.Locating -> {
+                    _uiState.update {
+                        it.copy(geofenceDialogState = GeofenceDialogState.LocationUnavailable("Location acquisition in progress. Please try again in a moment."))
+                    }
+                }
+            }
+        }
+    }
+
+    /**
      * User initiated Punch Out.
-     * Checks Geofence (100m) against office coordinates before proceeding to Camera capture.
+     * If user punched in at a NEW_LOCATION, punch-out is strictly locked to those anchor coordinates within 100m.
+     * Otherwise, checks geofence against assigned office coordinates.
      */
     fun onPunchOutClicked() {
         if (!_uiState.value.isPunchOutEnabled) return
-        verifyGeofenceAndProceed(PunchType.OUT)
+        viewModelScope.launch {
+            val userId = tokenStorage.getUserId() ?: ""
+            val todayDateLocal = trustedTimeProvider.getOfficeLocalDate().toString()
+            val activeSummary = currentDaySummary ?: punchRepository.getDaySummary(userId, todayDateLocal)
+
+            if (activeSummary?.locationType == "NEW_LOCATION") {
+                val anchorLat = activeSummary.anchorLat
+                val anchorLng = activeSummary.anchorLng
+                if (anchorLat != null && anchorLng != null && (anchorLat != 0.0 || anchorLng != 0.0)) {
+                    verifyNewLocationPunchOut(anchorLat, anchorLng)
+                } else {
+                    // Auto-heal corrupted (0.0, 0.0) anchor from previous navigation bug
+                    healAndPunchOutNewLocation(activeSummary)
+                }
+            } else {
+                verifyGeofenceAndProceed(PunchType.OUT)
+            }
+        }
+    }
+
+    private suspend fun healAndPunchOutNewLocation(todaySummary: DaySummary) {
+        _uiState.update { it.copy(isCheckingGeofence = true) }
+
+        val locationStatus = locationMonitor.freshFixOrRefresh(
+            maxAgeMs = 90_000L,
+            maxAccuracyMeters = 50f
+        )
+
+        _uiState.update { it.copy(isCheckingGeofence = false) }
+
+        when (locationStatus) {
+            is LocationStatus.Fix -> {
+                // Heal day summary anchor coordinates in Room to current fix
+                val healedSummary = todaySummary.copy(
+                    anchorLat = locationStatus.latitude,
+                    anchorLng = locationStatus.longitude
+                )
+                punchRepository.upsertDaySummaries(listOf(healedSummary))
+
+                _navigationEvents.send(
+                    HomeNavigationEvent.NavigateToPunchCapture(
+                        punchType = PunchType.OUT,
+                        latitude = locationStatus.latitude,
+                        longitude = locationStatus.longitude,
+                        distanceMeters = 0f,
+                        locationType = "NEW_LOCATION"
+                    )
+                )
+            }
+            is LocationStatus.MockLocationDetected -> {
+                _uiState.update { it.copy(geofenceDialogState = GeofenceDialogState.MockLocationDetected) }
+            }
+            is LocationStatus.PermissionDenied -> {
+                _uiState.update { it.copy(geofenceDialogState = GeofenceDialogState.PermissionRequired) }
+            }
+            is LocationStatus.ServicesDisabled -> {
+                _uiState.update { it.copy(geofenceDialogState = GeofenceDialogState.LocationServicesDisabled) }
+            }
+            is LocationStatus.Unavailable -> {
+                _uiState.update { it.copy(geofenceDialogState = GeofenceDialogState.LocationUnavailable(locationStatus.reason)) }
+            }
+            is LocationStatus.Idle,
+            is LocationStatus.Locating -> {
+                _uiState.update {
+                    it.copy(geofenceDialogState = GeofenceDialogState.LocationUnavailable("Location acquisition in progress. Please try again in a moment."))
+                }
+            }
+        }
+    }
+
+    private suspend fun verifyNewLocationPunchOut(anchorLat: Double, anchorLng: Double) {
+        _uiState.update { it.copy(isCheckingGeofence = true) }
+
+        val locationStatus = locationMonitor.freshFixOrRefresh(
+            maxAgeMs = 90_000L,
+            maxAccuracyMeters = 50f
+        )
+
+        _uiState.update { it.copy(isCheckingGeofence = false) }
+
+        when (locationStatus) {
+            is LocationStatus.Fix -> {
+                val distance = locationChecker.calculateDistanceMeters(
+                    locationStatus.latitude,
+                    locationStatus.longitude,
+                    anchorLat,
+                    anchorLng
+                )
+                if (distance <= 100f) {
+                    _navigationEvents.send(
+                        HomeNavigationEvent.NavigateToPunchCapture(
+                            punchType = PunchType.OUT,
+                            latitude = locationStatus.latitude,
+                            longitude = locationStatus.longitude,
+                            distanceMeters = distance,
+                            locationType = "NEW_LOCATION"
+                        )
+                    )
+                } else {
+                    _uiState.update {
+                        it.copy(
+                            geofenceDialogState = GeofenceDialogState.OutsideRadius(
+                                distanceMeters = distance,
+                                allowedRadiusMeters = 100,
+                                userLat = locationStatus.latitude,
+                                userLng = locationStatus.longitude,
+                                officeLat = anchorLat,
+                                officeLng = anchorLng,
+                                locationType = "NEW_LOCATION"
+                            )
+                        )
+                    }
+                }
+            }
+            is LocationStatus.MockLocationDetected -> {
+                _uiState.update { it.copy(geofenceDialogState = GeofenceDialogState.MockLocationDetected) }
+            }
+            is LocationStatus.PermissionDenied -> {
+                _uiState.update { it.copy(geofenceDialogState = GeofenceDialogState.PermissionRequired) }
+            }
+            is LocationStatus.ServicesDisabled -> {
+                _uiState.update { it.copy(geofenceDialogState = GeofenceDialogState.LocationServicesDisabled) }
+            }
+            is LocationStatus.Unavailable -> {
+                _uiState.update { it.copy(geofenceDialogState = GeofenceDialogState.LocationUnavailable(locationStatus.reason)) }
+            }
+            is LocationStatus.Idle,
+            is LocationStatus.Locating -> {
+                _uiState.update {
+                    it.copy(geofenceDialogState = GeofenceDialogState.LocationUnavailable("Location acquisition in progress. Please try again in a moment."))
+                }
+            }
+        }
     }
 
     private fun verifyGeofenceAndProceed(punchType: PunchType) {

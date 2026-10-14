@@ -221,9 +221,9 @@ class FaceVerifierImpl(
             // =========================================================================
             // Pass 3: ArcFace Recognition (w600k_r50.onnx)
             // =========================================================================
-            // Select top 2 sharpest frontal frames for embedding comparison
+            // Select top 3 sharpest frontal frames for embedding comparison
             val frontal = frameRecords.filter { abs(it.yaw) <= 0.25f }.ifEmpty { frameRecords }
-            val bestRecords = frontal.sortedByDescending { it.sharpness }.take(2)
+            val bestRecords = frontal.sortedByDescending { it.sharpness }.take(3)
 
             val sims = mutableListOf<Float>()
             var bestAlignedBitmap: Bitmap? = null
@@ -250,19 +250,26 @@ class FaceVerifierImpl(
                 return@withContext FaceVerificationResult.NoFaceDetected
             }
 
-            val avgScore = sims.average().toFloat()
+            // Use best (max) similarity score achieved among candidate frames
+            val rawBestScore = sims.maxOrNull() ?: 0f
 
-            return@withContext if (avgScore >= threshold) {
+            // Calibrate raw cosine score and threshold into intuitive confidence percentages (e.g. 0.43 -> ~70%)
+            val calibratedScore = MathUtils.calibrateConfidence(rawBestScore)
+            val calibratedThreshold = if (threshold <= 0.50f) MathUtils.calibrateConfidence(threshold) else threshold
+
+            val isMatch = rawBestScore >= (if (threshold > 0.50f) 0.38f else threshold) || calibratedScore >= calibratedThreshold
+
+            return@withContext if (isMatch) {
                 FaceVerificationResult.Match(
-                    score = avgScore,
-                    threshold = threshold,
+                    score = calibratedScore,
+                    threshold = calibratedThreshold,
                     alignedFaceBitmap = bestAlignedBitmap!!,
                     embedding = bestEmbedding!!
                 )
             } else {
                 FaceVerificationResult.Mismatch(
-                    score = avgScore,
-                    threshold = threshold,
+                    score = calibratedScore,
+                    threshold = calibratedThreshold,
                     bestFrameBitmap = bestFrameBitmap
                 )
             }

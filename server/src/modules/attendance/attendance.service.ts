@@ -11,6 +11,7 @@ import {
   AttendancePunchEntity,
   PunchType,
   TimeSource,
+  LocationType,
 } from '../../database/entities/attendance-punch.entity';
 import {
   AttendanceDayEntity,
@@ -143,12 +144,19 @@ export class AttendanceService {
         imagePath = `/uploads/punches/${filename}`;
       }
 
+      const rawLocType = (item.location_type || (item as any).locationType || '').toString().trim().toUpperCase();
+      const resolvedLocType = rawLocType === 'NEW_LOCATION' ? LocationType.NEW_LOCATION : LocationType.OFFICE;
+      const rawShiftType = (item.shift_type || (item as any).shiftType || 'GENERAL').toString().trim().toUpperCase();
+      const resolvedShiftType = ['GENERAL', 'EVENING', 'NIGHT'].includes(rawShiftType) ? rawShiftType : 'GENERAL';
+
       // Persist punch
       const punchEntity = this.punchRepository.create({
         punchUuid: item.punch_uuid,
         userId: userId,
         dateLocal: item.date_local,
         type: item.type as PunchType,
+        locationType: resolvedLocType,
+        shiftType: resolvedShiftType,
         punchTimeUtc: new Date(item.punch_time_utc),
         timeSource: (item.time_source as TimeSource) || TimeSource.NTP,
         timeUnverified: Boolean(item.time_unverified),
@@ -204,12 +212,36 @@ export class AttendanceService {
 
     const firstIn = inPunches.length > 0 ? inPunches[0].punchTimeUtc : null;
     const lastOut = outPunches.length > 0 ? outPunches[outPunches.length - 1].punchTimeUtc : null;
+    const shiftType = inPunches.length > 0 && inPunches[0].shiftType ? inPunches[0].shiftType : 'GENERAL';
+
+    // Calculate cutoff in IST
+    const [year, month, day] = dateLocal.split('-').map(Number);
+    const nextDayDate = new Date(Date.UTC(year, month - 1, day + 1));
+    let cutoffHourIst = 3; // General: 03:00 AM next day
+    if (shiftType === 'EVENING') cutoffHourIst = 6; // Evening: 06:00 AM next day
+    if (shiftType === 'NIGHT') cutoffHourIst = 12; // Night: 12:00 PM noon next day
+
+    // Cutoff in UTC: IST is UTC + 5:30 -> UTC = IST - 5:30
+    const cutoffUtcMs = Date.UTC(
+      nextDayDate.getUTCFullYear(),
+      nextDayDate.getUTCMonth(),
+      nextDayDate.getUTCDate(),
+      cutoffHourIst,
+      0,
+      0
+    ) - (5.5 * 3600 * 1000);
+
+    const nowUtcMs = Date.now();
 
     let status = AttendanceDayStatus.NO_RECORD;
     if (firstIn && lastOut) {
       status = AttendanceDayStatus.COMPLETE;
     } else if (firstIn || lastOut) {
-      status = AttendanceDayStatus.MISSED_PUNCH;
+      if (nowUtcMs > cutoffUtcMs) {
+        status = AttendanceDayStatus.MISSED_PUNCH;
+      } else {
+        status = AttendanceDayStatus.NO_RECORD; // still active
+      }
     }
 
     const timeUnverified = punches.some((p) => p.timeUnverified);
@@ -226,12 +258,14 @@ export class AttendanceService {
         outTime: lastOut,
         status,
         timeUnverified,
+        shiftType,
       });
     } else {
       dayRecord.inTime = firstIn;
       dayRecord.outTime = lastOut;
       dayRecord.status = status;
       dayRecord.timeUnverified = timeUnverified;
+      dayRecord.shiftType = shiftType;
     }
 
     await this.dayRepository.save(dayRecord);
@@ -272,6 +306,7 @@ export class AttendanceService {
       user_id: p.userId,
       date_local: p.dateLocal,
       type: p.type,
+      location_type: p.locationType || LocationType.OFFICE,
       punch_time_utc: p.punchTimeUtc instanceof Date ? p.punchTimeUtc.toISOString() : new Date(p.punchTimeUtc).toISOString(),
       time_source: p.timeSource,
       time_unverified: p.timeUnverified,

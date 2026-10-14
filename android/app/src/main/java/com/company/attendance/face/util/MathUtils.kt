@@ -383,4 +383,23 @@ object MathUtils {
         val weight = rank - lower
         return (1 - weight) * sorted[lower] + weight * sorted[upper]
     }
+
+    /**
+     * Calibrates raw 512-d ArcFace cosine similarity to an intuitive confidence percentage (0.0..1.0).
+     *
+     * Cosine similarity in ArcFace:
+     * - Strangers / Impostors: 0.00..0.20 -> 0%..25%
+     * - Ambiguous / Poor frame: 0.20..0.38 -> 25%..60%
+     * - Typical genuine match (glasses, angle): 0.38..0.50 -> 60%..82% (e.g. 0.43 -> ~70%)
+     * - High confidence: 0.50..1.00 -> 82%..100%
+     */
+    fun calibrateConfidence(rawCosine: Float): Float {
+        val s = rawCosine.coerceIn(0f, 1f)
+        return when {
+            s <= 0.20f -> (s / 0.20f) * 0.25f
+            s <= 0.38f -> 0.25f + ((s - 0.20f) / 0.18f) * 0.35f
+            s <= 0.50f -> 0.60f + ((s - 0.38f) / 0.12f) * 0.22f
+            else -> 0.82f + ((s - 0.50f) / 0.50f).coerceAtMost(1f) * 0.18f
+        }
+    }
 }

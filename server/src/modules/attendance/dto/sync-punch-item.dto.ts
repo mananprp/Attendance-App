@@ -9,9 +9,18 @@ import {
   IsUUID,
   Matches,
 } from 'class-validator';
-import { PunchType, TimeSource } from '../../../database/entities/attendance-punch.entity';
+import { PunchType, TimeSource, LocationType } from '../../../database/entities/attendance-punch.entity';
 
 export class SyncPunchItemDto {
+  @ApiProperty({ example: 'OFFICE', enum: ['OFFICE', 'NEW_LOCATION'], required: false })
+  @IsEnum(LocationType)
+  @IsOptional()
+  location_type?: LocationType;
+
+  @ApiProperty({ example: 'GENERAL', enum: ['GENERAL', 'EVENING', 'NIGHT'], required: false })
+  @IsString()
+  @IsOptional()
+  shift_type?: string;
   @ApiProperty({ example: '550e8400-e29b-41d4-a716-446655440000' })
   @IsUUID()
   @IsNotEmpty()

@@ -79,4 +79,9 @@ interface LocationChecker {
         lat2: Double,
         lon2: Double
     ): Float
+
+    /**
+     * Obtains the current device latitude and longitude coordinates, or null if unavailable.
+     */
+    suspend fun getCurrentCoordinates(): Pair<Double, Double>? = null
 }

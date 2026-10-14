@@ -47,6 +47,12 @@ data class AppConfig(
     val lastFetchedAt: Long = System.currentTimeMillis()
 )
 
+enum class ShiftType {
+    GENERAL, // 09:00 - 18:00 (cutoff 03:00 AM next day)
+    EVENING, // 14:00 - 23:00 (cutoff 06:00 AM next day)
+    NIGHT    // 21:00 - 06:00 (+1 day) (cutoff 12:00 PM next day)
+}
+
 data class Punch(
     val punchUuid: String,
     val userId: String,
@@ -62,7 +68,9 @@ data class Punch(
     val imagePath: String?,
     val syncStatus: SyncStatus = SyncStatus.PENDING,
     val syncAttempts: Int = 0,
-    val createdAtEpochMs: Long = System.currentTimeMillis()
+    val createdAtEpochMs: Long = System.currentTimeMillis(),
+    val locationType: String = "OFFICE", // OFFICE, NEW_LOCATION
+    val shiftType: ShiftType = ShiftType.GENERAL
 )
 
 data class DaySummary(
@@ -71,7 +79,11 @@ data class DaySummary(
     val inTimeUtcEpochMs: Long?,
     val outTimeUtcEpochMs: Long?,
     val status: DayStatus,
-    val timeUnverified: Boolean = false
+    val timeUnverified: Boolean = false,
+    val anchorLat: Double? = null,
+    val anchorLng: Double? = null,
+    val locationType: String = "OFFICE", // OFFICE, NEW_LOCATION
+    val shiftType: ShiftType = ShiftType.GENERAL
 )
 
 data class TrustedTime(

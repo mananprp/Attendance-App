@@ -117,6 +117,12 @@ object CalendarDateUtils {
         for (dayNumber in 1..currentMonthLength) {
             val date = yearMonth.atDay(dayNumber)
             val summary = summariesMap[date.toString()]
+            val rawStatus = summary?.status ?: DayStatus.NO_RECORD
+            val effectiveStatus = if (date == today && rawStatus == DayStatus.MISSED_PUNCH) {
+                DayStatus.NO_RECORD
+            } else {
+                rawStatus
+            }
             days.add(
                 CalendarDayUiModel(
                     date = date,
@@ -124,7 +130,7 @@ object CalendarDateUtils {
                     isCurrentMonth = true,
                     isToday = (date == today),
                     isSelected = (date == selectedDate),
-                    status = summary?.status ?: DayStatus.NO_RECORD,
+                    status = effectiveStatus,
                     summary = summary
                 )
             )

@@ -2,9 +2,11 @@ package com.company.attendance.feature.admin
 
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
+import com.company.attendance.core.interfaces.LocationChecker
 import com.company.attendance.core.network.AttendanceApiService
 import com.company.attendance.core.network.NetworkHelper
 import com.company.attendance.core.network.model.AdminUserDto
+import com.company.attendance.core.network.model.CreateSiteRequestDto
 import com.company.attendance.core.network.model.CreateUserRequestDto
 import com.company.attendance.core.network.model.UpdateUserSiteRequestDto
 import dagger.hilt.android.lifecycle.HiltViewModel
@@ -17,7 +19,8 @@ import javax.inject.Inject
 
 @HiltViewModel
 class AdminViewModel @Inject constructor(
-    private val apiService: AttendanceApiService
+    private val apiService: AttendanceApiService,
+    private val locationChecker: LocationChecker
 ) : ViewModel() {
 
     private val _uiState = MutableStateFlow(AdminUiState())
@@ -74,6 +77,91 @@ class AdminViewModel @Inject constructor(
 
     fun closeCreateUserDialog() {
         _uiState.update { it.copy(isCreateUserDialogOpen = false, targetSiteForNewUser = null) }
+    }
+
+    fun openCreateSiteDialog() {
+        _uiState.update {
+            it.copy(
+                isCreateSiteDialogOpen = true,
+                errorMessage = null,
+                successMessage = null
+            )
+        }
+    }
+
+    fun closeCreateSiteDialog() {
+        _uiState.update { it.copy(isCreateSiteDialogOpen = false) }
+    }
+
+    fun fetchCurrentLocation(onLocationFetched: (Double, Double) -> Unit) {
+        viewModelScope.launch {
+            try {
+                val coords = locationChecker.getCurrentCoordinates()
+                if (coords != null) {
+                    onLocationFetched(coords.first, coords.second)
+                } else {
+                    _uiState.update {
+                        it.copy(errorMessage = "Could not fetch GPS coordinates. Please ensure GPS is enabled or enter manually.")
+                    }
+                }
+            } catch (e: Exception) {
+                _uiState.update {
+                    it.copy(errorMessage = "Failed to get location: ${e.message}")
+                }
+            }
+        }
+    }
+
+    fun createSite(
+        officeId: String,
+        name: String,
+        latitude: Double,
+        longitude: Double,
+        radiusM: Int = 100
+    ) {
+        val trimmedId = officeId.trim().uppercase()
+        val trimmedName = name.trim()
+
+        if (trimmedId.isBlank() || trimmedName.isBlank()) {
+            _uiState.update { it.copy(errorMessage = "Please enter site name and site code.") }
+            return
+        }
+
+        viewModelScope.launch {
+            _uiState.update { it.copy(isActionLoading = true, errorMessage = null) }
+            try {
+                val request = CreateSiteRequestDto(
+                    officeId = trimmedId,
+                    name = trimmedName,
+                    latitude = latitude,
+                    longitude = longitude,
+                    radiusM = radiusM,
+                    timezone = "Asia/Kolkata",
+                    matchThreshold = 0.46f
+                )
+                val response = apiService.createAdminSite(request)
+                val result = NetworkHelper.parseResponse(response)
+
+                result.onSuccess { createdSite ->
+                    _uiState.update { current ->
+                        current.copy(
+                            isActionLoading = false,
+                            isCreateSiteDialogOpen = false,
+                            sites = current.sites + createdSite,
+                            successMessage = "Site '${createdSite.name}' ($trimmedId) created successfully!"
+                        )
+                    }
+                }.onFailure { err ->
+                    _uiState.update {
+                        it.copy(isActionLoading = false, errorMessage = err.message ?: "Failed to create site.")
+                    }
+                }
+            } catch (e: Exception) {
+                _uiState.update {
+                    it.copy(isActionLoading = false, errorMessage = e.message ?: "Failed to create site.")
+                }
+            }
+        }
     }
 
     fun openSiteChangeDialog(user: AdminUserDto) {

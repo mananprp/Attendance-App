@@ -65,6 +65,17 @@ data class CreateUserRequestDto(
 )
 
 @Serializable
+data class CreateSiteRequestDto(
+    @SerialName("office_id") val officeId: String,
+    @SerialName("name") val name: String,
+    @SerialName("latitude") val latitude: Double,
+    @SerialName("longitude") val longitude: Double,
+    @SerialName("radius_m") val radiusM: Int = 100,
+    @SerialName("timezone") val timezone: String = "Asia/Kolkata",
+    @SerialName("match_threshold") val matchThreshold: Float = 0.38f
+)
+
+@Serializable
 data class UpdateUserSiteRequestDto(
     @SerialName("site_code") val siteCode: String
 )
@@ -113,7 +124,9 @@ data class SyncPunchItemDto(
     @SerialName("longitude") val longitude: Double,
     @SerialName("distance_m") val distanceM: Float,
     @SerialName("match_score") val matchScore: Float,
-    @SerialName("image_file_name") val imageFileName: String? = null
+    @SerialName("image_file_name") val imageFileName: String? = null,
+    @SerialName("location_type") val locationType: String = "OFFICE",
+    @SerialName("shift_type") val shiftType: String = "GENERAL"
 )
 
 @Serializable
@@ -136,7 +149,8 @@ data class DaySummaryDto(
     @SerialName("in_time") val inTime: String? = null,
     @SerialName("out_time") val outTime: String? = null,
     @SerialName("status") val status: String, // COMPLETE, MISSED_PUNCH, NO_RECORD
-    @SerialName("time_unverified") val timeUnverified: Boolean = false
+    @SerialName("time_unverified") val timeUnverified: Boolean = false,
+    @SerialName("shift_type") val shiftType: String = "GENERAL"
 )
 
 @Serializable

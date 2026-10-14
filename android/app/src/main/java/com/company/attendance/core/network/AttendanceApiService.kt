@@ -11,6 +11,7 @@ import com.company.attendance.core.network.model.SyncBatchResponseDto
 import com.company.attendance.core.network.model.AdminSiteDto
 import com.company.attendance.core.network.model.AdminUserDto
 import com.company.attendance.core.network.model.CreateUserRequestDto
+import com.company.attendance.core.network.model.CreateSiteRequestDto
 import com.company.attendance.core.network.model.UpdateUserSiteRequestDto
 import com.company.attendance.core.network.model.UpdateUserRoleRequestDto
 import okhttp3.MultipartBody
@@ -68,6 +69,11 @@ interface AttendanceApiService {
     // Admin endpoints
     @GET("admin/sites")
     suspend fun getAdminSites(): Response<List<AdminSiteDto>>
+
+    @POST("admin/sites")
+    suspend fun createAdminSite(
+        @Body request: CreateSiteRequestDto
+    ): Response<AdminSiteDto>
 
     @GET("admin/users")
     suspend fun getAdminUsers(): Response<List<AdminUserDto>>

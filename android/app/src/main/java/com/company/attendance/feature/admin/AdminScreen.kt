@@ -21,14 +21,19 @@ import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
+import androidx.compose.foundation.layout.PaddingValues
+import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.Business
 import androidx.compose.material.icons.filled.Check
 import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.Person
+import androidx.compose.material.icons.filled.Place
 import androidx.compose.material.icons.filled.Refresh
 import androidx.compose.material.icons.outlined.ChevronRight
+import androidx.compose.material3.Button
+import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.FloatingActionButton
 import androidx.compose.material3.Icon
@@ -47,9 +52,11 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.text.input.PasswordVisualTransformation
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.window.Dialog
+import java.util.Locale
 import androidx.hilt.navigation.compose.hiltViewModel
 import com.company.attendance.core.network.model.AdminSiteDto
 import com.company.attendance.core.network.model.AdminUserDto
@@ -219,7 +226,8 @@ fun AdminScreen(
                     SitesMenuView(
                         sites = uiState.sites,
                         users = uiState.users,
-                        onSiteSelected = { site -> selectedSite = site }
+                        onSiteSelected = { site -> selectedSite = site },
+                        onAddSiteClick = viewModel::openCreateSiteDialog
                     )
                 } else {
                     // SITE EMPLOYEES VIEW
@@ -231,6 +239,20 @@ fun AdminScreen(
                 }
             }
         }
+    }
+
+    // Create Site Dialog
+    if (uiState.isCreateSiteDialogOpen) {
+        CreateSiteDialog(
+            isLoading = uiState.isActionLoading,
+            onDismiss = viewModel::closeCreateSiteDialog,
+            onFetchLocation = { onCoords ->
+                viewModel.fetchCurrentLocation(onCoords)
+            },
+            onConfirm = { officeId, name, lat, lng, radiusM ->
+                viewModel.createSite(officeId, name, lat, lng, radiusM)
+            }
+        )
     }
 
     // Create User Dialog
@@ -268,7 +290,8 @@ fun AdminScreen(
 private fun SitesMenuView(
     sites: List<AdminSiteDto>,
     users: List<AdminUserDto>,
-    onSiteSelected: (AdminSiteDto) -> Unit
+    onSiteSelected: (AdminSiteDto) -> Unit,
+    onAddSiteClick: () -> Unit
 ) {
     Column(modifier = Modifier.fillMaxSize()) {
         Row(
@@ -276,16 +299,33 @@ private fun SitesMenuView(
             horizontalArrangement = Arrangement.SpaceBetween,
             verticalAlignment = Alignment.CenterVertically
         ) {
-            Text(
-                text = "Sites & Locations (${sites.size})",
-                style = AppTypographyTokens.SectionHeading,
-                color = AppPrimaryText
-            )
-            Text(
-                text = "Total Users: ${users.size}",
-                style = AppTypographyTokens.CaptionMedium,
-                color = AppSecondaryText
-            )
+            Column {
+                Text(
+                    text = "Sites & Locations (${sites.size})",
+                    style = AppTypographyTokens.SectionHeading,
+                    color = AppPrimaryText
+                )
+                Text(
+                    text = "Total Users: ${users.size}",
+                    style = AppTypographyTokens.CaptionMedium,
+                    color = AppSecondaryText
+                )
+            }
+            Button(
+                onClick = onAddSiteClick,
+                colors = ButtonDefaults.buttonColors(containerColor = AppAccent),
+                contentPadding = PaddingValues(horizontal = 12.dp, vertical = 6.dp),
+                shape = RoundedCornerShape(8.dp)
+            ) {
+                Icon(
+                    imageVector = Icons.Default.Add,
+                    contentDescription = null,
+                    modifier = Modifier.size(16.dp),
+                    tint = Color.White
+                )
+                Spacer(modifier = Modifier.width(4.dp))
+                Text("Add Site", style = AppTypographyTokens.CaptionMedium, color = Color.White)
+            }
         }
 
         Spacer(modifier = Modifier.height(AppDimensions.Spacing4))
@@ -305,11 +345,19 @@ private fun SitesMenuView(
                     .weight(1f),
                 contentAlignment = Alignment.Center
             ) {
-                Text(
-                    text = "No sites configured.",
-                    style = AppTypographyTokens.BodyMedium,
-                    color = AppSecondaryText
-                )
+                Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                    Text(
+                        text = "No sites configured.",
+                        style = AppTypographyTokens.BodyMedium,
+                        color = AppSecondaryText
+                    )
+                    Spacer(modifier = Modifier.height(AppDimensions.Spacing12))
+                    PrimaryButton(
+                        text = "Create First Site",
+                        onClick = onAddSiteClick,
+                        modifier = Modifier.width(200.dp)
+                    )
+                }
             }
         } else {
             LazyColumn(
@@ -931,6 +979,217 @@ private fun ChangeSiteDialog(
                     text = if (isLoading) "Updating..." else "Confirm Change",
                     onClick = { onConfirm(selectedSiteCode) },
                     enabled = !isLoading && selectedSiteCode != user.siteCode
+                )
+            }
+        }
+    }
+}
+
+/**
+ * Dialog to create a new office site directly from the app.
+ * - Enter Site Name (auto-suggests Site Code / Office ID, e.g. "SITE_NOIDA")
+ * - Site Code is editable
+ * - GPS Latitude and Longitude with one-tap "Use Current GPS" button
+ * - Geofence Radius (prefilled 100 meters)
+ * - Automatic global defaults (Threshold 0.46, Timezone Asia/Kolkata)
+ */
+@Composable
+private fun CreateSiteDialog(
+    isLoading: Boolean,
+    onDismiss: () -> Unit,
+    onFetchLocation: ((Double, Double) -> Unit) -> Unit,
+    onConfirm: (officeId: String, name: String, lat: Double, lng: Double, radiusM: Int) -> Unit
+) {
+    var name by remember { mutableStateOf("") }
+    var officeId by remember { mutableStateOf("") }
+    var isCodeManuallyEdited by remember { mutableStateOf(false) }
+    var latitudeText by remember { mutableStateOf("") }
+    var longitudeText by remember { mutableStateOf("") }
+    var radiusText by remember { mutableStateOf("100") }
+    var isFetchingGps by remember { mutableStateOf(false) }
+
+    Dialog(onDismissRequest = onDismiss) {
+        Surface(
+            shape = RoundedCornerShape(AppDimensions.CardCornerRadius),
+            color = AppSurface,
+            border = BorderStroke(1.dp, AppBorder),
+            modifier = Modifier.fillMaxWidth()
+        ) {
+            Column(
+                modifier = Modifier
+                    .padding(AppDimensions.Spacing20)
+                    .verticalScroll(rememberScrollState())
+            ) {
+                // Header
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Text(
+                        text = "Create Office Site",
+                        style = AppTypographyTokens.Title,
+                        color = AppPrimaryText
+                    )
+                    IconButton(onClick = onDismiss, modifier = Modifier.size(24.dp)) {
+                        Icon(Icons.Default.Close, contentDescription = "Close", tint = AppSecondaryText)
+                    }
+                }
+
+                Spacer(modifier = Modifier.height(AppDimensions.Spacing16))
+
+                // 1. Site Name
+                AttendanceTextField(
+                    value = name,
+                    onValueChange = { newName ->
+                        name = newName
+                        if (!isCodeManuallyEdited) {
+                            val slug = newName.trim().uppercase()
+                                .replace("[^A-Z0-9]+".toRegex(), "_")
+                                .trim('_')
+                            officeId = if (slug.isNotEmpty()) "SITE_$slug" else ""
+                        }
+                    },
+                    label = "Site Name *",
+                    placeholder = "e.g. Noida Branch"
+                )
+
+                Spacer(modifier = Modifier.height(AppDimensions.Spacing12))
+
+                // 2. Site Code / Office ID
+                AttendanceTextField(
+                    value = officeId,
+                    onValueChange = {
+                        officeId = it.uppercase()
+                        isCodeManuallyEdited = true
+                    },
+                    label = "Site Code / Office ID *",
+                    placeholder = "e.g. SITE_NOIDA"
+                )
+
+                Spacer(modifier = Modifier.height(AppDimensions.Spacing12))
+
+                // 3. Coordinates Section with GPS Fetch Button
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Text(
+                        text = "GPS Coordinates *",
+                        style = AppTypographyTokens.CaptionMedium.copy(fontWeight = FontWeight.SemiBold),
+                        color = AppPrimaryText
+                    )
+                    Surface(
+                        modifier = Modifier.clickable(enabled = !isFetchingGps) {
+                            isFetchingGps = true
+                            onFetchLocation { lat, lng ->
+                                latitudeText = "%.6f".format(Locale.US, lat)
+                                longitudeText = "%.6f".format(Locale.US, lng)
+                                isFetchingGps = false
+                            }
+                        },
+                        shape = RoundedCornerShape(AppDimensions.ChipCornerRadius),
+                        color = AppAccentTint,
+                        border = BorderStroke(1.dp, AppAccent)
+                    ) {
+                        Row(
+                            modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp),
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            Icon(
+                                imageVector = Icons.Default.Place,
+                                contentDescription = null,
+                                tint = AppAccent,
+                                modifier = Modifier.size(14.dp)
+                            )
+                            Spacer(modifier = Modifier.width(4.dp))
+                            Text(
+                                text = if (isFetchingGps) "Getting GPS..." else "Use Current GPS",
+                                style = AppTypographyTokens.CaptionMedium,
+                                color = AppAccent
+                            )
+                        }
+                    }
+                }
+
+                Spacer(modifier = Modifier.height(AppDimensions.Spacing8))
+
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.spacedBy(AppDimensions.Spacing8)
+                ) {
+                    AttendanceTextField(
+                        value = latitudeText,
+                        onValueChange = { latitudeText = it },
+                        label = "Latitude",
+                        placeholder = "28.535516",
+                        keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal),
+                        modifier = Modifier.weight(1f)
+                    )
+                    AttendanceTextField(
+                        value = longitudeText,
+                        onValueChange = { longitudeText = it },
+                        label = "Longitude",
+                        placeholder = "77.391026",
+                        keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal),
+                        modifier = Modifier.weight(1f)
+                    )
+                }
+
+                Spacer(modifier = Modifier.height(AppDimensions.Spacing12))
+
+                // 4. Geofence Radius
+                AttendanceTextField(
+                    value = radiusText,
+                    onValueChange = { radiusText = it.filter { ch -> ch.isDigit() } },
+                    label = "Geofence Radius (meters)",
+                    placeholder = "100",
+                    keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number)
+                )
+
+                Spacer(modifier = Modifier.height(AppDimensions.Spacing12))
+
+                // Policy Note card
+                Surface(
+                    modifier = Modifier.fillMaxWidth(),
+                    shape = RoundedCornerShape(AppDimensions.ChipCornerRadius),
+                    color = AppBackground,
+                    border = BorderStroke(1.dp, AppBorder)
+                ) {
+                    Column(modifier = Modifier.padding(10.dp)) {
+                        Text(
+                            text = "Config Policy:",
+                            style = AppTypographyTokens.CaptionMedium.copy(fontWeight = FontWeight.SemiBold),
+                            color = AppPrimaryText
+                        )
+                        Text(
+                            text = "• Face match threshold: 0.38 (Locked globally)\n• Timezone: Asia/Kolkata",
+                            style = AppTypographyTokens.Caption,
+                            color = AppSecondaryText
+                        )
+                    }
+                }
+
+                Spacer(modifier = Modifier.height(AppDimensions.Spacing20))
+
+                val parsedLat = latitudeText.toDoubleOrNull()
+                val parsedLng = longitudeText.toDoubleOrNull()
+                val parsedRadius = radiusText.toIntOrNull() ?: 100
+                val isFormValid = name.isNotBlank() &&
+                        officeId.isNotBlank() &&
+                        parsedLat != null &&
+                        parsedLng != null &&
+                        parsedRadius in 10..10000
+
+                PrimaryButton(
+                    text = if (isLoading) "Creating Site..." else "Create Site",
+                    onClick = {
+                        if (parsedLat != null && parsedLng != null) {
+                            onConfirm(officeId.trim(), name.trim(), parsedLat, parsedLng, parsedRadius)
+                        }
+                    },
+                    enabled = !isLoading && isFormValid
                 )
             }
         }

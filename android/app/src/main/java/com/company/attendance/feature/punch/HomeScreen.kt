@@ -87,7 +87,7 @@ import com.company.attendance.design.components.PermissionGuardDialog
  */
 @Composable
 fun HomeScreen(
-    onNavigateToPunchCapture: (PunchType) -> Unit,
+    onNavigateToPunchCapture: (PunchType, String, Double, Double, Float) -> Unit,
     onNavigateToProfile: () -> Unit,
     modifier: Modifier = Modifier,
     viewModel: HomeViewModel = hiltViewModel()
@@ -143,7 +143,13 @@ fun HomeScreen(
         viewModel.navigationEvents.collectLatest { event ->
             when (event) {
                 is HomeNavigationEvent.NavigateToPunchCapture -> {
-                    onNavigateToPunchCapture(event.punchType)
+                    onNavigateToPunchCapture(
+                        event.punchType,
+                        event.locationType,
+                        event.latitude,
+                        event.longitude,
+                        event.distanceMeters
+                    )
                 }
                 is HomeNavigationEvent.NavigateToProfile -> {
                     onNavigateToProfile()
@@ -263,6 +269,16 @@ fun HomeScreen(
                 Spacer(modifier = Modifier.height(AppDimensions.Spacing16))
 
                 // Today's Attendance Summary Card (Punch In / Punch Out times)
+                uiState.shiftDisplayName?.let { shiftName ->
+                    Text(
+                        text = "⏱️ $shiftName",
+                        style = AppTypographyTokens.Caption,
+                        color = AppSecondaryText,
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(bottom = 4.dp, start = 4.dp)
+                    )
+                }
                 TimeDisplayCard(
                     inTime = uiState.inTimeFormatted,
                     outTime = uiState.outTimeFormatted
@@ -275,7 +291,7 @@ fun HomeScreen(
                     modifier = Modifier.fillMaxWidth(),
                     verticalArrangement = Arrangement.spacedBy(AppDimensions.Spacing12)
                 ) {
-                    // Punch In Button
+                    // Punch In Buttons
                     if (uiState.isPunchInEnabled) {
                         PrimaryButton(
                             text = uiState.punchInButtonText,
@@ -283,6 +299,13 @@ fun HomeScreen(
                             isLoading = uiState.isCheckingGeofence,
                             enabled = !uiState.isCheckingGeofence,
                             leadingIcon = Icons.Outlined.LocationOn
+                        )
+                        SecondaryButton(
+                            text = "Punch In at New Location",
+                            onClick = { viewModel.onPunchInNewLocationClicked() },
+                            isLoading = uiState.isCheckingGeofence,
+                            enabled = !uiState.isCheckingGeofence,
+                            leadingIcon = Icons.Outlined.NearMe
                         )
                     } else {
                         SecondaryButton(
@@ -301,6 +324,17 @@ fun HomeScreen(
                             enabled = !uiState.isCheckingGeofence,
                             leadingIcon = Icons.Outlined.NearMe
                         )
+                        if (uiState.isNewLocationDay) {
+                            Text(
+                                text = "📍 Field visit: You must punch out within 100m of your check-in location.",
+                                style = AppTypographyTokens.Caption,
+                                color = AppWarning,
+                                textAlign = TextAlign.Center,
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .padding(horizontal = 8.dp)
+                            )
+                        }
                     } else {
                         SecondaryButton(
                             text = uiState.punchOutButtonText,
@@ -376,7 +410,7 @@ fun GeofenceErrorAlertDialog(
         title = {
             Text(
                 text = when (dialogState) {
-                    is GeofenceDialogState.OutsideRadius -> "Outside Office Radius"
+                    is GeofenceDialogState.OutsideRadius -> dialogState.dialogTitle
                     is GeofenceDialogState.PermissionRequired -> "Location Permission Required"
                     is GeofenceDialogState.LocationServicesDisabled -> "Location Services Disabled"
                     is GeofenceDialogState.MockLocationDetected -> "Mock Location Detected"
@@ -426,6 +460,19 @@ fun LocationStatusCard(
             AppSuccess.copy(alpha = 0.5f),
             AppSuccess
         )
+        is LocationCardState.FieldVisit -> if (state.isInside) {
+            Triple(
+                com.company.attendance.design.theme.AppSuccessTint,
+                AppSuccess.copy(alpha = 0.5f),
+                AppSuccess
+            )
+        } else {
+            Triple(
+                com.company.attendance.design.theme.AppWarningTint,
+                AppWarning.copy(alpha = 0.5f),
+                AppWarning
+            )
+        }
         is LocationCardState.Outside -> Triple(
             com.company.attendance.design.theme.AppWarningTint,
             AppWarning.copy(alpha = 0.5f),
@@ -476,6 +523,14 @@ fun LocationStatusCard(
                             modifier = Modifier.size(20.dp)
                         )
                     }
+                    is LocationCardState.FieldVisit -> {
+                        Icon(
+                            imageVector = if (state.isInside) Icons.Outlined.CheckCircle else Icons.Outlined.WarningAmber,
+                            contentDescription = "Field Visit",
+                            tint = iconColor,
+                            modifier = Modifier.size(20.dp)
+                        )
+                    }
                     is LocationCardState.Outside,
                     is LocationCardState.PermissionNeeded,
                     is LocationCardState.ServicesDisabled,
@@ -501,11 +556,15 @@ fun LocationStatusCard(
                     val (title, subtitle) = when (state) {
                         is LocationCardState.Locating -> Pair(
                             "Acquiring Location...",
-                            "Checking proximity to office"
+                            "Checking proximity"
                         )
                         is LocationCardState.InOffice -> Pair(
                             "In Office (${state.distanceMeters.toInt()}m)",
                             "Verified proximity • ${state.updatedAgoSeconds}s ago"
+                        )
+                        is LocationCardState.FieldVisit -> Pair(
+                            if (state.isInside) "At Field Site (${state.distanceMeters.toInt()}m)" else "Away from Field Site (${state.distanceMeters.toInt()}m)",
+                            if (state.isInside) "Within check-in radius (100m) • ${state.updatedAgoSeconds}s ago" else "Must return to check-in location to punch out"
                         )
                         is LocationCardState.Outside -> Pair(
                             "Outside Office (${state.distanceMeters.toInt()}m)",
@@ -513,7 +572,7 @@ fun LocationStatusCard(
                         )
                         is LocationCardState.PermissionNeeded -> Pair(
                             "Location Permission Needed",
-                            "Grant permission to verify office proximity"
+                            "Grant permission to verify proximity"
                         )
                         is LocationCardState.ServicesDisabled -> Pair(
                             "GPS Services Disabled",

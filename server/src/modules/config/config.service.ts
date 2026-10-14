@@ -45,7 +45,7 @@ export class ConfigService {
         timezone: config.timezone,
         sync_windows: config.syncWindows,
         sync_jitter_minutes: config.syncJitterMinutes,
-        match_threshold: 0.46,
+        match_threshold: Number(config.matchThreshold) || 0.38,
       };
     }
 
@@ -57,7 +57,7 @@ export class ConfigService {
       timezone: 'Asia/Kolkata',
       sync_windows: ['16:00', '00:00'],
       sync_jitter_minutes: 30,
-      match_threshold: 0.46,
+      match_threshold: 0.38,
     };
   }
 }

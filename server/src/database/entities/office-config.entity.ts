@@ -84,7 +84,7 @@ export class OfficeConfigEntity {
     type: 'decimal',
     precision: 5,
     scale: 4,
-    default: 0.46,
+    default: 0.38,
     transformer: {
       to: (value: number) => value,
       from: (value: string | number) => (value != null ? parseFloat(value as string) : value),

@@ -11,6 +11,7 @@ data class AdminUiState(
     val errorMessage: String? = null,
     val successMessage: String? = null,
     val isCreateUserDialogOpen: Boolean = false,
+    val isCreateSiteDialogOpen: Boolean = false,
     val targetSiteForNewUser: String? = null,
     val selectedUserForSiteChange: AdminUserDto? = null
 )

@@ -20,11 +20,32 @@ export enum TimeSource {
   DEVICE = 'DEVICE',
 }
 
+export enum LocationType {
+  OFFICE = 'OFFICE',
+  NEW_LOCATION = 'NEW_LOCATION',
+}
+
 @Entity({ name: 'attendance_punches' })
 @Index(['userId', 'dateLocal'])
 export class AttendancePunchEntity {
   @PrimaryColumn({ name: 'punch_uuid', type: 'varchar', length: 36 })
   punchUuid: string;
+
+  @Column({
+    name: 'location_type',
+    type: 'varchar',
+    length: 16,
+    default: LocationType.OFFICE,
+  })
+  locationType: LocationType;
+
+  @Column({
+    name: 'shift_type',
+    type: 'varchar',
+    length: 16,
+    default: 'GENERAL',
+  })
+  shiftType: string;
 
   @Column({ name: 'user_id', type: 'varchar', length: 64 })
   userId: string;

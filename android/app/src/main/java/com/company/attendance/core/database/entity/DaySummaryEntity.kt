@@ -28,5 +28,18 @@ data class DaySummaryEntity(
     val status: String = "NO_RECORD", // COMPLETE, MISSED_PUNCH, NO_RECORD
 
     @ColumnInfo(name = "time_unverified")
-    val timeUnverified: Boolean = false
+    val timeUnverified: Boolean = false,
+
+    @ColumnInfo(name = "anchor_lat")
+    val anchorLat: Double? = null,
+
+    @ColumnInfo(name = "anchor_lng")
+    val anchorLng: Double? = null,
+
+    @ColumnInfo(name = "location_type")
+    val locationType: String = "OFFICE", // OFFICE, NEW_LOCATION
+
+    @ColumnInfo(name = "shift_type")
+    val shiftType: String = "GENERAL" // GENERAL, EVENING, NIGHT
 )
+

@@ -57,5 +57,12 @@ data class PunchEntity(
     val syncAttempts: Int = 0,
 
     @ColumnInfo(name = "created_at")
-    val createdAt: Long = System.currentTimeMillis()
+    val createdAt: Long = System.currentTimeMillis(),
+
+    @ColumnInfo(name = "location_type")
+    val locationType: String = "OFFICE", // OFFICE, NEW_LOCATION
+
+    @ColumnInfo(name = "shift_type")
+    val shiftType: String = "GENERAL" // GENERAL, EVENING, NIGHT
 )
+

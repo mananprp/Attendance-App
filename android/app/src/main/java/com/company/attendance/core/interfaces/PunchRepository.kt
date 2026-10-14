@@ -49,7 +49,8 @@ interface PunchRepository {
         longitude: Double,
         distanceMeters: Float,
         matchScore: Float,
-        capturedImagePath: String?
+        capturedImagePath: String?,
+        locationType: String = "OFFICE"
     ): Result<Punch>
 
     /**

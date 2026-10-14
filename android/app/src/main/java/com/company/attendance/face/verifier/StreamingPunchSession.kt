@@ -178,9 +178,9 @@ class StreamingPunchSession(
                 }
             }
 
-            // 2. Extract ArcFace Embedding on top 2 sharpest frontal candidates
+            // 2. Extract ArcFace Embedding on top 3 sharpest frontal candidates
             val frontal = recognitionCandidates.filter { abs(it.yaw) <= 0.25f }.ifEmpty { recognitionCandidates }
-            val bestRecords = frontal.sortedByDescending { it.sharpness }.take(2)
+            val bestRecords = frontal.sortedByDescending { it.sharpness }.take(3)
 
             val sims = mutableListOf<Float>()
             var bestAlignedBitmap: Bitmap? = null
@@ -188,7 +188,7 @@ class StreamingPunchSession(
             var bestFrameBitmap: Bitmap? = null
 
             sessionManager.withSession(ModelType.RECOGNITION) { env, session ->
-                StageTimer.time("ArcFace Embedding (2 frames)") {
+                StageTimer.time("ArcFace Embedding (up to 3 frames)") {
                     for (candidate in bestRecords) {
                         val aligned = arcFaceEmbedder.alignFace(candidate.image, candidate.kps)
                         val embedding = arcFaceEmbedder.extractEmbedding(env, session, aligned)
@@ -208,20 +208,27 @@ class StreamingPunchSession(
                 return@withContext FaceVerificationResult.NoFaceDetected
             }
 
-            val avgScore = sims.average().toFloat()
-            StageTimer.log("Face verified in post-capture: Score = $avgScore, Threshold = $threshold")
+            // Use best (max) similarity score achieved among candidate frames
+            val rawBestScore = sims.maxOrNull() ?: 0f
 
-            if (avgScore >= threshold) {
+            // Calibrate raw cosine score and threshold into intuitive confidence percentages (e.g. 0.43 -> ~70%)
+            val calibratedScore = MathUtils.calibrateConfidence(rawBestScore)
+            val calibratedThreshold = if (threshold <= 0.50f) MathUtils.calibrateConfidence(threshold) else threshold
+
+            val isMatch = rawBestScore >= (if (threshold > 0.50f) 0.38f else threshold) || calibratedScore >= calibratedThreshold
+            StageTimer.log("Face verified in post-capture: RawScore = $rawBestScore, Calibrated = $calibratedScore, Req = $calibratedThreshold, Match = $isMatch")
+
+            if (isMatch) {
                 FaceVerificationResult.Match(
-                    score = avgScore,
-                    threshold = threshold,
+                    score = calibratedScore,
+                    threshold = calibratedThreshold,
                     alignedFaceBitmap = bestAlignedBitmap!!,
                     embedding = bestEmbedding!!
                 )
             } else {
                 FaceVerificationResult.Mismatch(
-                    score = avgScore,
-                    threshold = threshold,
+                    score = calibratedScore,
+                    threshold = calibratedThreshold,
                     bestFrameBitmap = bestFrameBitmap
                 )
             }

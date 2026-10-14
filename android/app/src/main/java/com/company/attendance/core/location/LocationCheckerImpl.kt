@@ -168,4 +168,9 @@ class LocationCheckerImpl @Inject constructor(
             location.isFromMockProvider
         }
     }
+
+    override suspend fun getCurrentCoordinates(): Pair<Double, Double>? {
+        val location = getCurrentLocation() ?: return null
+        return Pair(location.latitude, location.longitude)
+    }
 }

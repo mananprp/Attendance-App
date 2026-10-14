@@ -9,6 +9,7 @@ import com.company.attendance.core.model.DayStatus
 import com.company.attendance.core.model.DaySummary
 import com.company.attendance.core.model.Punch
 import com.company.attendance.core.model.PunchType
+import com.company.attendance.core.model.ShiftType
 import com.company.attendance.core.model.SyncStatus
 import com.company.attendance.core.model.TimeSource
 import kotlinx.serialization.decodeFromString
@@ -77,7 +78,9 @@ object EntityMappers {
             imagePath = imagePath,
             syncStatus = try { SyncStatus.valueOf(syncStatus) } catch (_: Exception) { SyncStatus.PENDING },
             syncAttempts = syncAttempts,
-            createdAtEpochMs = createdAt
+            createdAtEpochMs = createdAt,
+            locationType = locationType,
+            shiftType = try { ShiftType.valueOf(shiftType) } catch (_: Exception) { ShiftType.GENERAL }
         )
     }
 
@@ -97,7 +100,9 @@ object EntityMappers {
             imagePath = imagePath,
             syncStatus = syncStatus.name,
             syncAttempts = syncAttempts,
-            createdAt = createdAtEpochMs
+            createdAt = createdAtEpochMs,
+            locationType = locationType,
+            shiftType = shiftType.name
         )
     }
 
@@ -108,7 +113,11 @@ object EntityMappers {
             inTimeUtcEpochMs = inTimeUtc,
             outTimeUtcEpochMs = outTimeUtc,
             status = try { DayStatus.valueOf(status) } catch (_: Exception) { DayStatus.NO_RECORD },
-            timeUnverified = timeUnverified
+            timeUnverified = timeUnverified,
+            anchorLat = anchorLat,
+            anchorLng = anchorLng,
+            locationType = locationType,
+            shiftType = try { ShiftType.valueOf(shiftType) } catch (_: Exception) { ShiftType.GENERAL }
         )
     }
 
@@ -119,7 +128,11 @@ object EntityMappers {
             inTimeUtc = inTimeUtcEpochMs,
             outTimeUtc = outTimeUtcEpochMs,
             status = status.name,
-            timeUnverified = timeUnverified
+            timeUnverified = timeUnverified,
+            anchorLat = anchorLat,
+            anchorLng = anchorLng,
+            locationType = locationType,
+            shiftType = shiftType.name
         )
     }
 }

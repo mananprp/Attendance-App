@@ -1,8 +1,11 @@
 package com.company.attendance.feature.onboarding.components
 
+import android.app.Activity
 import android.content.Context
+import android.content.ContextWrapper
 import android.graphics.Bitmap
 import android.graphics.Matrix
+import android.view.WindowManager
 import androidx.camera.core.CameraSelector
 import androidx.camera.core.ImageCapture
 import androidx.camera.core.ImageCaptureException
@@ -36,6 +39,7 @@ import androidx.compose.material3.IconButton
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
@@ -68,6 +72,15 @@ import com.company.attendance.design.theme.AppSuccessTint
 import com.company.attendance.design.theme.AppTypographyTokens
 import com.company.attendance.feature.onboarding.model.OnboardingUiState
 
+private fun Context.findActivity(): Activity? {
+    var currentContext = this
+    while (currentContext is ContextWrapper) {
+        if (currentContext is Activity) return currentContext
+        currentContext = currentContext.baseContext
+    }
+    return null
+}
+
 @Composable
 fun PhotoCaptureStep(
     uiState: OnboardingUiState,
@@ -78,6 +91,27 @@ fun PhotoCaptureStep(
 ) {
     val context = LocalContext.current
     val lifecycleOwner = LocalLifecycleOwner.current
+
+    // Screen brightness override: sets 100% full brightness during profile photo capture
+    DisposableEffect(Unit) {
+        val activity = context.findActivity()
+        val originalBrightness = activity?.window?.attributes?.screenBrightness
+            ?: WindowManager.LayoutParams.BRIGHTNESS_OVERRIDE_NONE
+
+        activity?.window?.let { window ->
+            val params = window.attributes
+            params.screenBrightness = WindowManager.LayoutParams.BRIGHTNESS_OVERRIDE_FULL // 1.0f
+            window.attributes = params
+        }
+
+        onDispose {
+            activity?.window?.let { window ->
+                val params = window.attributes
+                params.screenBrightness = originalBrightness
+                window.attributes = params
+            }
+        }
+    }
 
     var imageCapture: ImageCapture? by remember { mutableStateOf(null) }
     var isCapturing by remember { mutableStateOf(false) }

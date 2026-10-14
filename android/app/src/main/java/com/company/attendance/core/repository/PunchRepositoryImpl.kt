@@ -11,10 +11,16 @@ import com.company.attendance.core.model.DayStatus
 import com.company.attendance.core.model.DaySummary
 import com.company.attendance.core.model.Punch
 import com.company.attendance.core.model.PunchType
+import com.company.attendance.core.model.ShiftType
 import com.company.attendance.core.model.SyncStatus
 import com.company.attendance.core.model.TrustedTime
+import com.company.attendance.core.util.ShiftEvaluator
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.map
+import java.time.Instant
+import java.time.LocalDate
+import java.time.LocalDateTime
+import java.time.ZoneId
 import java.util.UUID
 import javax.inject.Inject
 import javax.inject.Singleton
@@ -51,17 +57,48 @@ class PunchRepositoryImpl @Inject constructor(
         longitude: Double,
         distanceMeters: Float,
         matchScore: Float,
-        capturedImagePath: String?
+        capturedImagePath: String?,
+        locationType: String
     ): Result<Punch> {
         return try {
-            val dateStr = time.localDate.toString()
+            val zoneId = ZoneId.of(time.timezoneId)
+            val currentDateTime = LocalDateTime.ofInstant(Instant.ofEpochMilli(time.epochMillis), zoneId)
+
+            val todayStr = time.localDate.toString()
+            val yesterdayStr = time.localDate.minusDays(1).toString()
+
+            val openYesterday = daySummaryDao.getDaySummaryDirect(userId, yesterdayStr)?.takeIf {
+                it.inTimeUtc != null && it.outTimeUtc == null &&
+                !ShiftEvaluator.isSessionExpired(
+                    try { ShiftType.valueOf(it.shiftType) } catch (_: Exception) { ShiftType.GENERAL },
+                    LocalDate.parse(it.dateLocal),
+                    currentDateTime
+                )
+            }
+            val openToday = daySummaryDao.getDaySummaryDirect(userId, todayStr)?.takeIf {
+                it.inTimeUtc != null && it.outTimeUtc == null
+            }
+
+            val (shiftType, workDateStr) = if (punchType == PunchType.OUT) {
+                val active = openToday ?: openYesterday
+                if (active != null) {
+                    Pair(active.shiftType, active.dateLocal)
+                } else {
+                    val (evalShift, evalDate) = ShiftEvaluator.determineShift(currentDateTime)
+                    Pair(evalShift.name, evalDate.toString())
+                }
+            } else {
+                val (evalShift, evalDate) = ShiftEvaluator.determineShift(currentDateTime)
+                Pair(evalShift.name, evalDate.toString())
+            }
+
             val punchUuid = UUID.randomUUID().toString()
 
             // 1. Create and store PunchEntity
             val punchEntity = PunchEntity(
                 punchUuid = punchUuid,
                 userId = userId,
-                dateLocal = dateStr,
+                dateLocal = workDateStr,
                 type = punchType.name,
                 punchTimeUtc = time.epochMillis,
                 timeSource = time.source.name,
@@ -73,26 +110,36 @@ class PunchRepositoryImpl @Inject constructor(
                 imagePath = capturedImagePath,
                 syncStatus = SyncStatus.PENDING.name,
                 syncAttempts = 0,
-                createdAt = System.currentTimeMillis()
+                createdAt = System.currentTimeMillis(),
+                locationType = locationType,
+                shiftType = shiftType
             )
             punchDao.insertPunch(punchEntity)
 
             // 2. Update DaySummary state machine
-            val existingSummary = daySummaryDao.getDaySummaryDirect(userId, dateStr)
+            val existingSummary = daySummaryDao.getDaySummaryDirect(userId, workDateStr)
             val updatedSummary = if (punchType == PunchType.IN) {
                 if (existingSummary != null) {
                     existingSummary.copy(
                         inTimeUtc = existingSummary.inTimeUtc ?: time.epochMillis,
-                        timeUnverified = existingSummary.timeUnverified || time.isUnverified
+                        timeUnverified = existingSummary.timeUnverified || time.isUnverified,
+                        anchorLat = if (locationType == "NEW_LOCATION") latitude else existingSummary.anchorLat,
+                        anchorLng = if (locationType == "NEW_LOCATION") longitude else existingSummary.anchorLng,
+                        locationType = if (locationType == "NEW_LOCATION") "NEW_LOCATION" else existingSummary.locationType,
+                        shiftType = shiftType
                     )
                 } else {
                     DaySummaryEntity(
                         userId = userId,
-                        dateLocal = dateStr,
+                        dateLocal = workDateStr,
                         inTimeUtc = time.epochMillis,
                         outTimeUtc = null,
                         status = DayStatus.NO_RECORD.name,
-                        timeUnverified = time.isUnverified
+                        timeUnverified = time.isUnverified,
+                        anchorLat = if (locationType == "NEW_LOCATION") latitude else null,
+                        anchorLng = if (locationType == "NEW_LOCATION") longitude else null,
+                        locationType = locationType,
+                        shiftType = shiftType
                     )
                 }
             } else {
@@ -106,18 +153,20 @@ class PunchRepositoryImpl @Inject constructor(
                 } else {
                     DaySummaryEntity(
                         userId = userId,
-                        dateLocal = dateStr,
+                        dateLocal = workDateStr,
                         inTimeUtc = null,
                         outTimeUtc = time.epochMillis,
                         status = DayStatus.COMPLETE.name,
-                        timeUnverified = time.isUnverified
+                        timeUnverified = time.isUnverified,
+                        locationType = locationType,
+                        shiftType = shiftType
                     )
                 }
             }
             daySummaryDao.insertOrUpdate(updatedSummary)
 
             // 3. Resolve earlier days missed punches if this is next-day first punch
-            resolvePastMissedPunches(userId, dateStr)
+            resolvePastMissedPunches(userId, workDateStr)
 
             Result.success(punchEntity.toDomain())
         } catch (e: Exception) {
@@ -127,12 +176,17 @@ class PunchRepositoryImpl @Inject constructor(
 
     override suspend fun resolvePastMissedPunches(userId: String, currentDateLocal: String) {
         val unclosedSummaries = daySummaryDao.getUnclosedSummariesBeforeDate(userId, currentDateLocal)
+        val currentDateTime = LocalDateTime.now()
         for (summary in unclosedSummaries) {
-            val resolved = summary.copy(
-                outTimeUtc = summary.inTimeUtc,
-                status = DayStatus.MISSED_PUNCH.name
-            )
-            daySummaryDao.insertOrUpdate(resolved)
+            val shift = try { ShiftType.valueOf(summary.shiftType) } catch (_: Exception) { ShiftType.GENERAL }
+            val workDate = try { LocalDate.parse(summary.dateLocal) } catch (_: Exception) { LocalDate.parse(currentDateLocal).minusDays(1) }
+            if (ShiftEvaluator.isSessionExpired(shift, workDate, currentDateTime)) {
+                val resolved = summary.copy(
+                    outTimeUtc = summary.inTimeUtc,
+                    status = DayStatus.MISSED_PUNCH.name
+                )
+                daySummaryDao.insertOrUpdate(resolved)
+            }
         }
     }
 
@@ -147,8 +201,50 @@ class PunchRepositoryImpl @Inject constructor(
     }
 
     override suspend fun upsertDaySummaries(summaries: List<DaySummary>) {
-        if (summaries.isNotEmpty()) {
-            daySummaryDao.insertAll(summaries.map { it.toEntity() })
+        if (summaries.isEmpty()) return
+
+        val mergedEntities = summaries.map { summary ->
+            val existing = daySummaryDao.getDaySummaryDirect(summary.userId, summary.dateLocal)
+            val localPunches = punchDao.getPunchesForDateDirect(summary.userId, summary.dateLocal)
+            val serverEntity = summary.toEntity()
+
+            val hasLocalOutPunch = localPunches.any { it.type == "OUT" }
+            val localOutTime = existing?.outTimeUtc ?: localPunches.lastOrNull { it.type == "OUT" }?.punchTimeUtc
+
+            if (existing != null || hasLocalOutPunch) {
+                val resolvedOutTime = if (localOutTime != null && serverEntity.outTimeUtc == null) {
+                    localOutTime
+                } else {
+                    serverEntity.outTimeUtc ?: localOutTime
+                }
+
+                val resolvedInTime = existing?.inTimeUtc
+                    ?: localPunches.firstOrNull { it.type == "IN" }?.punchTimeUtc
+                    ?: serverEntity.inTimeUtc
+
+                val resolvedStatus = if (resolvedInTime != null && resolvedOutTime != null) {
+                    DayStatus.COMPLETE.name
+                } else if (serverEntity.status == DayStatus.MISSED_PUNCH.name && resolvedOutTime != null) {
+                    DayStatus.COMPLETE.name
+                } else {
+                    serverEntity.status
+                }
+
+                DaySummaryEntity(
+                    userId = summary.userId,
+                    dateLocal = summary.dateLocal,
+                    inTimeUtc = resolvedInTime,
+                    outTimeUtc = resolvedOutTime,
+                    status = resolvedStatus,
+                    timeUnverified = (existing?.timeUnverified ?: false) || serverEntity.timeUnverified,
+                    anchorLat = existing?.anchorLat ?: serverEntity.anchorLat,
+                    anchorLng = existing?.anchorLng ?: serverEntity.anchorLng,
+                    locationType = existing?.locationType ?: serverEntity.locationType
+                )
+            } else {
+                serverEntity
+            }
         }
+        daySummaryDao.insertAll(mergedEntities)
     }
 }

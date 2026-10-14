@@ -110,8 +110,8 @@ fun AttendanceNavGraph(
                 )
             } else {
                 com.company.attendance.feature.punch.HomeScreen(
-                    onNavigateToPunchCapture = { punchType ->
-                        navController.navigate(Screen.PunchCapture.createRoute(punchType))
+                    onNavigateToPunchCapture = { punchType, locationType, lat, lng, dist ->
+                        navController.navigate(Screen.PunchCapture.createRoute(punchType, locationType, lat, lng, dist))
                     },
                     onNavigateToProfile = {
                         navController.navigate(Screen.ProfileSettings.route)
@@ -125,6 +125,10 @@ fun AttendanceNavGraph(
             arguments = Screen.PunchCapture.arguments
         ) { backStackEntry ->
             val punchTypeName = backStackEntry.arguments?.getString(Screen.ARG_PUNCH_TYPE) ?: PunchType.IN.name
+            val locationType = backStackEntry.arguments?.getString(Screen.ARG_LOCATION_TYPE) ?: "OFFICE"
+            val lat = backStackEntry.arguments?.getString(Screen.ARG_LAT)?.toDoubleOrNull() ?: 0.0
+            val lng = backStackEntry.arguments?.getString(Screen.ARG_LNG)?.toDoubleOrNull() ?: 0.0
+            val dist = backStackEntry.arguments?.getString(Screen.ARG_DIST)?.toFloatOrNull() ?: 0.0f
             val punchType = runCatching { PunchType.valueOf(punchTypeName) }.getOrDefault(PunchType.IN)
 
             if (punchCaptureScreen != null) {
@@ -134,6 +138,10 @@ fun AttendanceNavGraph(
             } else {
                 com.company.attendance.feature.punch.capture.PunchCaptureScreen(
                     punchType = punchType,
+                    latitude = lat,
+                    longitude = lng,
+                    distanceMeters = dist,
+                    locationType = locationType,
                     onCaptureComplete = {
                         navController.popBackStack()
                     }

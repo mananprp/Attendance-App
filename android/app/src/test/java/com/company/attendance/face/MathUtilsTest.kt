@@ -138,4 +138,23 @@ class MathUtilsTest {
         val p75 = MathUtils.percentile(data, 75f)
         assertEquals(40.0f, p75, 1e-4f)
     }
+
+    @Test
+    fun testCalibrateConfidence() {
+        // Strangers (< 0.20) should map to low confidence (< 25%)
+        val strangerScore = MathUtils.calibrateConfidence(0.15f)
+        assertTrue("Stranger should be < 25%", strangerScore < 0.25f)
+
+        // Baseline threshold (0.38) maps to 60%
+        val thresholdScore = MathUtils.calibrateConfidence(0.38f)
+        assertEquals(0.60f, thresholdScore, 1e-3f)
+
+        // Current genuine match (0.43) maps to ~69-70%
+        val typicalGenuine = MathUtils.calibrateConfidence(0.43f)
+        assertTrue("Typical genuine should be around 68-70%", typicalGenuine in 0.68f..0.71f)
+
+        // Strong match (0.50) maps to 82%
+        val strongMatch = MathUtils.calibrateConfidence(0.50f)
+        assertEquals(0.82f, strongMatch, 1e-3f)
+    }
 }

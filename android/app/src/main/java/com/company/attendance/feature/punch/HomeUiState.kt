@@ -27,6 +27,9 @@ data class HomeUiState(
     val lastSyncedText: String? = null,
     val isSyncing: Boolean = false,
     val isCheckingGeofence: Boolean = false,
+    val isNewLocationDay: Boolean = false,
+    val shiftDisplayName: String? = null,
+    val activeShiftCutoffFormatted: String? = null,
     val geofenceDialogState: GeofenceDialogState? = null,
     val locationCardState: LocationCardState = LocationCardState.Locating,
     val profilePhotoBitmap: android.graphics.Bitmap? = null,
@@ -43,6 +46,11 @@ sealed interface LocationCardState {
     data object MockDetected : LocationCardState
     data class InOffice(
         val distanceMeters: Float,
+        val updatedAgoSeconds: Long = 0L
+    ) : LocationCardState
+    data class FieldVisit(
+        val distanceMeters: Float,
+        val isInside: Boolean,
         val updatedAgoSeconds: Long = 0L
     ) : LocationCardState
     data class Outside(
@@ -63,13 +71,28 @@ sealed interface GeofenceDialogState {
         val userLat: Double = 0.0,
         val userLng: Double = 0.0,
         val officeLat: Double = 0.0,
-        val officeLng: Double = 0.0
+        val officeLng: Double = 0.0,
+        val locationType: String = "OFFICE"
     ) : GeofenceDialogState {
+        val isFieldVisit: Boolean
+            get() = locationType == "NEW_LOCATION"
+
+        val dialogTitle: String
+            get() = if (isFieldVisit) "Outside Field Location Radius" else "Outside Office Radius"
+
         val formattedMessage: String
-            get() = if (userLat != 0.0) {
-                "You are ${distanceMeters.toInt()}m away from the office.\n\nCurrent GPS: %.5f, %.5f\nOffice: %.5f, %.5f\nMust be within ${allowedRadiusMeters}m to punch.".format(userLat, userLng, officeLat, officeLng)
+            get() = if (isFieldVisit) {
+                if (userLat != 0.0) {
+                    "You are ${distanceMeters.toInt()}m away from your check-in location.\n\nCurrent GPS: %.5f, %.5f\nCheck-in Location: %.5f, %.5f\n\nYou must be within ${allowedRadiusMeters}m of your check-in location to punch out.".format(userLat, userLng, officeLat, officeLng)
+                } else {
+                    "You are ${distanceMeters.toInt()}m away from your check-in location. Must be within ${allowedRadiusMeters}m of your check-in location to punch out."
+                }
             } else {
-                "You are ${distanceMeters.toInt()}m away from the office. Must be within ${allowedRadiusMeters}m to punch."
+                if (userLat != 0.0) {
+                    "You are ${distanceMeters.toInt()}m away from the office.\n\nCurrent GPS: %.5f, %.5f\nOffice: %.5f, %.5f\n\nMust be within ${allowedRadiusMeters}m to punch.".format(userLat, userLng, officeLat, officeLng)
+                } else {
+                    "You are ${distanceMeters.toInt()}m away from the office. Must be within ${allowedRadiusMeters}m to punch."
+                }
             }
     }
 
@@ -102,7 +125,8 @@ sealed interface HomeNavigationEvent {
         val punchType: PunchType,
         val latitude: Double,
         val longitude: Double,
-        val distanceMeters: Float
+        val distanceMeters: Float,
+        val locationType: String = "OFFICE"
     ) : HomeNavigationEvent
 
     data object NavigateToProfile : HomeNavigationEvent

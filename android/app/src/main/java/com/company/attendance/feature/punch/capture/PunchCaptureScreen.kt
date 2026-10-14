@@ -57,6 +57,18 @@ import com.company.attendance.design.theme.AppAccent
 import com.company.attendance.design.theme.AppBackground
 import com.company.attendance.design.theme.AppDimensions
 import com.company.attendance.design.theme.AppError
+import android.app.Activity
+import android.content.Context
+import android.content.ContextWrapper
+import android.view.WindowManager
+import androidx.compose.foundation.BorderStroke
+import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.material.icons.filled.FlashOff
+import androidx.compose.material.icons.filled.FlashOn
+import androidx.compose.material3.Surface
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.setValue
 import com.company.attendance.design.theme.AppPrimaryText
 import com.company.attendance.design.theme.AppSecondaryText
 import com.company.attendance.design.theme.AppSuccess
@@ -65,12 +77,22 @@ import kotlinx.coroutines.flow.collectLatest
 import androidx.hilt.navigation.compose.hiltViewModel
 import java.util.concurrent.Executors
 
+private fun Context.findActivity(): Activity? {
+    var currentContext = this
+    while (currentContext is ContextWrapper) {
+        if (currentContext is Activity) return currentContext
+        currentContext = currentContext.baseContext
+    }
+    return null
+}
+
 @Composable
 fun PunchCaptureScreen(
     punchType: PunchType,
     latitude: Double = 0.0,
     longitude: Double = 0.0,
     distanceMeters: Float = 0.0f,
+    locationType: String = "OFFICE",
     onCaptureComplete: () -> Unit,
     modifier: Modifier = Modifier,
     viewModel: PunchCaptureViewModel = hiltViewModel()
@@ -83,7 +105,8 @@ fun PunchCaptureScreen(
             punchType = punchType,
             latitude = latitude,
             longitude = longitude,
-            distanceMeters = distanceMeters
+            distanceMeters = distanceMeters,
+            locationType = locationType
         )
     }
 
@@ -92,6 +115,38 @@ fun PunchCaptureScreen(
             when (event) {
                 is PunchCaptureNavigationEvent.FinishSuccess -> onCaptureComplete()
                 is PunchCaptureNavigationEvent.FinishCancel -> onCaptureComplete()
+            }
+        }
+    }
+
+    val context = LocalContext.current
+    var isFlashEnabled by remember { mutableStateOf(false) }
+
+    // Screen brightness override: sets 100% full brightness when flash is enabled to light up face
+    DisposableEffect(isFlashEnabled) {
+        val activity = context.findActivity()
+        val originalBrightness = activity?.window?.attributes?.screenBrightness
+            ?: WindowManager.LayoutParams.BRIGHTNESS_OVERRIDE_NONE
+
+        if (isFlashEnabled) {
+            activity?.window?.let { window ->
+                val params = window.attributes
+                params.screenBrightness = WindowManager.LayoutParams.BRIGHTNESS_OVERRIDE_FULL // 1.0f
+                window.attributes = params
+            }
+        } else {
+            activity?.window?.let { window ->
+                val params = window.attributes
+                params.screenBrightness = WindowManager.LayoutParams.BRIGHTNESS_OVERRIDE_NONE
+                window.attributes = params
+            }
+        }
+
+        onDispose {
+            activity?.window?.let { window ->
+                val params = window.attributes
+                params.screenBrightness = originalBrightness
+                window.attributes = params
             }
         }
     }
@@ -161,24 +216,63 @@ fun PunchCaptureScreen(
                 modifier = Modifier.fillMaxSize()
             )
 
-            // Oval Guide Overlay
+            // Oval Guide Overlay with Screen Flash Softbox
             FaceOvalGuideOverlay(
+                isScreenFlashActive = isFlashEnabled,
                 modifier = Modifier.fillMaxSize()
             )
         }
 
-        // Top Guidance Banner
+        // Top Controls: Guidance Banner & Screen Flash Toggle
         if (uiState.step == CaptureStep.READY || uiState.step == CaptureStep.CAPTURING || uiState.step == CaptureStep.INITIALIZING) {
             Column(
                 modifier = Modifier
                     .fillMaxWidth()
                     .align(Alignment.TopCenter)
-                    .padding(top = 48.dp, start = 24.dp, end = 24.dp),
+                    .padding(top = 40.dp, start = 20.dp, end = 20.dp),
                 horizontalAlignment = Alignment.CenterHorizontally
             ) {
+                // Screen Flash Toggle Pill
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.End
+                ) {
+                    Surface(
+                        onClick = { isFlashEnabled = !isFlashEnabled },
+                        shape = CircleShape,
+                        color = if (isFlashEnabled) Color(0xFFFEF08A) else Color.Black.copy(alpha = 0.5f),
+                        contentColor = if (isFlashEnabled) Color(0xFF854D0E) else Color.White,
+                        border = BorderStroke(
+                            1.dp,
+                            if (isFlashEnabled) Color(0xFFFACC15) else Color.White.copy(alpha = 0.3f)
+                        )
+                    ) {
+                        Row(
+                            verticalAlignment = Alignment.CenterVertically,
+                            modifier = Modifier.padding(horizontal = 12.dp, vertical = 6.dp)
+                        ) {
+                            Icon(
+                                imageVector = if (isFlashEnabled) Icons.Filled.FlashOn else Icons.Filled.FlashOff,
+                                contentDescription = "Screen Flash",
+                                modifier = Modifier.size(16.dp)
+                            )
+                            Spacer(modifier = Modifier.width(4.dp))
+                            Text(
+                                text = if (isFlashEnabled) "Screen Flash ON" else "Flash OFF",
+                                style = AppTypographyTokens.Caption.copy(fontWeight = FontWeight.SemiBold)
+                            )
+                        }
+                    }
+                }
+
+                Spacer(modifier = Modifier.height(12.dp))
+
+                val titleColor = if (isFlashEnabled) Color(0xFF0F172A) else Color.White
+                val subtitleColor = if (isFlashEnabled) Color(0xFF334155) else Color.White.copy(alpha = 0.85f)
+
                 Text(
                     text = if (punchType == PunchType.IN) "Punch In Verification" else "Punch Out Verification",
-                    style = AppTypographyTokens.Title.copy(color = Color.White),
+                    style = AppTypographyTokens.Title.copy(color = titleColor),
                     fontWeight = FontWeight.SemiBold
                 )
                 Spacer(modifier = Modifier.height(AppDimensions.Spacing8))
@@ -188,7 +282,7 @@ fun PunchCaptureScreen(
                     } else {
                         "Align your face inside the oval and tap Capture"
                     },
-                    style = AppTypographyTokens.BodyMedium.copy(color = Color.White.copy(alpha = 0.85f)),
+                    style = AppTypographyTokens.BodyMedium.copy(color = subtitleColor),
                     textAlign = TextAlign.Center
                 )
 
@@ -202,7 +296,7 @@ fun PunchCaptureScreen(
                             .fillMaxWidth(0.75f)
                             .height(6.dp),
                         color = AppAccent,
-                        trackColor = Color.White.copy(alpha = 0.3f),
+                        trackColor = if (isFlashEnabled) Color(0xFFE2E8F0) else Color.White.copy(alpha = 0.3f),
                     )
                 }
             }
@@ -412,10 +506,11 @@ fun PunchCaptureScreen(
 }
 
 /**
- * Canvas drawing an oval guide cutout with semi-transparent darkened backdrop.
+ * Canvas drawing an oval guide cutout with either white fill light (flash active) or darkened backdrop.
  */
 @Composable
 private fun FaceOvalGuideOverlay(
+    isScreenFlashActive: Boolean = false,
     modifier: Modifier = Modifier
 ) {
     Canvas(modifier = modifier) {
@@ -429,7 +524,14 @@ private fun FaceOvalGuideOverlay(
             size = Size(ovalWidth, ovalHeight)
         )
 
-        // Draw semi-transparent background with oval cutout
+        // Draw background with oval cutout
+        // When flash is active: bright white backdrop casts strong diffuse light onto face
+        val backdropColor = if (isScreenFlashActive) {
+            Color.White.copy(alpha = 0.94f)
+        } else {
+            Color.Black.copy(alpha = 0.55f)
+        }
+
         drawPath(
             path = Path().apply {
                 reset()
@@ -437,15 +539,21 @@ private fun FaceOvalGuideOverlay(
                 addOval(ovalRect)
                 fillType = androidx.compose.ui.graphics.PathFillType.EvenOdd
             },
-            color = Color.Black.copy(alpha = 0.55f)
+            color = backdropColor
         )
 
         // Draw oval guide border
+        val borderColor = if (isScreenFlashActive) {
+            AppAccent
+        } else {
+            Color.White.copy(alpha = 0.85f)
+        }
+
         drawOval(
-            color = Color.White.copy(alpha = 0.8f),
+            color = borderColor,
             topLeft = Offset(left, top),
             size = Size(ovalWidth, ovalHeight),
-            style = Stroke(width = 2.5.dp.toPx())
+            style = Stroke(width = 3.dp.toPx())
         )
     }
 }

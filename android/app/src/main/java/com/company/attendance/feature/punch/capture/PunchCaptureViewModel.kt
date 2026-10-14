@@ -55,6 +55,7 @@ class PunchCaptureViewModel @Inject constructor(
     private var targetLatitude: Double = 0.0
     private var targetLongitude: Double = 0.0
     private var targetDistanceMeters: Float = 0.0f
+    private var targetLocationType: String = "OFFICE"
 
     private var cachedReferenceEmbedding: ByteArray? = null
     private var currentStreamingSession: com.company.attendance.face.verifier.StreamingPunchSession? = null
@@ -78,12 +79,14 @@ class PunchCaptureViewModel @Inject constructor(
         punchType: PunchType,
         latitude: Double = 0.0,
         longitude: Double = 0.0,
-        distanceMeters: Float = 0.0f
+        distanceMeters: Float = 0.0f,
+        locationType: String = "OFFICE"
     ) {
         targetPunchType = punchType
         targetLatitude = latitude
         targetLongitude = longitude
         targetDistanceMeters = distanceMeters
+        targetLocationType = locationType
 
         _uiState.update {
             it.copy(
@@ -345,7 +348,8 @@ class PunchCaptureViewModel @Inject constructor(
                     longitude = targetLongitude,
                     distanceMeters = targetDistanceMeters,
                     matchScore = result.score,
-                    capturedImagePath = imagePath
+                    capturedImagePath = imagePath,
+                    locationType = targetLocationType
                 )
 
                 _uiState.update { it.copy(isSavingPunch = false) }
@@ -355,7 +359,7 @@ class PunchCaptureViewModel @Inject constructor(
                         it.copy(
                             step = CaptureStep.SUCCESS,
                             matchScore = result.score,
-                            requiredThreshold = threshold,
+                            requiredThreshold = result.threshold,
                             recordedTimeFormatted = formattedTime,
                             recordedDateFormatted = formattedDate,
                             isTimeUnverified = trustedTime.isUnverified,
@@ -380,9 +384,9 @@ class PunchCaptureViewModel @Inject constructor(
                         step = CaptureStep.FAILURE,
                         failureTitle = "Face Mismatch",
                         failureMessage = "The captured face does not match your registered profile photo.",
-                        failureReason = "Match score: ${(result.score * 100).toInt()}% (Required: ${(threshold * 100).toInt()}%)",
+                        failureReason = "Match score: ${(result.score * 100).toInt()}% (Required: ${(result.threshold * 100).toInt()}%)",
                         matchScore = result.score,
-                        requiredThreshold = threshold
+                        requiredThreshold = result.threshold
                     )
                 }
             }
