@@ -7,7 +7,7 @@ import {
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
 import { JwtService } from '@nestjs/jwt';
-import * as bcrypt from 'bcrypt';
+import * as bcrypt from 'bcryptjs';
 import { UserEntity, UserStatus } from '../../database/entities/user.entity';
 import { UserPhotoEntity } from '../../database/entities/user-photo.entity';
 import { LoginRequestDto } from './dto/login-request.dto';

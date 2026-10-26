@@ -27,7 +27,7 @@ export class UserPhotoEntity {
   @Column({ name: 'hash', type: 'varchar', length: 64 })
   hash: string;
 
-  @Column({ name: 'is_active', type: 'boolean', default: true })
+  @Column({ name: 'is_active', default: true })
   isActive: boolean;
 
   @CreateDateColumn({ name: 'uploaded_at' })

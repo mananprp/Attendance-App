@@ -18,10 +18,10 @@ interface PunchDao {
     @Query("SELECT * FROM punches WHERE user_id = :userId AND date_local = :dateLocal ORDER BY punch_time_utc ASC")
     suspend fun getPunchesForDateDirect(userId: String, dateLocal: String): List<PunchEntity>
 
-    @Query("SELECT * FROM punches WHERE user_id = :userId AND sync_status = 'PENDING' ORDER BY created_at ASC")
+    @Query("SELECT * FROM punches WHERE user_id = :userId AND (sync_status = 'PENDING' OR sync_status = 'FAILED') ORDER BY created_at ASC")
     suspend fun getPendingPunches(userId: String): List<PunchEntity>
 
-    @Query("SELECT * FROM punches WHERE sync_status = 'PENDING' ORDER BY created_at ASC")
+    @Query("SELECT * FROM punches WHERE sync_status = 'PENDING' OR sync_status = 'FAILED' ORDER BY created_at ASC")
     suspend fun getAllPendingPunches(): List<PunchEntity>
 
     @Insert(onConflict = OnConflictStrategy.REPLACE)

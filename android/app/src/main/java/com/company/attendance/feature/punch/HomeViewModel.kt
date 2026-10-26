@@ -715,6 +715,10 @@ class HomeViewModel @Inject constructor(
     fun onSyncNowClicked() {
         viewModelScope.launch {
             syncScheduler.triggerSyncNow()
+            val userId = tokenStorage.getUserId() ?: ""
+            if (userId.isNotBlank()) {
+                fetchAndCacheMonthlyHistory(userId)
+            }
         }
     }
 

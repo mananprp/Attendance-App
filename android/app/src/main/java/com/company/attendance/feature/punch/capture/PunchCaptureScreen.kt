@@ -121,6 +121,8 @@ fun PunchCaptureScreen(
 
     val context = LocalContext.current
     var isFlashEnabled by remember { mutableStateOf(false) }
+    var isAutoTriggered by remember { mutableStateOf(false) }
+    var userManuallyToggled by remember { mutableStateOf(false) }
 
     // Screen brightness override: sets 100% full brightness when flash is enabled to light up face
     DisposableEffect(isFlashEnabled) {
@@ -183,6 +185,39 @@ fun PunchCaptureScreen(
 
                         imageAnalysis.setAnalyzer(cameraExecutor) { imageProxy ->
                             try {
+                                // Auto low-light detection: sample Y-plane luminance if user hasn't manually toggled
+                                if (!userManuallyToggled && !isAutoTriggered) {
+                                    val yPlane = imageProxy.planes.getOrNull(0)
+                                    if (yPlane != null) {
+                                        val buffer = yPlane.buffer
+                                        val rowStride = yPlane.rowStride
+                                        val pixelStride = yPlane.pixelStride
+                                        val w = imageProxy.width
+                                        val h = imageProxy.height
+                                        var sum = 0L
+                                        var count = 0
+                                        val step = 16
+                                        for (y in 0 until h step step) {
+                                            val rowOffset = y * rowStride
+                                            for (x in 0 until w step step) {
+                                                val idx = rowOffset + x * pixelStride
+                                                if (idx < buffer.limit()) {
+                                                    sum += (buffer.get(idx).toInt() and 0xFF)
+                                                    count++
+                                                }
+                                            }
+                                        }
+                                        if (count > 0 && (sum.toDouble() / count) < 45.0) {
+                                            ContextCompat.getMainExecutor(ctx).execute {
+                                                if (!userManuallyToggled) {
+                                                    isFlashEnabled = true
+                                                    isAutoTriggered = true
+                                                }
+                                            }
+                                        }
+                                    }
+                                }
+
                                 if (viewModel.shouldSampleNow()) {
                                     val bitmap = CameraCaptureUtils.imageProxyToRotatedBitmap(imageProxy)
                                     viewModel.onFrameSampled(bitmap)
@@ -223,50 +258,15 @@ fun PunchCaptureScreen(
             )
         }
 
-        // Top Controls: Guidance Banner & Screen Flash Toggle
+        // Top Controls: Guidance Banner
         if (uiState.step == CaptureStep.READY || uiState.step == CaptureStep.CAPTURING || uiState.step == CaptureStep.INITIALIZING) {
             Column(
                 modifier = Modifier
                     .fillMaxWidth()
                     .align(Alignment.TopCenter)
-                    .padding(top = 40.dp, start = 20.dp, end = 20.dp),
+                    .padding(top = 48.dp, start = 20.dp, end = 20.dp),
                 horizontalAlignment = Alignment.CenterHorizontally
             ) {
-                // Screen Flash Toggle Pill
-                Row(
-                    modifier = Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.End
-                ) {
-                    Surface(
-                        onClick = { isFlashEnabled = !isFlashEnabled },
-                        shape = CircleShape,
-                        color = if (isFlashEnabled) Color(0xFFFEF08A) else Color.Black.copy(alpha = 0.5f),
-                        contentColor = if (isFlashEnabled) Color(0xFF854D0E) else Color.White,
-                        border = BorderStroke(
-                            1.dp,
-                            if (isFlashEnabled) Color(0xFFFACC15) else Color.White.copy(alpha = 0.3f)
-                        )
-                    ) {
-                        Row(
-                            verticalAlignment = Alignment.CenterVertically,
-                            modifier = Modifier.padding(horizontal = 12.dp, vertical = 6.dp)
-                        ) {
-                            Icon(
-                                imageVector = if (isFlashEnabled) Icons.Filled.FlashOn else Icons.Filled.FlashOff,
-                                contentDescription = "Screen Flash",
-                                modifier = Modifier.size(16.dp)
-                            )
-                            Spacer(modifier = Modifier.width(4.dp))
-                            Text(
-                                text = if (isFlashEnabled) "Screen Flash ON" else "Flash OFF",
-                                style = AppTypographyTokens.Caption.copy(fontWeight = FontWeight.SemiBold)
-                            )
-                        }
-                    }
-                }
-
-                Spacer(modifier = Modifier.height(12.dp))
-
                 val titleColor = if (isFlashEnabled) Color(0xFF0F172A) else Color.White
                 val subtitleColor = if (isFlashEnabled) Color(0xFF334155) else Color.White.copy(alpha = 0.85f)
 
@@ -302,8 +302,8 @@ fun PunchCaptureScreen(
             }
         }
 
-        // Bottom Controls (Capture button when READY)
-        if (uiState.step == CaptureStep.READY) {
+        // Bottom Controls: Ergonomic Screen Flash Toggle & Action Buttons
+        if (uiState.step == CaptureStep.READY || uiState.step == CaptureStep.INITIALIZING) {
             Column(
                 modifier = Modifier
                     .fillMaxWidth()
@@ -311,17 +311,54 @@ fun PunchCaptureScreen(
                     .padding(start = 24.dp, end = 24.dp, bottom = 48.dp),
                 horizontalAlignment = Alignment.CenterHorizontally
             ) {
-                PrimaryButton(
-                    text = "Capture & Verify",
-                    onClick = { viewModel.startCapture() }
-                )
+                // Ergonomic Screen Flash Toggle Pill (one-handed thumb reach)
+                Surface(
+                    onClick = {
+                        userManuallyToggled = true
+                        isFlashEnabled = !isFlashEnabled
+                    },
+                    shape = CircleShape,
+                    color = if (isFlashEnabled) Color(0xFFFEF08A) else Color.Black.copy(alpha = 0.6f),
+                    contentColor = if (isFlashEnabled) Color(0xFF854D0E) else Color.White,
+                    border = BorderStroke(
+                        1.dp,
+                        if (isFlashEnabled) Color(0xFFFACC15) else Color.White.copy(alpha = 0.4f)
+                    )
+                ) {
+                    Row(
+                        verticalAlignment = Alignment.CenterVertically,
+                        modifier = Modifier.padding(horizontal = 14.dp, vertical = 7.dp)
+                    ) {
+                        Icon(
+                            imageVector = if (isFlashEnabled) Icons.Filled.FlashOn else Icons.Filled.FlashOff,
+                            contentDescription = "Screen Flash",
+                            modifier = Modifier.size(16.dp)
+                        )
+                        Spacer(modifier = Modifier.width(6.dp))
+                        Text(
+                            text = if (isFlashEnabled) {
+                                if (isAutoTriggered && !userManuallyToggled) "Screen Flash ON (Auto)" else "Screen Flash ON"
+                            } else "Screen Flash OFF",
+                            style = AppTypographyTokens.Caption.copy(fontWeight = FontWeight.SemiBold)
+                        )
+                    }
+                }
 
-                Spacer(modifier = Modifier.height(AppDimensions.Spacing12))
+                Spacer(modifier = Modifier.height(AppDimensions.Spacing16))
 
-                SecondaryButton(
-                    text = "Cancel",
-                    onClick = { viewModel.onCancelClicked() }
-                )
+                if (uiState.step == CaptureStep.READY) {
+                    PrimaryButton(
+                        text = "Capture & Verify",
+                        onClick = { viewModel.startCapture() }
+                    )
+
+                    Spacer(modifier = Modifier.height(AppDimensions.Spacing12))
+
+                    SecondaryButton(
+                        text = "Cancel",
+                        onClick = { viewModel.onCancelClicked() }
+                    )
+                }
             }
         }
 

@@ -67,7 +67,7 @@ export class AttendancePunchEntity {
   })
   timeSource: TimeSource;
 
-  @Column({ name: 'time_unverified', type: 'boolean', default: false })
+  @Column({ name: 'time_unverified', default: false })
   timeUnverified: boolean;
 
   @Column({

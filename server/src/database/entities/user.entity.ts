@@ -57,7 +57,7 @@ export class UserEntity {
   })
   status: UserStatus;
 
-  @Column({ name: 'photo_change_used', type: 'boolean', default: false })
+  @Column({ name: 'photo_change_used', default: false })
   photoChangeUsed: boolean;
 
   @CreateDateColumn({ name: 'created_at' })

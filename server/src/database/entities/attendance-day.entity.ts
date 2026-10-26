@@ -43,7 +43,7 @@ export class AttendanceDayEntity {
   })
   status: AttendanceDayStatus;
 
-  @Column({ name: 'time_unverified', type: 'boolean', default: false })
+  @Column({ name: 'time_unverified', default: false })
   timeUnverified: boolean;
 
   @Column({ name: 'shift_type', type: 'varchar', length: 16, default: 'GENERAL' })

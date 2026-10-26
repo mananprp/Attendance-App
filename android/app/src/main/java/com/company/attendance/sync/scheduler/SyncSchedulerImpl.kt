@@ -243,7 +243,11 @@ class SyncSchedulerImpl @Inject constructor(
         } else {
             val code = response.code()
             val errorBody = response.errorBody()?.string()
-            val errorMsg = "Server error HTTP $code: $errorBody"
+            val errorMsg = when (code) {
+                401 -> "Session expired or invalid login. Please sign out and log in again to sync."
+                403 -> "Sync forbidden. User account may be inactive."
+                else -> "Server error HTTP $code: $errorBody"
+            }
             // Record failure on local punches
             pendingPunches.forEach { punch ->
                 punchRepository.markPunchSyncFailed(punch.punchUuid, punch.syncAttempts + 1)

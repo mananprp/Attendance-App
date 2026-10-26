@@ -33,10 +33,19 @@ object NetworkHelper {
                 }
             }
 
+            val fallbackMessage = when (response.code()) {
+                401 -> "Session expired or invalid login. Please sign out and log in again."
+                403 -> "Access denied. Administrator privileges required."
+                404 -> "Resource not found on server."
+                429 -> "Too many requests. Please wait a moment."
+                in 500..599 -> "Server error (${response.code()}). Please try again later."
+                else -> response.message().ifBlank { "HTTP Error ${response.code()}" }
+            }
+
             val exception = ApiException(
                 httpCode = response.code(),
                 errorCode = parsedError?.code ?: "HTTP_${response.code()}",
-                message = parsedError?.message ?: (response.message().ifBlank { "Unknown HTTP Error" }),
+                message = parsedError?.message ?: fallbackMessage,
                 details = parsedError?.details
             )
             Result.failure(exception)
