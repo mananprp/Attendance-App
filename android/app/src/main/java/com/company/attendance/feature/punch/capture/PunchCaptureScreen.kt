@@ -342,97 +342,133 @@ fun PunchCaptureScreen(
             }
         }
 
-        // Top Controls: Guidance Banner
+        // Top Header Bar: Cancel (top-left) and Flash Toggle (top-right)
         if (uiState.step == CaptureStep.READY || uiState.step == CaptureStep.CAPTURING || uiState.step == CaptureStep.INITIALIZING) {
-            Column(
+            Box(
                 modifier = Modifier
                     .fillMaxWidth()
                     .align(Alignment.TopCenter)
-                    .padding(top = 48.dp, start = 20.dp, end = 20.dp),
-                horizontalAlignment = Alignment.CenterHorizontally
+                    .padding(top = 40.dp, start = 20.dp, end = 20.dp)
             ) {
-                val isFrontFlash = isFlashEnabled && selectedLensFacing == CameraSelector.LENS_FACING_FRONT
-                val titleColor = if (isFrontFlash) Color(0xFF0F172A) else Color.White
-                val subtitleColor = if (isFrontFlash) Color(0xFF334155) else Color.White.copy(alpha = 0.85f)
+                // Top-Left: Close / Back
+                Surface(
+                    onClick = { viewModel.onCancelClicked() },
+                    shape = CircleShape,
+                    color = Color.Black.copy(alpha = 0.45f),
+                    contentColor = Color.White,
+                    modifier = Modifier
+                        .size(44.dp)
+                        .align(Alignment.CenterStart)
+                ) {
+                    Box(contentAlignment = Alignment.Center) {
+                        Icon(
+                            imageVector = Icons.Default.Close,
+                            contentDescription = "Cancel",
+                            modifier = Modifier.size(22.dp)
+                        )
+                    }
+                }
 
-                Text(
-                    text = if (punchType == PunchType.IN) {
-                        if (uiState.captureMode == CaptureMode.GUARD_PHOTO) "Guard Punch In" else "Punch In Verification"
-                    } else {
-                        if (uiState.captureMode == CaptureMode.GUARD_PHOTO) "Guard Punch Out" else "Punch Out Verification"
-                    },
-                    style = AppTypographyTokens.Title.copy(color = titleColor),
-                    fontWeight = FontWeight.SemiBold
-                )
-                Spacer(modifier = Modifier.height(AppDimensions.Spacing8))
-                Text(
-                    text = when {
-                        uiState.step == CaptureStep.CAPTURING -> "Recording face... Keep looking at the camera"
-                        uiState.captureMode == CaptureMode.GUARD_PHOTO -> "Align full body and face inside frame, then tap capture"
-                        else -> "Align your face inside the oval and tap Capture"
-                    },
-                    style = AppTypographyTokens.BodyMedium.copy(color = subtitleColor),
-                    textAlign = TextAlign.Center
-                )
+                // Top-Center: Title & Subtitle
+                Column(
+                    modifier = Modifier
+                        .fillMaxWidth(0.68f)
+                        .align(Alignment.Center),
+                    horizontalAlignment = Alignment.CenterHorizontally
+                ) {
+                    val isFrontFlash = isFlashEnabled && selectedLensFacing == CameraSelector.LENS_FACING_FRONT
+                    val titleColor = if (isFrontFlash) Color(0xFF0F172A) else Color.White
+                    val subtitleColor = if (isFrontFlash) Color(0xFF334155) else Color.White.copy(alpha = 0.85f)
 
-                if (uiState.step == CaptureStep.CAPTURING) {
-                    Spacer(modifier = Modifier.height(AppDimensions.Spacing16))
-
-                    LinearProgressIndicator(
-                        progress = { uiState.captureProgress },
-                        modifier = Modifier
-                            .fillMaxWidth(0.75f)
-                            .height(6.dp),
-                        color = AppAccent,
-                        trackColor = if (isFrontFlash) Color(0xFFE2E8F0) else Color.White.copy(alpha = 0.3f),
+                    Text(
+                        text = if (punchType == PunchType.IN) {
+                            if (uiState.captureMode == CaptureMode.GUARD_PHOTO) "Guard Punch In" else "Punch In Verification"
+                        } else {
+                            if (uiState.captureMode == CaptureMode.GUARD_PHOTO) "Guard Punch Out" else "Punch Out Verification"
+                        },
+                        style = AppTypographyTokens.Title.copy(color = titleColor),
+                        fontWeight = FontWeight.SemiBold,
+                        textAlign = TextAlign.Center
                     )
+                    Spacer(modifier = Modifier.height(AppDimensions.Spacing4))
+                    Text(
+                        text = when {
+                            uiState.step == CaptureStep.CAPTURING -> "Recording face... Keep looking at camera"
+                            uiState.captureMode == CaptureMode.GUARD_PHOTO -> "Align body and face in frame"
+                            else -> "Align face inside oval & tap Capture"
+                        },
+                        style = AppTypographyTokens.Caption.copy(color = subtitleColor),
+                        textAlign = TextAlign.Center
+                    )
+
+                    if (uiState.step == CaptureStep.CAPTURING) {
+                        Spacer(modifier = Modifier.height(AppDimensions.Spacing8))
+                        LinearProgressIndicator(
+                            progress = { uiState.captureProgress },
+                            modifier = Modifier
+                                .fillMaxWidth(0.9f)
+                                .height(4.dp),
+                            color = AppAccent,
+                            trackColor = if (isFrontFlash) Color(0xFFE2E8F0) else Color.White.copy(alpha = 0.3f),
+                        )
+                    }
+                }
+
+                // Top-Right: Flash / Torch Toggle
+                Surface(
+                    onClick = {
+                        userManuallyToggled = true
+                        isFlashEnabled = !isFlashEnabled
+                    },
+                    shape = CircleShape,
+                    color = if (isFlashEnabled) Color(0xFFFEF08A) else Color.Black.copy(alpha = 0.45f),
+                    contentColor = if (isFlashEnabled) Color(0xFF854D0E) else Color.White,
+                    modifier = Modifier
+                        .size(44.dp)
+                        .align(Alignment.CenterEnd)
+                ) {
+                    Box(contentAlignment = Alignment.Center) {
+                        Icon(
+                            imageVector = if (isFlashEnabled) Icons.Filled.FlashOn else Icons.Filled.FlashOff,
+                            contentDescription = "Flash",
+                            modifier = Modifier.size(20.dp)
+                        )
+                    }
                 }
             }
         }
 
-        // Camera Bottom Control Bar (Left: Cancel/Back, Center: Capture, Right: Flash & Flip)
+        // Camera Bottom Control Bar: Perfectly Balanced Shutter + Camera Switch
         if (uiState.step == CaptureStep.READY || uiState.step == CaptureStep.INITIALIZING) {
             Box(
                 modifier = Modifier
                     .fillMaxWidth()
                     .align(Alignment.BottomCenter)
-                    .background(Color.Black.copy(alpha = 0.55f))
-                    .padding(horizontal = 28.dp, vertical = 28.dp)
+                    .background(Color.Black.copy(alpha = 0.6f))
+                    .padding(horizontal = 32.dp, vertical = 32.dp)
             ) {
+                // Symmetrical 3-zone layout: Spacer (Left), Shutter (Center), Flip Camera (Right)
                 Row(
                     modifier = Modifier.fillMaxWidth(),
                     verticalAlignment = Alignment.CenterVertically
                 ) {
-                    // LEFT AREA: Cancel / Back Button
+                    // Left balancing anchor
                     Box(
                         modifier = Modifier.weight(1f),
                         contentAlignment = Alignment.CenterStart
                     ) {
-                        Surface(
-                            onClick = { viewModel.onCancelClicked() },
-                            shape = CircleShape,
-                            color = Color.White.copy(alpha = 0.2f),
-                            contentColor = Color.White,
-                            modifier = Modifier.size(50.dp)
-                        ) {
-                            Box(contentAlignment = Alignment.Center) {
-                                Icon(
-                                    imageVector = Icons.Default.Close,
-                                    contentDescription = "Cancel",
-                                    modifier = Modifier.size(24.dp)
-                                )
-                            }
-                        }
+                        // Empty balancing placeholder so shutter is mathematically centered
+                        Spacer(modifier = Modifier.size(54.dp))
                     }
 
-                    // CENTER AREA: Big Shutter Capture Button
+                    // Center: Shutter Button
                     Box(
                         modifier = Modifier.weight(1f),
                         contentAlignment = Alignment.Center
                     ) {
                         Box(
                             modifier = Modifier
-                                .size(74.dp)
+                                .size(78.dp)
                                 .background(Color.White.copy(alpha = 0.25f), CircleShape)
                                 .padding(6.dp)
                                 .clickable(enabled = uiState.step == CaptureStep.READY) {
@@ -452,7 +488,6 @@ fun PunchCaptureScreen(
                                                     }
 
                                                     override fun onError(exception: ImageCaptureException) {
-                                                        // Fallback retry
                                                     }
                                                 }
                                             )
@@ -471,56 +506,30 @@ fun PunchCaptureScreen(
                         }
                     }
 
-                    // RIGHT AREA: Flash and Camera Flip
+                    // Right: Switch Camera (Flip) Button
                     Box(
                         modifier = Modifier.weight(1f),
                         contentAlignment = Alignment.CenterEnd
                     ) {
-                        Row(
-                            horizontalArrangement = Arrangement.spacedBy(10.dp),
-                            verticalAlignment = Alignment.CenterVertically
+                        Surface(
+                            onClick = {
+                                selectedLensFacing = if (selectedLensFacing == CameraSelector.LENS_FACING_FRONT) {
+                                    CameraSelector.LENS_FACING_BACK
+                                } else {
+                                    CameraSelector.LENS_FACING_FRONT
+                                }
+                            },
+                            shape = CircleShape,
+                            color = Color.White.copy(alpha = 0.2f),
+                            contentColor = Color.White,
+                            modifier = Modifier.size(54.dp)
                         ) {
-                            // Flash / Torch Toggle
-                            Surface(
-                                onClick = {
-                                    userManuallyToggled = true
-                                    isFlashEnabled = !isFlashEnabled
-                                },
-                                shape = CircleShape,
-                                color = if (isFlashEnabled) Color(0xFFFEF08A) else Color.White.copy(alpha = 0.2f),
-                                contentColor = if (isFlashEnabled) Color(0xFF854D0E) else Color.White,
-                                modifier = Modifier.size(50.dp)
-                            ) {
-                                Box(contentAlignment = Alignment.Center) {
-                                    Icon(
-                                        imageVector = if (isFlashEnabled) Icons.Filled.FlashOn else Icons.Filled.FlashOff,
-                                        contentDescription = "Flash",
-                                        modifier = Modifier.size(22.dp)
-                                    )
-                                }
-                            }
-
-                            // Switch Camera Toggle (Always available for Guard, or on demand)
-                            Surface(
-                                onClick = {
-                                    selectedLensFacing = if (selectedLensFacing == CameraSelector.LENS_FACING_FRONT) {
-                                        CameraSelector.LENS_FACING_BACK
-                                    } else {
-                                        CameraSelector.LENS_FACING_FRONT
-                                    }
-                                },
-                                shape = CircleShape,
-                                color = Color.White.copy(alpha = 0.2f),
-                                contentColor = Color.White,
-                                modifier = Modifier.size(50.dp)
-                            ) {
-                                Box(contentAlignment = Alignment.Center) {
-                                    Icon(
-                                        imageVector = Icons.Default.Cameraswitch,
-                                        contentDescription = "Switch Camera",
-                                        modifier = Modifier.size(22.dp)
-                                    )
-                                }
+                            Box(contentAlignment = Alignment.Center) {
+                                Icon(
+                                    imageVector = Icons.Default.Cameraswitch,
+                                    contentDescription = "Switch Camera",
+                                    modifier = Modifier.size(24.dp)
+                                )
                             }
                         }
                     }
