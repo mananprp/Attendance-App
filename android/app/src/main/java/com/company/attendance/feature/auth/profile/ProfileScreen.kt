@@ -319,9 +319,9 @@ fun ProfileScreenContent(
                             )
                             Text(
                                 text = if (uiState.photoChangeUsed) {
-                                    "Photo change used (1 change limit reached)"
+                                    "Profile photo locked"
                                 } else {
-                                    "1 photo change allowed"
+                                    "1 photo update permitted"
                                 },
                                 style = AppTypographyTokens.Caption,
                                 color = if (uiState.photoChangeUsed) AppWarning else AppSecondaryText
@@ -605,7 +605,7 @@ private fun PhotoReplacementDialog(
                     Spacer(modifier = Modifier.height(AppDimensions.Spacing32))
 
                     PrimaryButton(
-                        text = "Confirm Replacement (Version 2)",
+                        text = "Confirm Photo",
                         onClick = onConfirmReplacement,
                         isLoading = uiState.isReplacingPhoto,
                         enabled = !uiState.isReplacingPhoto && uiState.extractedNewEmbedding != null

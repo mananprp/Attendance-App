@@ -84,6 +84,7 @@ import com.company.attendance.design.theme.AppError
 import com.company.attendance.design.theme.AppPrimaryText
 import com.company.attendance.design.theme.AppSecondaryText
 import com.company.attendance.design.theme.AppSuccess
+import com.company.attendance.design.theme.AppSuccessTint
 import com.company.attendance.design.theme.AppTypographyTokens
 import kotlinx.coroutines.flow.collectLatest
 import java.util.concurrent.Executors
@@ -558,7 +559,7 @@ fun PunchCaptureScreen(
                     )
                     Spacer(modifier = Modifier.height(AppDimensions.Spacing8))
                     Text(
-                        text = "Running on-device neural face pipeline",
+                        text = "Verifying identity...",
                         style = AppTypographyTokens.BodyMedium.copy(color = Color.White.copy(alpha = 0.7f))
                     )
                 }
@@ -616,10 +617,27 @@ fun PunchCaptureScreen(
 
                     if (uiState.matchScore != null) {
                         Spacer(modifier = Modifier.height(AppDimensions.Spacing12))
-                        Text(
-                            text = "Match Confidence: ${(uiState.matchScore!! * 100).toInt()}%",
-                            style = AppTypographyTokens.CaptionMedium.copy(color = AppSuccess)
-                        )
+                        Surface(
+                            shape = RoundedCornerShape(AppDimensions.ChipCornerRadius),
+                            color = AppSuccessTint
+                        ) {
+                            Row(
+                                modifier = Modifier.padding(horizontal = 10.dp, vertical = 4.dp),
+                                verticalAlignment = Alignment.CenterVertically
+                            ) {
+                                Icon(
+                                    imageVector = Icons.Outlined.CheckCircle,
+                                    contentDescription = null,
+                                    tint = AppSuccess,
+                                    modifier = Modifier.size(14.dp)
+                                )
+                                Spacer(modifier = Modifier.width(4.dp))
+                                Text(
+                                    text = "Identity Verified",
+                                    style = AppTypographyTokens.CaptionMedium.copy(color = AppSuccess)
+                                )
+                            }
+                        }
                     }
 
                     if (uiState.isTimeUnverified) {

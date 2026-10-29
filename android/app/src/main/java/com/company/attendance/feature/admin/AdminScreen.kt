@@ -471,13 +471,13 @@ private fun SiteCardItem(
                 )
                 Spacer(modifier = Modifier.height(2.dp))
                 Text(
-                    text = "${site.officeId} • $employeeCount Employees",
+                    text = "$employeeCount Employees Assigned",
                     style = AppTypographyTokens.CaptionMedium,
                     color = AppAccent
                 )
                 Spacer(modifier = Modifier.height(2.dp))
                 Text(
-                    text = "Geofence: ${site.radiusM}m • Threshold: ${site.matchThreshold}",
+                    text = "Geofence: ${site.radiusM}m radius",
                     style = AppTypographyTokens.Caption,
                     color = AppSecondaryText
                 )
@@ -515,31 +515,14 @@ private fun SiteEmployeesView(
             border = BorderStroke(1.dp, AppAccent.copy(alpha = 0.3f))
         ) {
             Column(modifier = Modifier.padding(AppDimensions.Spacing12)) {
-                Row(
-                    modifier = Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.SpaceBetween,
-                    verticalAlignment = Alignment.CenterVertically
-                ) {
-                    Text(
-                        text = site.name,
-                        style = AppTypographyTokens.SectionHeading,
-                        color = AppAccent
-                    )
-                    Surface(
-                        shape = RoundedCornerShape(AppDimensions.ChipCornerRadius),
-                        color = AppAccent
-                    ) {
-                        Text(
-                            text = site.officeId,
-                            style = AppTypographyTokens.CaptionMedium,
-                            color = Color.White,
-                            modifier = Modifier.padding(horizontal = 8.dp, vertical = 2.dp)
-                        )
-                    }
-                }
+                Text(
+                    text = site.name,
+                    style = AppTypographyTokens.SectionHeading,
+                    color = AppAccent
+                )
                 Spacer(modifier = Modifier.height(4.dp))
                 Text(
-                    text = "Geofence: ${site.radiusM}m • Accuracy Threshold: ${site.matchThreshold}",
+                    text = "Geofence: ${site.radiusM}m radius",
                     style = AppTypographyTokens.Caption,
                     color = AppPrimaryText
                 )
@@ -755,7 +738,7 @@ private fun UserItemCard(
                 )
                 Spacer(modifier = Modifier.width(AppDimensions.Spacing4))
                 Text(
-                    text = "${user.siteName} (${user.siteCode})",
+                    text = user.siteName,
                     style = AppTypographyTokens.CaptionMedium,
                     color = AppPrimaryText
                 )
@@ -1278,7 +1261,7 @@ private fun CreateSiteDialog(
                             color = AppPrimaryText
                         )
                         Text(
-                            text = "• Face match threshold: 0.38 (Locked globally)\n• Timezone: Asia/Kolkata",
+                            text = "• Timezone: Asia/Kolkata",
                             style = AppTypographyTokens.Caption,
                             color = AppSecondaryText
                         )

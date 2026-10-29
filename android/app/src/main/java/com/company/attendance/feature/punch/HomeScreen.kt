@@ -203,7 +203,7 @@ fun HomeScreen(
                         )
                         Spacer(modifier = Modifier.height(AppDimensions.Spacing4))
                         Text(
-                            text = uiState.officeDateFormatted.ifEmpty { "Office Time" },
+                            text = uiState.officeDateFormatted,
                             style = AppTypographyTokens.BodyMedium,
                             color = AppSecondaryText
                         )
@@ -559,15 +559,15 @@ fun LocationStatusCard(
                             "Checking proximity"
                         )
                         is LocationCardState.InOffice -> Pair(
-                            "In Office (${state.distanceMeters.toInt()}m)",
-                            "Verified proximity • ${state.updatedAgoSeconds}s ago"
+                            "At Office",
+                            "Within office geofence"
                         )
                         is LocationCardState.FieldVisit -> Pair(
-                            if (state.isInside) "At Field Site (${state.distanceMeters.toInt()}m)" else "Away from Field Site (${state.distanceMeters.toInt()}m)",
-                            if (state.isInside) "Within check-in radius (100m) • ${state.updatedAgoSeconds}s ago" else "Must return to check-in location to punch out"
+                            if (state.isInside) "At Field Site" else "Away from Field Site",
+                            if (state.isInside) "Within check-in radius (100m)" else "Must return to check-in location to punch out"
                         )
                         is LocationCardState.Outside -> Pair(
-                            "Outside Office (${state.distanceMeters.toInt()}m)",
+                            "Outside Office",
                             "Allowed radius: ${state.allowedRadiusMeters}m"
                         )
                         is LocationCardState.PermissionNeeded -> Pair(
