@@ -193,6 +193,120 @@ fun PunchCaptureScreen(
     }
 
     var imageCaptureUseCase by remember { mutableStateOf<ImageCapture?>(null) }
+    var previewViewInstance by remember { mutableStateOf<PreviewView?>(null) }
+
+    // 2. Continuous CameraX Lifecycle Binding (keyed only on lens facing and capture mode)
+    LaunchedEffect(selectedLensFacing, uiState.captureMode) {
+        val cameraProviderFuture = ProcessCameraProvider.getInstance(context)
+        cameraProviderFuture.addListener({
+            val cameraProvider = cameraProviderFuture.get()
+
+            val preview = Preview.Builder().build().also {
+                previewViewInstance?.surfaceProvider?.let { sp ->
+                    it.setSurfaceProvider(sp)
+                }
+            }
+
+            val targetLens = if (selectedLensFacing == CameraSelector.LENS_FACING_FRONT) {
+                if (cameraProvider.hasCamera(CameraSelector.DEFAULT_FRONT_CAMERA)) {
+                    CameraSelector.LENS_FACING_FRONT
+                } else {
+                    CameraSelector.LENS_FACING_BACK
+                }
+            } else {
+                if (cameraProvider.hasCamera(CameraSelector.DEFAULT_BACK_CAMERA)) {
+                    CameraSelector.LENS_FACING_BACK
+                } else {
+                    CameraSelector.LENS_FACING_FRONT
+                }
+            }
+
+            val cameraSelector = CameraSelector.Builder()
+                .requireLensFacing(targetLens)
+                .build()
+
+            try {
+                cameraProvider.unbindAll()
+
+                if (uiState.captureMode == CaptureMode.GUARD_PHOTO) {
+                    val imageCapture = ImageCapture.Builder()
+                        .setCaptureMode(ImageCapture.CAPTURE_MODE_MINIMIZE_LATENCY)
+                        .build()
+                    imageCaptureUseCase = imageCapture
+
+                    val cam = cameraProvider.bindToLifecycle(
+                        lifecycleOwner,
+                        cameraSelector,
+                        preview,
+                        imageCapture
+                    )
+                    boundCamera = cam
+                    if (targetLens == CameraSelector.LENS_FACING_BACK) {
+                        cam.cameraControl.enableTorch(isFlashEnabled)
+                    }
+                } else {
+                    // Video / continuous frame analysis mode
+                    val imageAnalysis = ImageAnalysis.Builder()
+                        .setBackpressureStrategy(ImageAnalysis.STRATEGY_KEEP_ONLY_LATEST)
+                        .build()
+
+                    imageAnalysis.setAnalyzer(cameraExecutor) { imageProxy ->
+                        try {
+                            // Auto low-light detection for front camera
+                            if (!userManuallyToggled && !isAutoTriggered && targetLens == CameraSelector.LENS_FACING_FRONT) {
+                                val yPlane = imageProxy.planes.getOrNull(0)
+                                if (yPlane != null) {
+                                    val buffer = yPlane.buffer
+                                    val rowStride = yPlane.rowStride
+                                    val pixelStride = yPlane.pixelStride
+                                    val w = imageProxy.width
+                                    val h = imageProxy.height
+                                    var sum = 0L
+                                    var count = 0
+                                    val step = 16
+                                    for (y in 0 until h step step) {
+                                        val rowOffset = y * rowStride
+                                        for (x in 0 until w step step) {
+                                            val idx = rowOffset + x * pixelStride
+                                            if (idx < buffer.limit()) {
+                                                sum += (buffer.get(idx).toInt() and 0xFF)
+                                                count++
+                                            }
+                                        }
+                                    }
+                                    if (count > 0 && (sum.toDouble() / count) < 45.0) {
+                                        ContextCompat.getMainExecutor(context).execute {
+                                            if (!userManuallyToggled) {
+                                                isFlashEnabled = true
+                                                isAutoTriggered = true
+                                            }
+                                        }
+                                    }
+                                }
+                            }
+
+                            if (viewModel.shouldSampleNow()) {
+                                val bitmap = CameraCaptureUtils.imageProxyToRotatedBitmap(imageProxy)
+                                viewModel.onFrameSampled(bitmap)
+                            }
+                        } catch (_: Exception) {
+                        } finally {
+                            imageProxy.close()
+                        }
+                    }
+
+                    val cam = cameraProvider.bindToLifecycle(
+                        lifecycleOwner,
+                        cameraSelector,
+                        preview,
+                        imageAnalysis
+                    )
+                    boundCamera = cam
+                }
+            } catch (_: Exception) {
+            }
+        }, ContextCompat.getMainExecutor(context))
+    }
 
     Box(
         modifier = modifier
@@ -200,126 +314,21 @@ fun PunchCaptureScreen(
             .background(Color.Black)
     ) {
         // 1. CameraX Preview Layer
+        AndroidView(
+            factory = { ctx ->
+                PreviewView(ctx).apply {
+                    implementationMode = PreviewView.ImplementationMode.COMPATIBLE
+                    previewViewInstance = this
+                }
+            },
+            update = { pv ->
+                previewViewInstance = pv
+            },
+            modifier = Modifier.fillMaxSize()
+        )
+
+        // Guide Overlays (visible during capture and ready stages)
         if (uiState.step == CaptureStep.READY || uiState.step == CaptureStep.CAPTURING || uiState.step == CaptureStep.INITIALIZING) {
-            AndroidView(
-                factory = { ctx ->
-                    PreviewView(ctx).apply {
-                        implementationMode = PreviewView.ImplementationMode.COMPATIBLE
-                    }
-                },
-                update = { previewView ->
-                    val cameraProviderFuture = ProcessCameraProvider.getInstance(context)
-                    cameraProviderFuture.addListener({
-                        val cameraProvider = cameraProviderFuture.get()
-
-                        val preview = Preview.Builder().build().also {
-                            it.setSurfaceProvider(previewView.surfaceProvider)
-                        }
-
-                        val targetLens = if (selectedLensFacing == CameraSelector.LENS_FACING_FRONT) {
-                            if (cameraProvider.hasCamera(CameraSelector.DEFAULT_FRONT_CAMERA)) {
-                                CameraSelector.LENS_FACING_FRONT
-                            } else {
-                                CameraSelector.LENS_FACING_BACK
-                            }
-                        } else {
-                            if (cameraProvider.hasCamera(CameraSelector.DEFAULT_BACK_CAMERA)) {
-                                CameraSelector.LENS_FACING_BACK
-                            } else {
-                                CameraSelector.LENS_FACING_FRONT
-                            }
-                        }
-
-                        val cameraSelector = CameraSelector.Builder()
-                            .requireLensFacing(targetLens)
-                            .build()
-
-                        try {
-                            cameraProvider.unbindAll()
-
-                            if (uiState.captureMode == CaptureMode.GUARD_PHOTO) {
-                                val imageCapture = ImageCapture.Builder()
-                                    .setCaptureMode(ImageCapture.CAPTURE_MODE_MINIMIZE_LATENCY)
-                                    .build()
-                                imageCaptureUseCase = imageCapture
-
-                                val cam = cameraProvider.bindToLifecycle(
-                                    lifecycleOwner,
-                                    cameraSelector,
-                                    preview,
-                                    imageCapture
-                                )
-                                boundCamera = cam
-                                if (targetLens == CameraSelector.LENS_FACING_BACK) {
-                                    cam.cameraControl.enableTorch(isFlashEnabled)
-                                }
-                            } else {
-                                // Video / continuous frame analysis mode
-                                val imageAnalysis = ImageAnalysis.Builder()
-                                    .setBackpressureStrategy(ImageAnalysis.STRATEGY_KEEP_ONLY_LATEST)
-                                    .build()
-
-                                imageAnalysis.setAnalyzer(cameraExecutor) { imageProxy ->
-                                    try {
-                                        // Auto low-light detection for front camera
-                                        if (!userManuallyToggled && !isAutoTriggered && targetLens == CameraSelector.LENS_FACING_FRONT) {
-                                            val yPlane = imageProxy.planes.getOrNull(0)
-                                            if (yPlane != null) {
-                                                val buffer = yPlane.buffer
-                                                val rowStride = yPlane.rowStride
-                                                val pixelStride = yPlane.pixelStride
-                                                val w = imageProxy.width
-                                                val h = imageProxy.height
-                                                var sum = 0L
-                                                var count = 0
-                                                val step = 16
-                                                for (y in 0 until h step step) {
-                                                    val rowOffset = y * rowStride
-                                                    for (x in 0 until w step step) {
-                                                        val idx = rowOffset + x * pixelStride
-                                                        if (idx < buffer.limit()) {
-                                                            sum += (buffer.get(idx).toInt() and 0xFF)
-                                                            count++
-                                                        }
-                                                    }
-                                                }
-                                                if (count > 0 && (sum.toDouble() / count) < 45.0) {
-                                                    ContextCompat.getMainExecutor(context).execute {
-                                                        if (!userManuallyToggled) {
-                                                            isFlashEnabled = true
-                                                            isAutoTriggered = true
-                                                        }
-                                                    }
-                                                }
-                                            }
-                                        }
-
-                                        if (viewModel.shouldSampleNow()) {
-                                            val bitmap = CameraCaptureUtils.imageProxyToRotatedBitmap(imageProxy)
-                                            viewModel.onFrameSampled(bitmap)
-                                        }
-                                    } catch (_: Exception) {
-                                    } finally {
-                                        imageProxy.close()
-                                    }
-                                }
-
-                                val cam = cameraProvider.bindToLifecycle(
-                                    lifecycleOwner,
-                                    cameraSelector,
-                                    preview,
-                                    imageAnalysis
-                                )
-                                boundCamera = cam
-                            }
-                        } catch (_: Exception) {
-                        }
-                    }, ContextCompat.getMainExecutor(context))
-                },
-                modifier = Modifier.fillMaxSize()
-            )
-
-            // Guide Overlays
             if (uiState.captureMode == CaptureMode.GUARD_PHOTO) {
                 GuardBodyGuideOverlay(
                     isScreenFlashActive = isFlashEnabled && selectedLensFacing == CameraSelector.LENS_FACING_FRONT,
@@ -387,117 +396,131 @@ fun PunchCaptureScreen(
                 modifier = Modifier
                     .fillMaxWidth()
                     .align(Alignment.BottomCenter)
-                    .background(Color.Black.copy(alpha = 0.45f))
-                    .padding(horizontal = 24.dp, vertical = 28.dp)
+                    .background(Color.Black.copy(alpha = 0.55f))
+                    .padding(horizontal = 28.dp, vertical = 28.dp)
             ) {
                 Row(
                     modifier = Modifier.fillMaxWidth(),
-                    verticalAlignment = Alignment.CenterVertically,
-                    horizontalArrangement = Arrangement.SpaceBetween
+                    verticalAlignment = Alignment.CenterVertically
                 ) {
-                    // LEFT: Cancel / Back Button
-                    Surface(
-                        onClick = { viewModel.onCancelClicked() },
-                        shape = CircleShape,
-                        color = Color.White.copy(alpha = 0.2f),
-                        contentColor = Color.White,
-                        modifier = Modifier.size(52.dp)
+                    // LEFT AREA: Cancel / Back Button
+                    Box(
+                        modifier = Modifier.weight(1f),
+                        contentAlignment = Alignment.CenterStart
                     ) {
-                        Box(contentAlignment = Alignment.Center) {
-                            Icon(
-                                imageVector = Icons.Default.Close,
-                                contentDescription = "Cancel",
-                                modifier = Modifier.size(24.dp)
-                            )
+                        Surface(
+                            onClick = { viewModel.onCancelClicked() },
+                            shape = CircleShape,
+                            color = Color.White.copy(alpha = 0.2f),
+                            contentColor = Color.White,
+                            modifier = Modifier.size(50.dp)
+                        ) {
+                            Box(contentAlignment = Alignment.Center) {
+                                Icon(
+                                    imageVector = Icons.Default.Close,
+                                    contentDescription = "Cancel",
+                                    modifier = Modifier.size(24.dp)
+                                )
+                            }
                         }
                     }
 
-                    // CENTER: Big Capture Button
+                    // CENTER AREA: Big Shutter Capture Button
                     Box(
-                        modifier = Modifier
-                            .size(76.dp)
-                            .background(Color.White.copy(alpha = 0.25f), CircleShape)
-                            .padding(6.dp)
-                            .clickable(enabled = uiState.step == CaptureStep.READY) {
-                                if (uiState.captureMode == CaptureMode.GUARD_PHOTO) {
-                                    val imageCapture = imageCaptureUseCase
-                                    if (imageCapture != null) {
-                                        imageCapture.takePicture(
-                                            ContextCompat.getMainExecutor(context),
-                                            object : ImageCapture.OnImageCapturedCallback() {
-                                                override fun onCaptureSuccess(image: ImageProxy) {
-                                                    try {
-                                                        val bmp = CameraCaptureUtils.imageProxyToRotatedBitmap(image)
-                                                        viewModel.processGuardPhoto(bmp)
-                                                    } finally {
-                                                        image.close()
-                                                    }
-                                                }
-
-                                                override fun onError(exception: ImageCaptureException) {
-                                                    // Fallback retry
-                                                }
-                                            }
-                                        )
-                                    }
-                                } else {
-                                    viewModel.startCapture()
-                                }
-                            },
+                        modifier = Modifier.weight(1f),
                         contentAlignment = Alignment.Center
                     ) {
                         Box(
                             modifier = Modifier
-                                .fillMaxSize()
-                                .background(Color.White, CircleShape)
-                        )
+                                .size(74.dp)
+                                .background(Color.White.copy(alpha = 0.25f), CircleShape)
+                                .padding(6.dp)
+                                .clickable(enabled = uiState.step == CaptureStep.READY) {
+                                    if (uiState.captureMode == CaptureMode.GUARD_PHOTO) {
+                                        val imageCapture = imageCaptureUseCase
+                                        if (imageCapture != null) {
+                                            imageCapture.takePicture(
+                                                ContextCompat.getMainExecutor(context),
+                                                object : ImageCapture.OnImageCapturedCallback() {
+                                                    override fun onCaptureSuccess(image: ImageProxy) {
+                                                        try {
+                                                            val bmp = CameraCaptureUtils.imageProxyToRotatedBitmap(image)
+                                                            viewModel.processGuardPhoto(bmp)
+                                                        } finally {
+                                                            image.close()
+                                                        }
+                                                    }
+
+                                                    override fun onError(exception: ImageCaptureException) {
+                                                        // Fallback retry
+                                                    }
+                                                }
+                                            )
+                                        }
+                                    } else {
+                                        viewModel.startCapture()
+                                    }
+                                },
+                            contentAlignment = Alignment.Center
+                        ) {
+                            Box(
+                                modifier = Modifier
+                                    .fillMaxSize()
+                                    .background(Color.White, CircleShape)
+                            )
+                        }
                     }
 
-                    // RIGHT: Flash & Lens Flip Controls
-                    Row(
-                        horizontalArrangement = Arrangement.spacedBy(10.dp),
-                        verticalAlignment = Alignment.CenterVertically
+                    // RIGHT AREA: Flash and Camera Flip
+                    Box(
+                        modifier = Modifier.weight(1f),
+                        contentAlignment = Alignment.CenterEnd
                     ) {
-                        // Flash / Torch Toggle
-                        Surface(
-                            onClick = {
-                                userManuallyToggled = true
-                                isFlashEnabled = !isFlashEnabled
-                            },
-                            shape = CircleShape,
-                            color = if (isFlashEnabled) Color(0xFFFEF08A) else Color.White.copy(alpha = 0.2f),
-                            contentColor = if (isFlashEnabled) Color(0xFF854D0E) else Color.White,
-                            modifier = Modifier.size(52.dp)
+                        Row(
+                            horizontalArrangement = Arrangement.spacedBy(10.dp),
+                            verticalAlignment = Alignment.CenterVertically
                         ) {
-                            Box(contentAlignment = Alignment.Center) {
-                                Icon(
-                                    imageVector = if (isFlashEnabled) Icons.Filled.FlashOn else Icons.Filled.FlashOff,
-                                    contentDescription = "Flash",
-                                    modifier = Modifier.size(22.dp)
-                                )
-                            }
-                        }
-
-                        // Switch Camera Toggle (Always available for Guard, or on demand)
-                        Surface(
-                            onClick = {
-                                selectedLensFacing = if (selectedLensFacing == CameraSelector.LENS_FACING_FRONT) {
-                                    CameraSelector.LENS_FACING_BACK
-                                } else {
-                                    CameraSelector.LENS_FACING_FRONT
+                            // Flash / Torch Toggle
+                            Surface(
+                                onClick = {
+                                    userManuallyToggled = true
+                                    isFlashEnabled = !isFlashEnabled
+                                },
+                                shape = CircleShape,
+                                color = if (isFlashEnabled) Color(0xFFFEF08A) else Color.White.copy(alpha = 0.2f),
+                                contentColor = if (isFlashEnabled) Color(0xFF854D0E) else Color.White,
+                                modifier = Modifier.size(50.dp)
+                            ) {
+                                Box(contentAlignment = Alignment.Center) {
+                                    Icon(
+                                        imageVector = if (isFlashEnabled) Icons.Filled.FlashOn else Icons.Filled.FlashOff,
+                                        contentDescription = "Flash",
+                                        modifier = Modifier.size(22.dp)
+                                    )
                                 }
-                            },
-                            shape = CircleShape,
-                            color = Color.White.copy(alpha = 0.2f),
-                            contentColor = Color.White,
-                            modifier = Modifier.size(52.dp)
-                        ) {
-                            Box(contentAlignment = Alignment.Center) {
-                                Icon(
-                                    imageVector = Icons.Default.Cameraswitch,
-                                    contentDescription = "Switch Camera",
-                                    modifier = Modifier.size(22.dp)
-                                )
+                            }
+
+                            // Switch Camera Toggle (Always available for Guard, or on demand)
+                            Surface(
+                                onClick = {
+                                    selectedLensFacing = if (selectedLensFacing == CameraSelector.LENS_FACING_FRONT) {
+                                        CameraSelector.LENS_FACING_BACK
+                                    } else {
+                                        CameraSelector.LENS_FACING_FRONT
+                                    }
+                                },
+                                shape = CircleShape,
+                                color = Color.White.copy(alpha = 0.2f),
+                                contentColor = Color.White,
+                                modifier = Modifier.size(50.dp)
+                            ) {
+                                Box(contentAlignment = Alignment.Center) {
+                                    Icon(
+                                        imageVector = Icons.Default.Cameraswitch,
+                                        contentDescription = "Switch Camera",
+                                        modifier = Modifier.size(22.dp)
+                                    )
+                                }
                             }
                         }
                     }

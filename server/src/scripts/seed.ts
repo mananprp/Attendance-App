@@ -142,6 +142,15 @@ async function seed() {
       photoChangeUsed: false,
     },
     {
+      userId: 'GUARD01',
+      name: 'Security Guard Ramesh',
+      passwordHash: defaultPasswordHash,
+      role: UserRole.GUARD,
+      siteCode: 'DEFAULT_OFFICE',
+      status: UserStatus.ACTIVE,
+      photoChangeUsed: false,
+    },
+    {
       userId: 'ADMIN01',
       name: 'System Admin',
       passwordHash: adminPasswordHash,

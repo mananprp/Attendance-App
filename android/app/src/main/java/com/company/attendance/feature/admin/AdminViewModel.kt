@@ -9,6 +9,7 @@ import com.company.attendance.core.network.model.AdminUserDto
 import com.company.attendance.core.network.model.CreateSiteRequestDto
 import com.company.attendance.core.network.model.CreateUserRequestDto
 import com.company.attendance.core.network.model.UpdateUserSiteRequestDto
+import com.company.attendance.core.network.model.UpdateUserRoleRequestDto
 import com.company.attendance.core.network.model.UpdateUserPasswordRequestDto
 import com.company.attendance.core.storage.TokenStorage
 import dagger.hilt.android.lifecycle.HiltViewModel
@@ -256,6 +257,46 @@ class AdminViewModel @Inject constructor(
             } catch (e: Exception) {
                 _uiState.update {
                     it.copy(isActionLoading = false, errorMessage = e.message ?: "Failed to update user site.")
+                }
+            }
+        }
+    }
+
+    fun openRoleChangeDialog(user: AdminUserDto) {
+        _uiState.update { it.copy(selectedUserForRoleChange = user, errorMessage = null, successMessage = null) }
+    }
+
+    fun closeRoleChangeDialog() {
+        _uiState.update { it.copy(selectedUserForRoleChange = null) }
+    }
+
+    fun updateUserRole(userId: String, newRole: String) {
+        viewModelScope.launch {
+            _uiState.update { it.copy(isActionLoading = true, errorMessage = null) }
+            try {
+                val response = apiService.updateAdminUserRole(
+                    userId = userId,
+                    request = UpdateUserRoleRequestDto(role = newRole)
+                )
+                val result = NetworkHelper.parseResponse(response)
+
+                result.onSuccess { updatedUser ->
+                    _uiState.update { current ->
+                        current.copy(
+                            isActionLoading = false,
+                            selectedUserForRoleChange = null,
+                            users = current.users.map { if (it.userId == updatedUser.userId) updatedUser else it },
+                            successMessage = "Role for '${updatedUser.userId}' changed to ${updatedUser.role}."
+                        )
+                    }
+                }.onFailure { err ->
+                    _uiState.update {
+                        it.copy(isActionLoading = false, errorMessage = err.message ?: "Failed to update user role.")
+                    }
+                }
+            } catch (e: Exception) {
+                _uiState.update {
+                    it.copy(isActionLoading = false, errorMessage = e.message ?: "Failed to update user role.")
                 }
             }
         }

@@ -31,6 +31,9 @@ import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.Lock
 import androidx.compose.material.icons.filled.Person
 import androidx.compose.material.icons.filled.Place
+import androidx.compose.material.icons.filled.MoreVert
+import androidx.compose.material3.DropdownMenu
+import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material.icons.filled.Refresh
 import androidx.compose.material.icons.outlined.ChevronRight
 import androidx.compose.material3.Button
@@ -238,6 +241,7 @@ fun AdminScreen(
                         users = uiState.users.filter { it.siteCode == selectedSite!!.officeId },
                         currentUserId = viewModel.getCurrentUserId(),
                         onChangeSiteClick = { user -> viewModel.openSiteChangeDialog(user) },
+                        onChangeRoleClick = { user -> viewModel.openRoleChangeDialog(user) },
                         onResetPasswordClick = { user -> viewModel.openResetPasswordDialog(user) },
                         onDeleteUserClick = { user -> viewModel.openDeleteUserDialog(user) }
                     )
@@ -295,6 +299,18 @@ fun AdminScreen(
             onDismiss = viewModel::closeResetPasswordDialog,
             onConfirm = { newPassword ->
                 viewModel.resetUserPassword(targetUser.userId, newPassword)
+            }
+        )
+    }
+
+    // Change Role Dialog
+    uiState.selectedUserForRoleChange?.let { targetUser ->
+        ChangeRoleDialog(
+            user = targetUser,
+            isLoading = uiState.isActionLoading,
+            onDismiss = viewModel::closeRoleChangeDialog,
+            onConfirm = { newRole ->
+                viewModel.updateUserRole(targetUser.userId, newRole)
             }
         )
     }
@@ -485,6 +501,7 @@ private fun SiteEmployeesView(
     users: List<AdminUserDto>,
     currentUserId: String?,
     onChangeSiteClick: (AdminUserDto) -> Unit,
+    onChangeRoleClick: (AdminUserDto) -> Unit,
     onResetPasswordClick: (AdminUserDto) -> Unit,
     onDeleteUserClick: (AdminUserDto) -> Unit
 ) {
@@ -569,6 +586,7 @@ private fun SiteEmployeesView(
                         user = user,
                         isSelf = currentUserId?.equals(user.userId, ignoreCase = true) == true,
                         onChangeSiteClick = { onChangeSiteClick(user) },
+                        onChangeRoleClick = { onChangeRoleClick(user) },
                         onResetPasswordClick = { onResetPasswordClick(user) },
                         onDeleteUserClick = { onDeleteUserClick(user) }
                     )
@@ -586,9 +604,12 @@ private fun UserItemCard(
     user: AdminUserDto,
     isSelf: Boolean,
     onChangeSiteClick: () -> Unit,
+    onChangeRoleClick: () -> Unit,
     onResetPasswordClick: () -> Unit,
     onDeleteUserClick: () -> Unit
 ) {
+    var menuExpanded by remember { mutableStateOf(false) }
+
     Surface(
         modifier = Modifier.fillMaxWidth(),
         shape = RoundedCornerShape(AppDimensions.CardCornerRadius),
@@ -628,18 +649,28 @@ private fun UserItemCard(
                             color = AppPrimaryText
                         )
 
-                        if (user.role.equals("ADMIN", ignoreCase = true)) {
-                            Surface(
-                                shape = RoundedCornerShape(AppDimensions.ChipCornerRadius),
-                                color = AppAccentTint
-                            ) {
-                                Text(
-                                    text = "ADMIN",
-                                    style = AppTypographyTokens.CaptionMedium,
-                                    color = AppAccent,
-                                    modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp)
-                                )
-                            }
+                        val roleLabel = user.role.uppercase()
+                        val badgeColor = when (roleLabel) {
+                            "ADMIN" -> AppAccentTint
+                            "GUARD" -> Color(0xFFFEF3C7)
+                            else -> Color(0xFFF1F5F9)
+                        }
+                        val textColor = when (roleLabel) {
+                            "ADMIN" -> AppAccent
+                            "GUARD" -> Color(0xFFB45309)
+                            else -> AppSecondaryText
+                        }
+
+                        Surface(
+                            shape = RoundedCornerShape(AppDimensions.ChipCornerRadius),
+                            color = badgeColor
+                        ) {
+                            Text(
+                                text = roleLabel,
+                                style = AppTypographyTokens.CaptionMedium,
+                                color = textColor,
+                                modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp)
+                            )
                         }
                     }
 
@@ -650,6 +681,51 @@ private fun UserItemCard(
                         style = AppTypographyTokens.Caption,
                         color = AppSecondaryText
                     )
+                }
+
+                // Single clean Action button that opens the 4-option dropdown menu
+                Box {
+                    SecondaryButton(
+                        text = "Manage",
+                        onClick = { menuExpanded = true }
+                    )
+
+                    DropdownMenu(
+                        expanded = menuExpanded,
+                        onDismissRequest = { menuExpanded = false },
+                        modifier = Modifier.background(AppSurface)
+                    ) {
+                        DropdownMenuItem(
+                            text = { Text("Change Site", style = AppTypographyTokens.BodyMedium) },
+                            onClick = {
+                                menuExpanded = false
+                                onChangeSiteClick()
+                            }
+                        )
+                        DropdownMenuItem(
+                            text = { Text("Change Role", style = AppTypographyTokens.BodyMedium) },
+                            onClick = {
+                                menuExpanded = false
+                                onChangeRoleClick()
+                            }
+                        )
+                        DropdownMenuItem(
+                            text = { Text("Reset Password", style = AppTypographyTokens.BodyMedium) },
+                            onClick = {
+                                menuExpanded = false
+                                onResetPasswordClick()
+                            }
+                        )
+                        if (!isSelf) {
+                            DropdownMenuItem(
+                                text = { Text("Delete User", style = AppTypographyTokens.BodyMedium, color = AppError) },
+                                onClick = {
+                                    menuExpanded = false
+                                    onDeleteUserClick()
+                                }
+                            )
+                        }
+                    }
                 }
             }
 
@@ -671,45 +747,6 @@ private fun UserItemCard(
                     style = AppTypographyTokens.CaptionMedium,
                     color = AppPrimaryText
                 )
-            }
-
-            Spacer(modifier = Modifier.height(AppDimensions.Spacing12))
-
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.spacedBy(AppDimensions.Spacing8),
-                verticalAlignment = Alignment.CenterVertically
-            ) {
-                SecondaryButton(
-                    text = "Change Site",
-                    onClick = onChangeSiteClick,
-                    modifier = Modifier.weight(1.1f)
-                )
-
-                SecondaryButton(
-                    text = "Password",
-                    onClick = onResetPasswordClick,
-                    modifier = Modifier.weight(0.9f)
-                )
-
-                if (!isSelf) {
-                    Button(
-                        onClick = onDeleteUserClick,
-                        colors = ButtonDefaults.buttonColors(
-                            containerColor = AppErrorTint,
-                            contentColor = AppError
-                        ),
-                        shape = RoundedCornerShape(AppDimensions.ButtonCornerRadius),
-                        modifier = Modifier.weight(0.8f),
-                        contentPadding = PaddingValues(horizontal = 4.dp, vertical = 8.dp)
-                    ) {
-                        Text(
-                            text = "Delete",
-                            style = AppTypographyTokens.CaptionMedium,
-                            fontWeight = FontWeight.SemiBold
-                        )
-                    }
-                }
             }
         }
     }
@@ -1430,6 +1467,125 @@ private fun AdminDeleteUserDialog(
                             fontWeight = FontWeight.SemiBold
                         )
                     }
+                }
+            }
+        }
+    }
+}
+
+/**
+ * Dialog for changing user role (Admin, Employee, Guard).
+ */
+@Composable
+private fun ChangeRoleDialog(
+    user: AdminUserDto,
+    isLoading: Boolean,
+    onDismiss: () -> Unit,
+    onConfirm: (String) -> Unit
+) {
+    val roles = listOf("EMPLOYEE", "GUARD", "ADMIN")
+    var selectedRole by remember { mutableStateOf(user.role.uppercase()) }
+
+    Dialog(onDismissRequest = onDismiss) {
+        Surface(
+            shape = RoundedCornerShape(AppDimensions.CardCornerRadius),
+            color = AppSurface,
+            border = BorderStroke(AppDimensions.BorderWidth, AppBorder),
+            modifier = Modifier.fillMaxWidth()
+        ) {
+            Column(modifier = Modifier.padding(AppDimensions.Spacing20)) {
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Text(
+                        text = "Change Role",
+                        style = AppTypographyTokens.Title,
+                        color = AppPrimaryText
+                    )
+                    IconButton(onClick = onDismiss, modifier = Modifier.size(24.dp)) {
+                        Icon(imageVector = Icons.Default.Close, contentDescription = "Close", tint = AppSecondaryText)
+                    }
+                }
+
+                Spacer(modifier = Modifier.height(AppDimensions.Spacing8))
+
+                Text(
+                    text = "Select a new role for ${user.name} (${user.userId}):",
+                    style = AppTypographyTokens.BodyMedium,
+                    color = AppSecondaryText
+                )
+
+                Spacer(modifier = Modifier.height(AppDimensions.Spacing16))
+
+                Column(verticalArrangement = Arrangement.spacedBy(AppDimensions.Spacing8)) {
+                    roles.forEach { role ->
+                        val isSelected = selectedRole.equals(role, ignoreCase = true)
+                        Surface(
+                            shape = RoundedCornerShape(AppDimensions.ButtonCornerRadius),
+                            color = if (isSelected) AppAccentTint else AppBackground,
+                            border = BorderStroke(
+                                1.dp,
+                                if (isSelected) AppAccent else AppBorder
+                            ),
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .clickable { selectedRole = role }
+                        ) {
+                            Row(
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .padding(horizontal = 16.dp, vertical = 12.dp),
+                                horizontalArrangement = Arrangement.SpaceBetween,
+                                verticalAlignment = Alignment.CenterVertically
+                            ) {
+                                Column {
+                                    Text(
+                                        text = role,
+                                        style = AppTypographyTokens.BodyMedium.copy(fontWeight = FontWeight.Bold),
+                                        color = if (isSelected) AppAccent else AppPrimaryText
+                                    )
+                                    Text(
+                                        text = when (role) {
+                                            "GUARD" -> "Full-body photo capture & verification"
+                                            "ADMIN" -> "Video capture + System management"
+                                            else -> "Standard employee video capture"
+                                        },
+                                        style = AppTypographyTokens.Caption,
+                                        color = AppSecondaryText
+                                    )
+                                }
+                                if (isSelected) {
+                                    Icon(
+                                        imageVector = Icons.Default.Check,
+                                        contentDescription = "Selected",
+                                        tint = AppAccent,
+                                        modifier = Modifier.size(18.dp)
+                                    )
+                                }
+                            }
+                        }
+                    }
+                }
+
+                Spacer(modifier = Modifier.height(AppDimensions.Spacing24))
+
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.spacedBy(AppDimensions.Spacing12)
+                ) {
+                    SecondaryButton(
+                        text = "Cancel",
+                        onClick = onDismiss,
+                        modifier = Modifier.weight(1f)
+                    )
+                    PrimaryButton(
+                        text = if (isLoading) "Updating..." else "Confirm",
+                        onClick = { onConfirm(selectedRole) },
+                        enabled = !isLoading,
+                        modifier = Modifier.weight(1f)
+                    )
                 }
             }
         }
