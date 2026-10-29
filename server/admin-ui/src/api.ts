@@ -217,7 +217,7 @@ export const api = {
     user_id: string;
     name: string;
     password: string;
-    role?: 'EMPLOYEE' | 'ADMIN';
+    role?: 'EMPLOYEE' | 'ADMIN' | 'GUARD';
     site_code?: string;
   }): Promise<AdminUser> {
     return request<AdminUser>('/admin/users', {

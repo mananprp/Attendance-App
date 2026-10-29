@@ -12,12 +12,18 @@ enum class CaptureStep {
     FAILURE
 }
 
+enum class CaptureMode {
+    VIDEO,
+    GUARD_PHOTO
+}
+
 /**
  * UI State for Face Punch Capture Flow.
  */
 data class PunchCaptureUiState(
     val step: CaptureStep = CaptureStep.INITIALIZING,
     val punchType: PunchType = PunchType.IN,
+    val captureMode: CaptureMode = CaptureMode.VIDEO,
     val captureProgress: Float = 0f, // 0.0 to 1.0
     val sampledFramesCount: Int = 0,
     val failureTitle: String = "Verification Failed",

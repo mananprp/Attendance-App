@@ -7,7 +7,7 @@ export class UserProfileDto {
   @ApiProperty({ example: 'Alice Sharma' })
   display_name: string;
 
-  @ApiProperty({ example: 'EMPLOYEE', enum: ['ADMIN', 'EMPLOYEE'] })
+  @ApiProperty({ example: 'EMPLOYEE', enum: ['ADMIN', 'EMPLOYEE', 'GUARD'] })
   role: string;
 
   @ApiProperty({ example: 'DEFAULT_OFFICE' })

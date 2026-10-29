@@ -19,7 +19,7 @@ export const UsersView: React.FC<UsersViewProps> = ({ sites }) => {
   const [newUserId, setNewUserId] = useState('');
   const [newName, setNewName] = useState('');
   const [newPassword, setNewPassword] = useState('Password@123');
-  const [newRole, setNewRole] = useState<'EMPLOYEE' | 'ADMIN'>('EMPLOYEE');
+  const [newRole, setNewRole] = useState<'EMPLOYEE' | 'ADMIN' | 'GUARD'>('EMPLOYEE');
   const [newSiteCode, setNewSiteCode] = useState('DEFAULT_OFFICE');
   const [creating, setCreating] = useState(false);
 
@@ -219,10 +219,14 @@ export const UsersView: React.FC<UsersViewProps> = ({ sites }) => {
                     <div style={{ fontWeight: 600 }}>{u.name}</div>
                   </td>
                   <td>
-                    <span className={`badge ${u.role === 'ADMIN' ? 'badge-admin' : 'badge-employee'}`}>
+                    <span className={`badge ${u.role === 'ADMIN' ? 'badge-admin' : u.role === 'GUARD' ? 'badge-warning' : 'badge-employee'}`}>
                       {u.role === 'ADMIN' ? (
                         <>
                           <Shield size={12} /> ADMIN
+                        </>
+                      ) : u.role === 'GUARD' ? (
+                        <>
+                          <Shield size={12} /> GUARD
                         </>
                       ) : (
                         <>
@@ -355,6 +359,7 @@ export const UsersView: React.FC<UsersViewProps> = ({ sites }) => {
                     onChange={(e) => setNewRole(e.target.value as any)}
                   >
                     <option value="EMPLOYEE">EMPLOYEE</option>
+                    <option value="GUARD">GUARD</option>
                     <option value="ADMIN">ADMIN</option>
                   </select>
                 </div>

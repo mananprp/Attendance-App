@@ -88,9 +88,13 @@ class PunchCaptureViewModel @Inject constructor(
         targetDistanceMeters = distanceMeters
         targetLocationType = locationType
 
+        val isGuard = tokenStorage.getRole().equals("GUARD", ignoreCase = true)
+        val mode = if (isGuard) CaptureMode.GUARD_PHOTO else CaptureMode.VIDEO
+
         _uiState.update {
             it.copy(
                 punchType = punchType,
+                captureMode = mode,
                 step = CaptureStep.INITIALIZING,
                 failureMessage = null,
                 failureReason = null
@@ -317,12 +321,13 @@ class PunchCaptureViewModel @Inject constructor(
 
     private suspend fun handleVerificationResult(
         result: FaceVerificationResult,
-        threshold: Float
+        threshold: Float,
+        overrideImagePath: String? = null
     ) {
         when (result) {
             is FaceVerificationResult.Match -> {
-                // 1. Save aligned face image to app-private storage
-                val imagePath = try {
+                // 1. Save aligned face image to app-private storage (or use guard full-body image)
+                val imagePath = overrideImagePath ?: try {
                     CameraCaptureUtils.savePunchImageToInternalStorage(context, result.alignedFaceBitmap)
                 } catch (e: Exception) {
                     null
@@ -466,6 +471,53 @@ class PunchCaptureViewModel @Inject constructor(
         currentStreamingSession = null
         viewModelScope.launch {
             _navigationEvents.send(PunchCaptureNavigationEvent.FinishCancel)
+        }
+    }
+
+    /**
+     * Handles single-photo verification for GUARD full-body photo capture.
+     */
+    fun processGuardPhoto(capturedBitmap: Bitmap) {
+        viewModelScope.launch {
+            _uiState.update {
+                it.copy(
+                    step = CaptureStep.PROCESSING,
+                    failureMessage = null,
+                    failureReason = null
+                )
+            }
+
+            // Save full-body photo to punch storage
+            val imagePath = CameraCaptureUtils.savePunchImageToInternalStorage(context, capturedBitmap)
+
+            val refBytes = cachedReferenceEmbedding
+            if (refBytes == null) {
+                _uiState.update {
+                    it.copy(
+                        step = CaptureStep.FAILURE,
+                        failureTitle = "Profile Photo Missing",
+                        failureMessage = "No reference photo found on this device or server. Please contact your administrator.",
+                        failureReason = "Cached embedding null."
+                    )
+                }
+                return@launch
+            }
+
+            val threshold = remoteConfigRepository.getConfig().matchThreshold
+            val referenceFloats = CameraCaptureUtils.byteArrayToFloatArray(refBytes)
+
+            // Verify the single captured photo with FaceVerifier
+            val verificationResult = faceVerifier.verifyPunchFrames(
+                frames = listOf(capturedBitmap),
+                referenceEmbedding = referenceFloats,
+                threshold = threshold
+            )
+
+            handleVerificationResult(
+                result = verificationResult,
+                threshold = threshold,
+                overrideImagePath = imagePath
+            )
         }
     }
 

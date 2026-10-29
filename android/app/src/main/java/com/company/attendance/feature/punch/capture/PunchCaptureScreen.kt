@@ -1,15 +1,25 @@
 package com.company.attendance.feature.punch.capture
 
+import android.app.Activity
+import android.content.Context
+import android.content.ContextWrapper
+import android.view.WindowManager
+import androidx.camera.core.Camera
 import androidx.camera.core.CameraSelector
 import androidx.camera.core.ImageAnalysis
+import androidx.camera.core.ImageCapture
+import androidx.camera.core.ImageCaptureException
+import androidx.camera.core.ImageProxy
 import androidx.camera.core.Preview
 import androidx.camera.lifecycle.ProcessCameraProvider
 import androidx.camera.view.PreviewView
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
+import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.background
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -20,24 +30,37 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.Cameraswitch
+import androidx.compose.material.icons.filled.Close
+import androidx.compose.material.icons.filled.FlashOff
+import androidx.compose.material.icons.filled.FlashOn
 import androidx.compose.material.icons.outlined.CheckCircle
 import androidx.compose.material.icons.outlined.ErrorOutline
 import androidx.compose.material.icons.outlined.Refresh
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.Icon
 import androidx.compose.material3.LinearProgressIndicator
+import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableIntStateOf
+import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.geometry.CornerRadius
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.geometry.Rect
+import androidx.compose.ui.geometry.RoundRect
 import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.Path
@@ -49,6 +72,7 @@ import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.viewinterop.AndroidView
 import androidx.core.content.ContextCompat
+import androidx.hilt.navigation.compose.hiltViewModel
 import com.company.attendance.core.model.PunchType
 import com.company.attendance.design.components.PrimaryButton
 import com.company.attendance.design.components.SecondaryButton
@@ -57,24 +81,11 @@ import com.company.attendance.design.theme.AppAccent
 import com.company.attendance.design.theme.AppBackground
 import com.company.attendance.design.theme.AppDimensions
 import com.company.attendance.design.theme.AppError
-import android.app.Activity
-import android.content.Context
-import android.content.ContextWrapper
-import android.view.WindowManager
-import androidx.compose.foundation.BorderStroke
-import androidx.compose.foundation.layout.width
-import androidx.compose.foundation.shape.CircleShape
-import androidx.compose.material.icons.filled.FlashOff
-import androidx.compose.material.icons.filled.FlashOn
-import androidx.compose.material3.Surface
-import androidx.compose.runtime.mutableStateOf
-import androidx.compose.runtime.setValue
 import com.company.attendance.design.theme.AppPrimaryText
 import com.company.attendance.design.theme.AppSecondaryText
 import com.company.attendance.design.theme.AppSuccess
 import com.company.attendance.design.theme.AppTypographyTokens
 import kotlinx.coroutines.flow.collectLatest
-import androidx.hilt.navigation.compose.hiltViewModel
 import java.util.concurrent.Executors
 
 private fun Context.findActivity(): Activity? {
@@ -124,16 +135,37 @@ fun PunchCaptureScreen(
     var isAutoTriggered by remember { mutableStateOf(false) }
     var userManuallyToggled by remember { mutableStateOf(false) }
 
-    // Screen brightness override: sets 100% full brightness when flash is enabled to light up face
-    DisposableEffect(isFlashEnabled) {
+    // Camera lens selection state: Guards default to BACK camera; video default to FRONT camera
+    var selectedLensFacing by remember(uiState.captureMode) {
+        mutableIntStateOf(
+            if (uiState.captureMode == CaptureMode.GUARD_PHOTO) {
+                CameraSelector.LENS_FACING_BACK
+            } else {
+                CameraSelector.LENS_FACING_FRONT
+            }
+        )
+    }
+
+    // Active Camera instance holder for rear torch control
+    var boundCamera by remember { mutableStateOf<Camera?>(null) }
+
+    // Rear Torch hardware control
+    LaunchedEffect(isFlashEnabled, boundCamera, selectedLensFacing) {
+        if (selectedLensFacing == CameraSelector.LENS_FACING_BACK) {
+            boundCamera?.cameraControl?.enableTorch(isFlashEnabled)
+        }
+    }
+
+    // Front Screen Brightness Flash: 100% full screen brightness when front lens is active
+    DisposableEffect(isFlashEnabled, selectedLensFacing) {
         val activity = context.findActivity()
         val originalBrightness = activity?.window?.attributes?.screenBrightness
             ?: WindowManager.LayoutParams.BRIGHTNESS_OVERRIDE_NONE
 
-        if (isFlashEnabled) {
+        if (isFlashEnabled && selectedLensFacing == CameraSelector.LENS_FACING_FRONT) {
             activity?.window?.let { window ->
                 val params = window.attributes
-                params.screenBrightness = WindowManager.LayoutParams.BRIGHTNESS_OVERRIDE_FULL // 1.0f
+                params.screenBrightness = WindowManager.LayoutParams.BRIGHTNESS_OVERRIDE_FULL
                 window.attributes = params
             }
         } else {
@@ -160,6 +192,8 @@ fun PunchCaptureScreen(
         }
     }
 
+    var imageCaptureUseCase by remember { mutableStateOf<ImageCapture?>(null) }
+
     Box(
         modifier = modifier
             .fillMaxSize()
@@ -169,9 +203,12 @@ fun PunchCaptureScreen(
         if (uiState.step == CaptureStep.READY || uiState.step == CaptureStep.CAPTURING || uiState.step == CaptureStep.INITIALIZING) {
             AndroidView(
                 factory = { ctx ->
-                    val previewView = PreviewView(ctx)
-                    val cameraProviderFuture = ProcessCameraProvider.getInstance(ctx)
-
+                    PreviewView(ctx).apply {
+                        implementationMode = PreviewView.ImplementationMode.COMPATIBLE
+                    }
+                },
+                update = { previewView ->
+                    val cameraProviderFuture = ProcessCameraProvider.getInstance(context)
                     cameraProviderFuture.addListener({
                         val cameraProvider = cameraProviderFuture.get()
 
@@ -179,83 +216,121 @@ fun PunchCaptureScreen(
                             it.setSurfaceProvider(previewView.surfaceProvider)
                         }
 
-                        val imageAnalysis = ImageAnalysis.Builder()
-                            .setBackpressureStrategy(ImageAnalysis.STRATEGY_KEEP_ONLY_LATEST)
-                            .build()
-
-                        imageAnalysis.setAnalyzer(cameraExecutor) { imageProxy ->
-                            try {
-                                // Auto low-light detection: sample Y-plane luminance if user hasn't manually toggled
-                                if (!userManuallyToggled && !isAutoTriggered) {
-                                    val yPlane = imageProxy.planes.getOrNull(0)
-                                    if (yPlane != null) {
-                                        val buffer = yPlane.buffer
-                                        val rowStride = yPlane.rowStride
-                                        val pixelStride = yPlane.pixelStride
-                                        val w = imageProxy.width
-                                        val h = imageProxy.height
-                                        var sum = 0L
-                                        var count = 0
-                                        val step = 16
-                                        for (y in 0 until h step step) {
-                                            val rowOffset = y * rowStride
-                                            for (x in 0 until w step step) {
-                                                val idx = rowOffset + x * pixelStride
-                                                if (idx < buffer.limit()) {
-                                                    sum += (buffer.get(idx).toInt() and 0xFF)
-                                                    count++
-                                                }
-                                            }
-                                        }
-                                        if (count > 0 && (sum.toDouble() / count) < 45.0) {
-                                            ContextCompat.getMainExecutor(ctx).execute {
-                                                if (!userManuallyToggled) {
-                                                    isFlashEnabled = true
-                                                    isAutoTriggered = true
-                                                }
-                                            }
-                                        }
-                                    }
-                                }
-
-                                if (viewModel.shouldSampleNow()) {
-                                    val bitmap = CameraCaptureUtils.imageProxyToRotatedBitmap(imageProxy)
-                                    viewModel.onFrameSampled(bitmap)
-                                }
-                            } catch (_: Exception) {
-                            } finally {
-                                imageProxy.close()
+                        val targetLens = if (selectedLensFacing == CameraSelector.LENS_FACING_FRONT) {
+                            if (cameraProvider.hasCamera(CameraSelector.DEFAULT_FRONT_CAMERA)) {
+                                CameraSelector.LENS_FACING_FRONT
+                            } else {
+                                CameraSelector.LENS_FACING_BACK
+                            }
+                        } else {
+                            if (cameraProvider.hasCamera(CameraSelector.DEFAULT_BACK_CAMERA)) {
+                                CameraSelector.LENS_FACING_BACK
+                            } else {
+                                CameraSelector.LENS_FACING_FRONT
                             }
                         }
 
-                        val cameraSelector = if (cameraProvider.hasCamera(CameraSelector.DEFAULT_FRONT_CAMERA)) {
-                            CameraSelector.DEFAULT_FRONT_CAMERA
-                        } else {
-                            CameraSelector.DEFAULT_BACK_CAMERA
-                        }
+                        val cameraSelector = CameraSelector.Builder()
+                            .requireLensFacing(targetLens)
+                            .build()
 
                         try {
                             cameraProvider.unbindAll()
-                            cameraProvider.bindToLifecycle(
-                                lifecycleOwner,
-                                cameraSelector,
-                                preview,
-                                imageAnalysis
-                            )
+
+                            if (uiState.captureMode == CaptureMode.GUARD_PHOTO) {
+                                val imageCapture = ImageCapture.Builder()
+                                    .setCaptureMode(ImageCapture.CAPTURE_MODE_MINIMIZE_LATENCY)
+                                    .build()
+                                imageCaptureUseCase = imageCapture
+
+                                val cam = cameraProvider.bindToLifecycle(
+                                    lifecycleOwner,
+                                    cameraSelector,
+                                    preview,
+                                    imageCapture
+                                )
+                                boundCamera = cam
+                                if (targetLens == CameraSelector.LENS_FACING_BACK) {
+                                    cam.cameraControl.enableTorch(isFlashEnabled)
+                                }
+                            } else {
+                                // Video / continuous frame analysis mode
+                                val imageAnalysis = ImageAnalysis.Builder()
+                                    .setBackpressureStrategy(ImageAnalysis.STRATEGY_KEEP_ONLY_LATEST)
+                                    .build()
+
+                                imageAnalysis.setAnalyzer(cameraExecutor) { imageProxy ->
+                                    try {
+                                        // Auto low-light detection for front camera
+                                        if (!userManuallyToggled && !isAutoTriggered && targetLens == CameraSelector.LENS_FACING_FRONT) {
+                                            val yPlane = imageProxy.planes.getOrNull(0)
+                                            if (yPlane != null) {
+                                                val buffer = yPlane.buffer
+                                                val rowStride = yPlane.rowStride
+                                                val pixelStride = yPlane.pixelStride
+                                                val w = imageProxy.width
+                                                val h = imageProxy.height
+                                                var sum = 0L
+                                                var count = 0
+                                                val step = 16
+                                                for (y in 0 until h step step) {
+                                                    val rowOffset = y * rowStride
+                                                    for (x in 0 until w step step) {
+                                                        val idx = rowOffset + x * pixelStride
+                                                        if (idx < buffer.limit()) {
+                                                            sum += (buffer.get(idx).toInt() and 0xFF)
+                                                            count++
+                                                        }
+                                                    }
+                                                }
+                                                if (count > 0 && (sum.toDouble() / count) < 45.0) {
+                                                    ContextCompat.getMainExecutor(context).execute {
+                                                        if (!userManuallyToggled) {
+                                                            isFlashEnabled = true
+                                                            isAutoTriggered = true
+                                                        }
+                                                    }
+                                                }
+                                            }
+                                        }
+
+                                        if (viewModel.shouldSampleNow()) {
+                                            val bitmap = CameraCaptureUtils.imageProxyToRotatedBitmap(imageProxy)
+                                            viewModel.onFrameSampled(bitmap)
+                                        }
+                                    } catch (_: Exception) {
+                                    } finally {
+                                        imageProxy.close()
+                                    }
+                                }
+
+                                val cam = cameraProvider.bindToLifecycle(
+                                    lifecycleOwner,
+                                    cameraSelector,
+                                    preview,
+                                    imageAnalysis
+                                )
+                                boundCamera = cam
+                            }
                         } catch (_: Exception) {
                         }
-                    }, ContextCompat.getMainExecutor(ctx))
-
-                    previewView
+                    }, ContextCompat.getMainExecutor(context))
                 },
                 modifier = Modifier.fillMaxSize()
             )
 
-            // Oval Guide Overlay with Screen Flash Softbox
-            FaceOvalGuideOverlay(
-                isScreenFlashActive = isFlashEnabled,
-                modifier = Modifier.fillMaxSize()
-            )
+            // Guide Overlays
+            if (uiState.captureMode == CaptureMode.GUARD_PHOTO) {
+                GuardBodyGuideOverlay(
+                    isScreenFlashActive = isFlashEnabled && selectedLensFacing == CameraSelector.LENS_FACING_FRONT,
+                    modifier = Modifier.fillMaxSize()
+                )
+            } else {
+                FaceOvalGuideOverlay(
+                    isScreenFlashActive = isFlashEnabled && selectedLensFacing == CameraSelector.LENS_FACING_FRONT,
+                    modifier = Modifier.fillMaxSize()
+                )
+            }
         }
 
         // Top Controls: Guidance Banner
@@ -267,20 +342,25 @@ fun PunchCaptureScreen(
                     .padding(top = 48.dp, start = 20.dp, end = 20.dp),
                 horizontalAlignment = Alignment.CenterHorizontally
             ) {
-                val titleColor = if (isFlashEnabled) Color(0xFF0F172A) else Color.White
-                val subtitleColor = if (isFlashEnabled) Color(0xFF334155) else Color.White.copy(alpha = 0.85f)
+                val isFrontFlash = isFlashEnabled && selectedLensFacing == CameraSelector.LENS_FACING_FRONT
+                val titleColor = if (isFrontFlash) Color(0xFF0F172A) else Color.White
+                val subtitleColor = if (isFrontFlash) Color(0xFF334155) else Color.White.copy(alpha = 0.85f)
 
                 Text(
-                    text = if (punchType == PunchType.IN) "Punch In Verification" else "Punch Out Verification",
+                    text = if (punchType == PunchType.IN) {
+                        if (uiState.captureMode == CaptureMode.GUARD_PHOTO) "Guard Punch In" else "Punch In Verification"
+                    } else {
+                        if (uiState.captureMode == CaptureMode.GUARD_PHOTO) "Guard Punch Out" else "Punch Out Verification"
+                    },
                     style = AppTypographyTokens.Title.copy(color = titleColor),
                     fontWeight = FontWeight.SemiBold
                 )
                 Spacer(modifier = Modifier.height(AppDimensions.Spacing8))
                 Text(
-                    text = if (uiState.step == CaptureStep.CAPTURING) {
-                        "Recording face... Keep looking at the camera"
-                    } else {
-                        "Align your face inside the oval and tap Capture"
+                    text = when {
+                        uiState.step == CaptureStep.CAPTURING -> "Recording face... Keep looking at the camera"
+                        uiState.captureMode == CaptureMode.GUARD_PHOTO -> "Align full body and face inside frame, then tap capture"
+                        else -> "Align your face inside the oval and tap Capture"
                     },
                     style = AppTypographyTokens.BodyMedium.copy(color = subtitleColor),
                     textAlign = TextAlign.Center
@@ -289,75 +369,138 @@ fun PunchCaptureScreen(
                 if (uiState.step == CaptureStep.CAPTURING) {
                     Spacer(modifier = Modifier.height(AppDimensions.Spacing16))
 
-                    // Capture Progress Bar
                     LinearProgressIndicator(
                         progress = { uiState.captureProgress },
                         modifier = Modifier
                             .fillMaxWidth(0.75f)
                             .height(6.dp),
                         color = AppAccent,
-                        trackColor = if (isFlashEnabled) Color(0xFFE2E8F0) else Color.White.copy(alpha = 0.3f),
+                        trackColor = if (isFrontFlash) Color(0xFFE2E8F0) else Color.White.copy(alpha = 0.3f),
                     )
                 }
             }
         }
 
-        // Bottom Controls: Ergonomic Screen Flash Toggle & Action Buttons
+        // Camera Bottom Control Bar (Left: Cancel/Back, Center: Capture, Right: Flash & Flip)
         if (uiState.step == CaptureStep.READY || uiState.step == CaptureStep.INITIALIZING) {
-            Column(
+            Box(
                 modifier = Modifier
                     .fillMaxWidth()
                     .align(Alignment.BottomCenter)
-                    .padding(start = 24.dp, end = 24.dp, bottom = 48.dp),
-                horizontalAlignment = Alignment.CenterHorizontally
+                    .background(Color.Black.copy(alpha = 0.45f))
+                    .padding(horizontal = 24.dp, vertical = 28.dp)
             ) {
-                // Ergonomic Screen Flash Toggle Pill (one-handed thumb reach)
-                Surface(
-                    onClick = {
-                        userManuallyToggled = true
-                        isFlashEnabled = !isFlashEnabled
-                    },
-                    shape = CircleShape,
-                    color = if (isFlashEnabled) Color(0xFFFEF08A) else Color.Black.copy(alpha = 0.6f),
-                    contentColor = if (isFlashEnabled) Color(0xFF854D0E) else Color.White,
-                    border = BorderStroke(
-                        1.dp,
-                        if (isFlashEnabled) Color(0xFFFACC15) else Color.White.copy(alpha = 0.4f)
-                    )
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.SpaceBetween
                 ) {
-                    Row(
-                        verticalAlignment = Alignment.CenterVertically,
-                        modifier = Modifier.padding(horizontal = 14.dp, vertical = 7.dp)
+                    // LEFT: Cancel / Back Button
+                    Surface(
+                        onClick = { viewModel.onCancelClicked() },
+                        shape = CircleShape,
+                        color = Color.White.copy(alpha = 0.2f),
+                        contentColor = Color.White,
+                        modifier = Modifier.size(52.dp)
                     ) {
-                        Icon(
-                            imageVector = if (isFlashEnabled) Icons.Filled.FlashOn else Icons.Filled.FlashOff,
-                            contentDescription = "Screen Flash",
-                            modifier = Modifier.size(16.dp)
-                        )
-                        Spacer(modifier = Modifier.width(6.dp))
-                        Text(
-                            text = if (isFlashEnabled) {
-                                if (isAutoTriggered && !userManuallyToggled) "Screen Flash ON (Auto)" else "Screen Flash ON"
-                            } else "Screen Flash OFF",
-                            style = AppTypographyTokens.Caption.copy(fontWeight = FontWeight.SemiBold)
+                        Box(contentAlignment = Alignment.Center) {
+                            Icon(
+                                imageVector = Icons.Default.Close,
+                                contentDescription = "Cancel",
+                                modifier = Modifier.size(24.dp)
+                            )
+                        }
+                    }
+
+                    // CENTER: Big Capture Button
+                    Box(
+                        modifier = Modifier
+                            .size(76.dp)
+                            .background(Color.White.copy(alpha = 0.25f), CircleShape)
+                            .padding(6.dp)
+                            .clickable(enabled = uiState.step == CaptureStep.READY) {
+                                if (uiState.captureMode == CaptureMode.GUARD_PHOTO) {
+                                    val imageCapture = imageCaptureUseCase
+                                    if (imageCapture != null) {
+                                        imageCapture.takePicture(
+                                            ContextCompat.getMainExecutor(context),
+                                            object : ImageCapture.OnImageCapturedCallback() {
+                                                override fun onCaptureSuccess(image: ImageProxy) {
+                                                    try {
+                                                        val bmp = CameraCaptureUtils.imageProxyToRotatedBitmap(image)
+                                                        viewModel.processGuardPhoto(bmp)
+                                                    } finally {
+                                                        image.close()
+                                                    }
+                                                }
+
+                                                override fun onError(exception: ImageCaptureException) {
+                                                    // Fallback retry
+                                                }
+                                            }
+                                        )
+                                    }
+                                } else {
+                                    viewModel.startCapture()
+                                }
+                            },
+                        contentAlignment = Alignment.Center
+                    ) {
+                        Box(
+                            modifier = Modifier
+                                .fillMaxSize()
+                                .background(Color.White, CircleShape)
                         )
                     }
-                }
 
-                Spacer(modifier = Modifier.height(AppDimensions.Spacing16))
+                    // RIGHT: Flash & Lens Flip Controls
+                    Row(
+                        horizontalArrangement = Arrangement.spacedBy(10.dp),
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        // Flash / Torch Toggle
+                        Surface(
+                            onClick = {
+                                userManuallyToggled = true
+                                isFlashEnabled = !isFlashEnabled
+                            },
+                            shape = CircleShape,
+                            color = if (isFlashEnabled) Color(0xFFFEF08A) else Color.White.copy(alpha = 0.2f),
+                            contentColor = if (isFlashEnabled) Color(0xFF854D0E) else Color.White,
+                            modifier = Modifier.size(52.dp)
+                        ) {
+                            Box(contentAlignment = Alignment.Center) {
+                                Icon(
+                                    imageVector = if (isFlashEnabled) Icons.Filled.FlashOn else Icons.Filled.FlashOff,
+                                    contentDescription = "Flash",
+                                    modifier = Modifier.size(22.dp)
+                                )
+                            }
+                        }
 
-                if (uiState.step == CaptureStep.READY) {
-                    PrimaryButton(
-                        text = "Capture & Verify",
-                        onClick = { viewModel.startCapture() }
-                    )
-
-                    Spacer(modifier = Modifier.height(AppDimensions.Spacing12))
-
-                    SecondaryButton(
-                        text = "Cancel",
-                        onClick = { viewModel.onCancelClicked() }
-                    )
+                        // Switch Camera Toggle (Always available for Guard, or on demand)
+                        Surface(
+                            onClick = {
+                                selectedLensFacing = if (selectedLensFacing == CameraSelector.LENS_FACING_FRONT) {
+                                    CameraSelector.LENS_FACING_BACK
+                                } else {
+                                    CameraSelector.LENS_FACING_FRONT
+                                }
+                            },
+                            shape = CircleShape,
+                            color = Color.White.copy(alpha = 0.2f),
+                            contentColor = Color.White,
+                            modifier = Modifier.size(52.dp)
+                        ) {
+                            Box(contentAlignment = Alignment.Center) {
+                                Icon(
+                                    imageVector = Icons.Default.Cameraswitch,
+                                    contentDescription = "Switch Camera",
+                                    modifier = Modifier.size(22.dp)
+                                )
+                            }
+                        }
+                    }
                 }
             }
         }
@@ -386,7 +529,7 @@ fun PunchCaptureScreen(
                     )
                     Spacer(modifier = Modifier.height(AppDimensions.Spacing24))
                     Text(
-                        text = "Verifying Face & Liveness...",
+                        text = if (uiState.captureMode == CaptureMode.GUARD_PHOTO) "Verifying Guard Photo..." else "Verifying Face & Liveness...",
                         style = AppTypographyTokens.Title.copy(color = Color.White),
                         fontWeight = FontWeight.Medium
                     )
@@ -543,7 +686,7 @@ fun PunchCaptureScreen(
 }
 
 /**
- * Canvas drawing an oval guide cutout with either white fill light (flash active) or darkened backdrop.
+ * Canvas drawing an oval guide cutout for facial video mode.
  */
 @Composable
 private fun FaceOvalGuideOverlay(
@@ -561,8 +704,6 @@ private fun FaceOvalGuideOverlay(
             size = Size(ovalWidth, ovalHeight)
         )
 
-        // Draw background with oval cutout
-        // When flash is active: bright white backdrop casts strong diffuse light onto face
         val backdropColor = if (isScreenFlashActive) {
             Color.White.copy(alpha = 0.94f)
         } else {
@@ -579,18 +720,79 @@ private fun FaceOvalGuideOverlay(
             color = backdropColor
         )
 
-        // Draw oval guide border
         val borderColor = if (isScreenFlashActive) {
             AppAccent
         } else {
-            Color.White.copy(alpha = 0.85f)
+            Color.White.copy(alpha = 0.8f)
         }
 
         drawOval(
             color = borderColor,
-            topLeft = Offset(left, top),
-            size = Size(ovalWidth, ovalHeight),
+            topLeft = ovalRect.topLeft,
+            size = ovalRect.size,
             style = Stroke(width = 3.dp.toPx())
+        )
+    }
+}
+
+/**
+ * Canvas drawing a full-body guideline overlay for guards.
+ */
+@Composable
+private fun GuardBodyGuideOverlay(
+    isScreenFlashActive: Boolean = false,
+    modifier: Modifier = Modifier
+) {
+    Canvas(modifier = modifier) {
+        val guideWidth = size.width * 0.82f
+        val guideHeight = size.height * 0.70f
+        val left = (size.width - guideWidth) / 2f
+        val top = size.height * 0.14f
+
+        val bodyRect = Rect(
+            offset = Offset(left, top),
+            size = Size(guideWidth, guideHeight)
+        )
+
+        val backdropColor = if (isScreenFlashActive) {
+            Color.White.copy(alpha = 0.94f)
+        } else {
+            Color.Black.copy(alpha = 0.50f)
+        }
+
+        // Rounded body frame cutout
+        drawPath(
+            path = Path().apply {
+                reset()
+                addRect(Rect(0f, 0f, size.width, size.height))
+                addRoundRect(
+                    RoundRect(
+                        bodyRect,
+                        CornerRadius(24.dp.toPx(), 24.dp.toPx())
+                    )
+                )
+                fillType = androidx.compose.ui.graphics.PathFillType.EvenOdd
+            },
+            color = backdropColor
+        )
+
+        // Outer guide border
+        drawRoundRect(
+            color = if (isScreenFlashActive) AppAccent else Color.White.copy(alpha = 0.85f),
+            topLeft = bodyRect.topLeft,
+            size = bodyRect.size,
+            cornerRadius = CornerRadius(24.dp.toPx(), 24.dp.toPx()),
+            style = Stroke(width = 2.5.dp.toPx())
+        )
+
+        // Subtle head circle guide near the top of the body frame
+        val headRadius = guideWidth * 0.22f
+        val headCenter = Offset(size.width / 2f, top + headRadius + 16.dp.toPx())
+        drawCircle(
+            color = Color.White.copy(alpha = 0.45f),
+            radius = headRadius,
+            center = headCenter,
+            style = Stroke(width = 1.5.dp.toPx())
         )
     }
 }

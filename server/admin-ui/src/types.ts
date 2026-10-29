@@ -1,7 +1,7 @@
 export interface AdminUser {
   user_id: string;
   name: string;
-  role: 'ADMIN' | 'EMPLOYEE';
+  role: 'ADMIN' | 'EMPLOYEE' | 'GUARD';
   site_code: string;
   site_name: string;
   status: string;

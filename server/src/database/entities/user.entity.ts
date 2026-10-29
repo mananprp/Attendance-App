@@ -20,6 +20,7 @@ export enum UserStatus {
 export enum UserRole {
   ADMIN = 'ADMIN',
   EMPLOYEE = 'EMPLOYEE',
+  GUARD = 'GUARD',
 }
 
 @Entity({ name: 'users' })
