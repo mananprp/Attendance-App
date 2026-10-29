@@ -256,46 +256,17 @@ fun ProfileScreenContent(
 
                     Spacer(modifier = Modifier.height(AppDimensions.Spacing4))
 
-                    Row(horizontalArrangement = Arrangement.spacedBy(AppDimensions.Spacing8)) {
-                        Surface(
-                            shape = RoundedCornerShape(AppDimensions.ChipCornerRadius),
-                            color = AppBackground,
-                            border = BorderStroke(1.dp, AppBorder)
-                        ) {
-                            Text(
-                                text = "Site: ${uiState.siteCode.ifBlank { "DEFAULT_OFFICE" }}",
-                                style = AppTypographyTokens.CaptionMedium,
-                                color = AppSecondaryText,
-                                modifier = Modifier.padding(horizontal = 8.dp, vertical = 3.dp)
-                            )
-                        }
-
-                        if (uiState.isAdmin) {
-                            Surface(
-                                shape = RoundedCornerShape(AppDimensions.ChipCornerRadius),
-                                color = AppAccentTint
-                            ) {
-                                Text(
-                                    text = "ADMIN",
-                                    style = AppTypographyTokens.CaptionMedium,
-                                    color = AppAccent,
-                                    modifier = Modifier.padding(horizontal = 8.dp, vertical = 3.dp)
-                                )
-                            }
-                        }
-                    }
-
-                    if (uiState.activePhotoVersion != null) {
+                    if (uiState.isAdmin) {
                         Spacer(modifier = Modifier.height(AppDimensions.Spacing8))
                         Surface(
                             shape = RoundedCornerShape(AppDimensions.ChipCornerRadius),
                             color = AppAccentTint
                         ) {
                             Text(
-                                text = "Photo Version ${uiState.activePhotoVersion}",
+                                text = "ADMIN",
                                 style = AppTypographyTokens.CaptionMedium,
                                 color = AppAccent,
-                                modifier = Modifier.padding(horizontal = 10.dp, vertical = 4.dp)
+                                modifier = Modifier.padding(horizontal = 8.dp, vertical = 3.dp)
                             )
                         }
                     }
