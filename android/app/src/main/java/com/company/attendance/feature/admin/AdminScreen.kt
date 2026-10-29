@@ -38,6 +38,7 @@ import androidx.compose.material.icons.filled.Refresh
 import androidx.compose.material.icons.outlined.ChevronRight
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
+import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.FloatingActionButton
 import androidx.compose.material3.Icon
@@ -685,10 +686,21 @@ private fun UserItemCard(
 
                 // Single clean Action button that opens the 4-option dropdown menu
                 Box {
-                    SecondaryButton(
-                        text = "Manage",
-                        onClick = { menuExpanded = true }
-                    )
+                    OutlinedButton(
+                        onClick = { menuExpanded = true },
+                        shape = RoundedCornerShape(AppDimensions.ButtonCornerRadius),
+                        border = BorderStroke(1.dp, AppBorder),
+                        colors = ButtonDefaults.outlinedButtonColors(
+                            containerColor = AppSurface,
+                            contentColor = AppPrimaryText
+                        ),
+                        contentPadding = PaddingValues(horizontal = 16.dp, vertical = 8.dp)
+                    ) {
+                        Text(
+                            text = "Manage",
+                            style = AppTypographyTokens.CaptionMedium.copy(fontWeight = FontWeight.SemiBold)
+                        )
+                    }
 
                     DropdownMenu(
                         expanded = menuExpanded,
