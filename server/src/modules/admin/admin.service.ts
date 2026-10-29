@@ -358,7 +358,7 @@ export class AdminService {
       ].join(','),
     );
 
-    return [headers.join(','), ...rows].join('\r\n');
+    return '\uFEFF' + [headers.join(','), ...rows].join('\r\n');
   }
 
   async getAllAttendance(filter: AdminPunchFilterDto): Promise<AdminDailyAttendanceDto[]> {
@@ -499,7 +499,7 @@ export class AdminService {
       ) - (5.5 * 3600 * 1000);
 
       let status = 'IN_PROGRESS';
-      let workDurationFormatted = '—';
+      let workDurationFormatted = '-';
       let workDurationMinutes: number | null = null;
 
       if (firstIn && lastOut) {
@@ -598,19 +598,19 @@ export class AdminService {
         escapeCsv(r.site_code),
         escapeCsv(r.date_local),
         escapeCsv(r.shift_type),
-        escapeCsv(r.in_time_local || '—'),
-        escapeCsv(r.out_time_local || '—'),
+        escapeCsv(r.in_time_local || '-'),
+        escapeCsv(r.out_time_local || '-'),
         escapeCsv(r.work_duration_formatted),
         escapeCsv(r.location_type),
         escapeCsv(r.latitude),
         escapeCsv(r.longitude),
-        escapeCsv(r.distance_m != null ? `${r.distance_m}m` : '—'),
+        escapeCsv(r.distance_m != null ? `${r.distance_m}m` : '-'),
         escapeCsv(r.status),
-        escapeCsv(r.match_score_avg != null ? `${(r.match_score_avg * 100).toFixed(0)}%` : '—'),
+        escapeCsv(r.match_score_avg != null ? `${(r.match_score_avg * 100).toFixed(0)}%` : '-'),
         escapeCsv(r.maps_url),
       ].join(','),
     );
 
-    return [headers.join(','), ...rows].join('\r\n');
+    return '\uFEFF' + [headers.join(','), ...rows].join('\r\n');
   }
 }

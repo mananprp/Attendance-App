@@ -126,7 +126,7 @@ export class AdminController {
     const csv = await this.adminService.exportAttendanceCsv(filter);
     const timestamp = new Date().toISOString().slice(0, 10);
     const userSuffix = filter.user_id && filter.user_id.trim() ? `_${filter.user_id.trim()}` : '';
-    res.setHeader('Content-Type', 'text/csv');
+    res.setHeader('Content-Type', 'text/csv; charset=utf-8');
     res.setHeader(
       'Content-Disposition',
       `attachment; filename="attendance${userSuffix}_${timestamp}.csv"`,
@@ -149,7 +149,7 @@ export class AdminController {
   ): Promise<void> {
     const csv = await this.adminService.exportPunchesCsv(filter);
     const timestamp = new Date().toISOString().slice(0, 10);
-    res.setHeader('Content-Type', 'text/csv');
+    res.setHeader('Content-Type', 'text/csv; charset=utf-8');
     res.setHeader(
       'Content-Disposition',
       `attachment; filename="attendance_punches_${timestamp}.csv"`,
