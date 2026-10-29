@@ -67,6 +67,15 @@ import com.company.attendance.design.theme.AppBackground
 import com.company.attendance.design.theme.AppDimensions
 import com.company.attendance.design.theme.AppError
 import com.company.attendance.design.theme.AppPrimaryText
+import androidx.compose.foundation.BorderStroke
+import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.material.icons.outlined.Info
+import androidx.compose.material3.Surface
+import com.company.attendance.design.theme.AppErrorTint
+import com.company.attendance.design.theme.AppSuccessTint
+import com.company.attendance.design.theme.AppWarningTint
+import androidx.compose.ui.graphics.Color
 import com.company.attendance.design.theme.AppSecondaryText
 import com.company.attendance.design.theme.AppTypographyTokens
 import androidx.hilt.navigation.compose.hiltViewModel
@@ -325,15 +334,30 @@ fun HomeScreen(
                             leadingIcon = Icons.Outlined.NearMe
                         )
                         if (uiState.isNewLocationDay) {
-                            Text(
-                                text = "📍 Field visit: You must punch out within 100m of your check-in location.",
-                                style = AppTypographyTokens.Caption,
-                                color = AppWarning,
-                                textAlign = TextAlign.Center,
-                                modifier = Modifier
-                                    .fillMaxWidth()
-                                    .padding(horizontal = 8.dp)
-                            )
+                            Surface(
+                                modifier = Modifier.fillMaxWidth(),
+                                shape = RoundedCornerShape(AppDimensions.CardCornerRadius),
+                                color = Color(0xFFFFFBEB),
+                                border = BorderStroke(1.dp, Color(0xFFFDE68A))
+                            ) {
+                                Row(
+                                    modifier = Modifier.padding(horizontal = 14.dp, vertical = 10.dp),
+                                    verticalAlignment = Alignment.CenterVertically
+                                ) {
+                                    Icon(
+                                        imageVector = Icons.Outlined.Info,
+                                        contentDescription = null,
+                                        tint = Color(0xFFD97706),
+                                        modifier = Modifier.size(18.dp)
+                                    )
+                                    Spacer(modifier = Modifier.width(10.dp))
+                                    Text(
+                                        text = "Field visit: Punch out must be recorded within 100m of your check-in location.",
+                                        style = AppTypographyTokens.Caption,
+                                        color = Color(0xFF92400E)
+                                    )
+                                }
+                            }
                         }
                     } else {
                         SecondaryButton(
@@ -454,101 +478,82 @@ fun LocationStatusCard(
     onRefreshClick: () -> Unit,
     modifier: Modifier = Modifier
 ) {
-    val (bgColor, borderColor, iconColor) = when (state) {
-        is LocationCardState.InOffice -> Triple(
-            com.company.attendance.design.theme.AppSuccessTint,
-            AppSuccess.copy(alpha = 0.5f),
-            AppSuccess
-        )
-        is LocationCardState.FieldVisit -> if (state.isInside) {
-            Triple(
-                com.company.attendance.design.theme.AppSuccessTint,
-                AppSuccess.copy(alpha = 0.5f),
-                AppSuccess
-            )
-        } else {
-            Triple(
-                com.company.attendance.design.theme.AppWarningTint,
-                AppWarning.copy(alpha = 0.5f),
-                AppWarning
-            )
-        }
-        is LocationCardState.Outside -> Triple(
-            com.company.attendance.design.theme.AppWarningTint,
-            AppWarning.copy(alpha = 0.5f),
-            AppWarning
-        )
-        is LocationCardState.MockDetected -> Triple(
-            com.company.attendance.design.theme.AppErrorTint,
-            AppError.copy(alpha = 0.5f),
-            AppError
-        )
-        else -> Triple(
-            AppSurface,
-            AppBorder,
-            AppSecondaryText
-        )
+    val (iconBgColor, iconColor) = when (state) {
+        is LocationCardState.InOffice -> Pair(AppSuccessTint, AppSuccess)
+        is LocationCardState.FieldVisit -> if (state.isInside) Pair(AppSuccessTint, AppSuccess) else Pair(AppWarningTint, AppWarning)
+        is LocationCardState.Outside -> Pair(AppWarningTint, AppWarning)
+        is LocationCardState.MockDetected -> Pair(AppErrorTint, AppError)
+        else -> Pair(AppBackground, AppSecondaryText)
     }
 
-    Box(
-        modifier = modifier
-            .fillMaxWidth()
-            .background(bgColor, androidx.compose.foundation.shape.RoundedCornerShape(AppDimensions.CardCornerRadius))
-            .border(1.dp, borderColor, androidx.compose.foundation.shape.RoundedCornerShape(AppDimensions.CardCornerRadius))
-            .padding(horizontal = 14.dp, vertical = 10.dp)
+    Surface(
+        modifier = modifier.fillMaxWidth(),
+        shape = RoundedCornerShape(AppDimensions.CardCornerRadius),
+        color = AppSurface,
+        border = BorderStroke(AppDimensions.BorderWidth, AppBorder)
     ) {
         Row(
-            modifier = Modifier.fillMaxWidth(),
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(horizontal = 14.dp, vertical = 12.dp),
             horizontalArrangement = Arrangement.SpaceBetween,
             verticalAlignment = Alignment.CenterVertically
         ) {
             Row(
                 modifier = Modifier.weight(1f),
                 verticalAlignment = Alignment.CenterVertically,
-                horizontalArrangement = Arrangement.spacedBy(10.dp)
+                horizontalArrangement = Arrangement.spacedBy(12.dp)
             ) {
-                when (state) {
-                    is LocationCardState.Locating -> {
-                        CircularProgressIndicator(
-                            modifier = Modifier.size(18.dp),
-                            strokeWidth = 2.dp,
-                            color = AppAccent
-                        )
-                    }
-                    is LocationCardState.InOffice -> {
-                        Icon(
-                            imageVector = Icons.Outlined.CheckCircle,
-                            contentDescription = "In Office",
-                            tint = iconColor,
-                            modifier = Modifier.size(20.dp)
-                        )
-                    }
-                    is LocationCardState.FieldVisit -> {
-                        Icon(
-                            imageVector = if (state.isInside) Icons.Outlined.CheckCircle else Icons.Outlined.WarningAmber,
-                            contentDescription = "Field Visit",
-                            tint = iconColor,
-                            modifier = Modifier.size(20.dp)
-                        )
-                    }
-                    is LocationCardState.Outside,
-                    is LocationCardState.PermissionNeeded,
-                    is LocationCardState.ServicesDisabled,
-                    is LocationCardState.MockDetected -> {
-                        Icon(
-                            imageVector = Icons.Outlined.WarningAmber,
-                            contentDescription = "Location Warning",
-                            tint = iconColor,
-                            modifier = Modifier.size(20.dp)
-                        )
-                    }
-                    is LocationCardState.Unavailable -> {
-                        Icon(
-                            imageVector = Icons.Outlined.LocationOff,
-                            contentDescription = "Location Unavailable",
-                            tint = iconColor,
-                            modifier = Modifier.size(20.dp)
-                        )
+                Surface(
+                    shape = CircleShape,
+                    color = iconBgColor,
+                    modifier = Modifier.size(36.dp)
+                ) {
+                    Box(contentAlignment = Alignment.Center) {
+                        when (state) {
+                            is LocationCardState.Locating -> {
+                                CircularProgressIndicator(
+                                    modifier = Modifier.size(18.dp),
+                                    strokeWidth = 2.dp,
+                                    color = AppAccent
+                                )
+                            }
+                            is LocationCardState.InOffice -> {
+                                Icon(
+                                    imageVector = Icons.Outlined.CheckCircle,
+                                    contentDescription = "In Office",
+                                    tint = iconColor,
+                                    modifier = Modifier.size(20.dp)
+                                )
+                            }
+                            is LocationCardState.FieldVisit -> {
+                                Icon(
+                                    imageVector = if (state.isInside) Icons.Outlined.CheckCircle else Icons.Outlined.WarningAmber,
+                                    contentDescription = "Field Visit",
+                                    tint = iconColor,
+                                    modifier = Modifier.size(20.dp)
+                                )
+                            }
+                            is LocationCardState.Outside,
+                            is LocationCardState.PermissionNeeded,
+                            is LocationCardState.ServicesDisabled,
+                            is LocationCardState.MockDetected -> {
+                                Icon(
+                                    imageVector = Icons.Outlined.WarningAmber,
+                                    contentDescription = "Location Warning",
+                                    tint = iconColor,
+                                    modifier = Modifier.size(20.dp)
+                                )
+                            }
+                            is LocationCardState.Unavailable -> {
+                                Icon(
+                                    imageVector = Icons.Outlined.LocationOff,
+                                    contentDescription = "Location Unavailable",
+                                    tint = iconColor,
+                                    modifier = Modifier.size(20.dp)
+                                )
+                            }
+                        }
                     }
                 }
 

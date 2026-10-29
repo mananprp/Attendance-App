@@ -242,7 +242,8 @@ class HomeViewModel @Inject constructor(
                         inTimeUtcEpochMs = dayDto.inTime?.let { parseIsoToEpochMs(it) },
                         outTimeUtcEpochMs = dayDto.outTime?.let { parseIsoToEpochMs(it) },
                         status = runCatching { DayStatus.valueOf(dayDto.status) }.getOrDefault(DayStatus.NO_RECORD),
-                        timeUnverified = dayDto.timeUnverified
+                        timeUnverified = dayDto.timeUnverified,
+                        shiftType = runCatching { ShiftType.valueOf(dayDto.shiftType) }.getOrDefault(ShiftType.GENERAL)
                     )
                 }
                 punchRepository.upsertDaySummaries(summaries)
@@ -357,7 +358,14 @@ class HomeViewModel @Inject constructor(
     private fun updateStateFromDaySummary(summary: DaySummary?, zoneId: ZoneId, currentDateTime: LocalDateTime) {
         currentDaySummary = summary
 
-        val shift = summary?.shiftType ?: ShiftEvaluator.determineShift(currentDateTime).first
+        val shift = if (summary != null && summary.shiftType != ShiftType.GENERAL) {
+            summary.shiftType
+        } else if (summary?.inTimeUtcEpochMs != null) {
+            val inDateTime = LocalDateTime.ofInstant(Instant.ofEpochMilli(summary.inTimeUtcEpochMs), zoneId)
+            ShiftEvaluator.determineShift(inDateTime).first
+        } else {
+            ShiftEvaluator.determineShift(currentDateTime).first
+        }
         val shiftDisplayName = ShiftEvaluator.getShiftDisplayName(shift)
 
         // Check if active session cutoff has expired

@@ -8,6 +8,7 @@ import com.company.attendance.core.database.entity.UserLocalEntity
 import com.company.attendance.core.interfaces.PunchRepository
 import com.company.attendance.core.model.DayStatus
 import com.company.attendance.core.model.DaySummary
+import com.company.attendance.core.model.ShiftType
 import com.company.attendance.core.model.UserSession
 import com.company.attendance.core.network.AttendanceApiService
 import com.company.attendance.core.network.NetworkHelper
@@ -195,7 +196,8 @@ class LoginViewModel @Inject constructor(
                         inTimeUtcEpochMs = dayDto.inTime?.let { parseIsoToEpochMs(it) },
                         outTimeUtcEpochMs = dayDto.outTime?.let { parseIsoToEpochMs(it) },
                         status = runCatching { DayStatus.valueOf(dayDto.status) }.getOrDefault(DayStatus.NO_RECORD),
-                        timeUnverified = dayDto.timeUnverified
+                        timeUnverified = dayDto.timeUnverified,
+                        shiftType = runCatching { ShiftType.valueOf(dayDto.shiftType) }.getOrDefault(ShiftType.GENERAL)
                     )
                 }
                 punchRepository.upsertDaySummaries(summaries)

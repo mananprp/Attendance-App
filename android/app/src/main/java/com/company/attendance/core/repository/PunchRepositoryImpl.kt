@@ -239,7 +239,8 @@ class PunchRepositoryImpl @Inject constructor(
                     timeUnverified = (existing?.timeUnverified ?: false) || serverEntity.timeUnverified,
                     anchorLat = existing?.anchorLat ?: serverEntity.anchorLat,
                     anchorLng = existing?.anchorLng ?: serverEntity.anchorLng,
-                    locationType = existing?.locationType ?: serverEntity.locationType
+                    locationType = existing?.locationType ?: serverEntity.locationType,
+                    shiftType = existing?.shiftType ?: serverEntity.shiftType
                 )
             } else {
                 serverEntity

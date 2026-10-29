@@ -507,25 +507,46 @@ private fun SiteEmployeesView(
     onDeleteUserClick: (AdminUserDto) -> Unit
 ) {
     Column(modifier = Modifier.fillMaxSize()) {
-        // Site details header card
+        // Site details header card (Hallmark surface elevation)
         Surface(
             modifier = Modifier.fillMaxWidth(),
             shape = RoundedCornerShape(AppDimensions.CardCornerRadius),
-            color = AppAccentTint,
-            border = BorderStroke(1.dp, AppAccent.copy(alpha = 0.3f))
+            color = AppSurface,
+            border = BorderStroke(1.dp, AppBorder),
+            shadowElevation = 1.dp
         ) {
-            Column(modifier = Modifier.padding(AppDimensions.Spacing12)) {
-                Text(
-                    text = site.name,
-                    style = AppTypographyTokens.SectionHeading,
-                    color = AppAccent
-                )
-                Spacer(modifier = Modifier.height(4.dp))
-                Text(
-                    text = "Geofence: ${site.radiusM}m radius",
-                    style = AppTypographyTokens.Caption,
-                    color = AppPrimaryText
-                )
+            Row(
+                modifier = Modifier.padding(AppDimensions.Spacing16),
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Surface(
+                    shape = CircleShape,
+                    color = AppAccentTint,
+                    modifier = Modifier.size(40.dp)
+                ) {
+                    Box(contentAlignment = Alignment.Center) {
+                        Icon(
+                            imageVector = Icons.Default.Business,
+                            contentDescription = null,
+                            tint = AppAccent,
+                            modifier = Modifier.size(20.dp)
+                        )
+                    }
+                }
+                Spacer(modifier = Modifier.width(AppDimensions.Spacing12))
+                Column(modifier = Modifier.weight(1f)) {
+                    Text(
+                        text = site.name,
+                        style = AppTypographyTokens.BodyMedium.copy(fontWeight = FontWeight.SemiBold),
+                        color = AppPrimaryText
+                    )
+                    Spacer(modifier = Modifier.height(2.dp))
+                    Text(
+                        text = "Geofence: ${site.radiusM}m radius",
+                        style = AppTypographyTokens.Caption,
+                        color = AppSecondaryText
+                    )
+                }
             }
         }
 
@@ -886,7 +907,7 @@ private fun CreateUserDialog(
                                         color = if (isSelected) AppAccent else AppPrimaryText
                                     )
                                     Text(
-                                        text = "${site.officeId} • ${site.radiusM}m geofence",
+                                        text = "${site.radiusM}m geofence radius",
                                         style = AppTypographyTokens.Caption,
                                         color = AppSecondaryText
                                     )
@@ -956,7 +977,7 @@ private fun CreateUserDialog(
                     modifier = Modifier.fillMaxWidth(),
                     horizontalArrangement = Arrangement.spacedBy(AppDimensions.Spacing8)
                 ) {
-                    listOf("EMPLOYEE", "ADMIN").forEach { role ->
+                    listOf("EMPLOYEE", "GUARD", "ADMIN").forEach { role ->
                         val isSelected = selectedRole == role
                         Surface(
                             modifier = Modifier
@@ -1057,7 +1078,7 @@ private fun ChangeSiteDialog(
                                 verticalAlignment = Alignment.CenterVertically
                             ) {
                                 Text(
-                                    text = "${site.name} (${site.officeId})",
+                                    text = site.name,
                                     style = AppTypographyTokens.BodyMedium,
                                     color = if (isSelected) AppAccent else AppPrimaryText,
                                     modifier = Modifier.weight(1f)
@@ -1404,7 +1425,7 @@ private fun AdminDeleteUserDialog(
                     Text(
                         text = "Delete Employee",
                         style = AppTypographyTokens.SectionHeading,
-                        color = AppError
+                        color = AppPrimaryText
                     )
                     IconButton(onClick = onDismiss, modifier = Modifier.size(24.dp)) {
                         Icon(Icons.Default.Close, contentDescription = "Close", tint = AppSecondaryText)
@@ -1421,19 +1442,11 @@ private fun AdminDeleteUserDialog(
 
                 Spacer(modifier = Modifier.height(AppDimensions.Spacing8))
 
-                Surface(
-                    shape = RoundedCornerShape(AppDimensions.CardCornerRadius),
-                    color = AppErrorTint,
-                    border = BorderStroke(1.dp, AppError.copy(alpha = 0.3f)),
-                    modifier = Modifier.fillMaxWidth()
-                ) {
-                    Text(
-                        text = "Warning: This user account and their records will be removed. This action cannot be undone.",
-                        style = AppTypographyTokens.Caption,
-                        color = AppError,
-                        modifier = Modifier.padding(AppDimensions.Spacing12)
-                    )
-                }
+                Text(
+                    text = "This will permanently remove their profile, biometric credentials, and attendance history. This action cannot be undone.",
+                    style = AppTypographyTokens.Caption,
+                    color = AppSecondaryText
+                )
 
                 Spacer(modifier = Modifier.height(AppDimensions.Spacing24))
 
