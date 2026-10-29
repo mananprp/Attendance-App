@@ -193,7 +193,11 @@ fun PunchCaptureScreen(
     }
 
     var imageCaptureUseCase by remember { mutableStateOf<ImageCapture?>(null) }
-    var previewViewInstance by remember { mutableStateOf<PreviewView?>(null) }
+    val previewView = remember {
+        PreviewView(context).apply {
+            implementationMode = PreviewView.ImplementationMode.PERFORMANCE
+        }
+    }
 
     // 2. Continuous CameraX Lifecycle Binding (keyed only on lens facing and capture mode)
     LaunchedEffect(selectedLensFacing, uiState.captureMode) {
@@ -202,9 +206,7 @@ fun PunchCaptureScreen(
             val cameraProvider = cameraProviderFuture.get()
 
             val preview = Preview.Builder().build().also {
-                previewViewInstance?.surfaceProvider?.let { sp ->
-                    it.setSurfaceProvider(sp)
-                }
+                it.setSurfaceProvider(previewView.surfaceProvider)
             }
 
             val targetLens = if (selectedLensFacing == CameraSelector.LENS_FACING_FRONT) {
@@ -246,14 +248,17 @@ fun PunchCaptureScreen(
                     }
                 } else {
                     // Video / continuous frame analysis mode
+                    var lastLuminanceCheckMs = 0L
                     val imageAnalysis = ImageAnalysis.Builder()
                         .setBackpressureStrategy(ImageAnalysis.STRATEGY_KEEP_ONLY_LATEST)
                         .build()
 
                     imageAnalysis.setAnalyzer(cameraExecutor) { imageProxy ->
                         try {
-                            // Auto low-light detection for front camera
-                            if (!userManuallyToggled && !isAutoTriggered && targetLens == CameraSelector.LENS_FACING_FRONT) {
+                            val now = System.currentTimeMillis()
+                            // Throttled auto low-light detection for front camera (at most once every 1000ms)
+                            if (!userManuallyToggled && !isAutoTriggered && targetLens == CameraSelector.LENS_FACING_FRONT && (now - lastLuminanceCheckMs >= 1000L)) {
+                                lastLuminanceCheckMs = now
                                 val yPlane = imageProxy.planes.getOrNull(0)
                                 if (yPlane != null) {
                                     val buffer = yPlane.buffer
@@ -313,17 +318,9 @@ fun PunchCaptureScreen(
             .fillMaxSize()
             .background(Color.Black)
     ) {
-        // 1. CameraX Preview Layer
+        // 1. CameraX Preview Layer (Hardware-accelerated SurfaceView via PERFORMANCE mode)
         AndroidView(
-            factory = { ctx ->
-                PreviewView(ctx).apply {
-                    implementationMode = PreviewView.ImplementationMode.COMPATIBLE
-                    previewViewInstance = this
-                }
-            },
-            update = { pv ->
-                previewViewInstance = pv
-            },
+            factory = { previewView },
             modifier = Modifier.fillMaxSize()
         )
 
