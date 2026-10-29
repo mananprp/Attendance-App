@@ -147,6 +147,9 @@ dependencies {
     // ONNX Runtime
     implementation(libs.onnxruntime.android)
 
+    // ML Kit Pose Detection (Offline Standalone)
+    implementation(libs.mlkit.pose.detection)
+
     // Security & Preferences
     implementation(libs.androidx.security.crypto)
     implementation(libs.androidx.datastore.preferences)

@@ -12,6 +12,8 @@ import com.company.attendance.core.interfaces.PunchRepository
 import com.company.attendance.core.interfaces.TrustedTimeProvider
 import com.company.attendance.core.model.PunchType
 import com.company.attendance.core.storage.TokenStorage
+import com.company.attendance.face.verifier.BodyPoseVerifier
+import com.company.attendance.face.verifier.BodyPoseResult
 import dagger.hilt.android.lifecycle.HiltViewModel
 import dagger.hilt.android.qualifiers.ApplicationContext
 import kotlinx.coroutines.channels.Channel
@@ -42,7 +44,8 @@ class PunchCaptureViewModel @Inject constructor(
     private val okHttpClient: OkHttpClient,
     private val trustedTimeProvider: TrustedTimeProvider,
     private val remoteConfigRepository: RemoteConfigRepository,
-    private val punchRepository: PunchRepository
+    private val punchRepository: PunchRepository,
+    private val bodyPoseVerifier: BodyPoseVerifier
 ) : ViewModel() {
 
     private val _uiState = MutableStateFlow(PunchCaptureUiState())
@@ -476,6 +479,9 @@ class PunchCaptureViewModel @Inject constructor(
 
     /**
      * Handles single-photo verification for GUARD full-body photo capture.
+     * Enforces:
+     * 1. Skeletal Pose Verification (Shoulders, Hips, Knees, and Ankles visible).
+     * 2. Facial Recognition Match (Face matched against registered employee embedding).
      */
     fun processGuardPhoto(capturedBitmap: Bitmap) {
         viewModelScope.launch {
@@ -487,7 +493,21 @@ class PunchCaptureViewModel @Inject constructor(
                 )
             }
 
-            // Save full-body photo to punch storage
+            // 1. Enforce Full-Body Skeletal Pose Verification
+            val poseResult = bodyPoseVerifier.verifyFullBody(capturedBitmap)
+            if (poseResult is BodyPoseResult.Failure) {
+                _uiState.update {
+                    it.copy(
+                        step = CaptureStep.FAILURE,
+                        failureTitle = "Full Body Required",
+                        failureMessage = poseResult.reason,
+                        failureReason = "Skeletal pose verification failed."
+                    )
+                }
+                return@launch
+            }
+
+            // 2. Save full-body photo to punch storage
             val imagePath = CameraCaptureUtils.savePunchImageToInternalStorage(context, capturedBitmap)
 
             val refBytes = cachedReferenceEmbedding
@@ -506,7 +526,7 @@ class PunchCaptureViewModel @Inject constructor(
             val threshold = remoteConfigRepository.getConfig().matchThreshold
             val referenceFloats = CameraCaptureUtils.byteArrayToFloatArray(refBytes)
 
-            // Verify the single captured photo with FaceVerifier
+            // 3. Verify that the face inside the photo matches the employee's face embedding
             val verificationResult = faceVerifier.verifyPunchFrames(
                 frames = listOf(capturedBitmap),
                 referenceEmbedding = referenceFloats,

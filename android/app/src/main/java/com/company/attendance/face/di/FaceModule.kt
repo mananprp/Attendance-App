@@ -4,6 +4,8 @@ import android.content.Context
 import com.company.attendance.core.interfaces.FaceVerifier
 import com.company.attendance.face.download.ModelDownloader
 import com.company.attendance.face.verifier.FaceVerifierImpl
+import com.company.attendance.face.verifier.BodyPoseVerifier
+import com.company.attendance.face.verifier.BodyPoseVerifierImpl
 import dagger.Module
 import dagger.Provides
 import dagger.hilt.InstallIn
@@ -35,5 +37,11 @@ object FaceModule {
             context = context,
             modelDownloader = modelDownloader
         )
+    }
+
+    @Provides
+    @Singleton
+    fun provideBodyPoseVerifier(): BodyPoseVerifier {
+        return BodyPoseVerifierImpl()
     }
 }
