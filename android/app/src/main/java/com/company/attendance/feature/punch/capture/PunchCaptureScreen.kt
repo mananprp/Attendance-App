@@ -342,7 +342,7 @@ fun PunchCaptureScreen(
             }
         }
 
-        // Top Header Bar: Cancel (top-left) and Flash Toggle (top-right)
+        // Top Header Bar: Cancel (top-left) and Title
         if (uiState.step == CaptureStep.READY || uiState.step == CaptureStep.CAPTURING || uiState.step == CaptureStep.INITIALIZING) {
             Box(
                 modifier = Modifier
@@ -372,7 +372,7 @@ fun PunchCaptureScreen(
                 // Top-Center: Title & Subtitle
                 Column(
                     modifier = Modifier
-                        .fillMaxWidth(0.68f)
+                        .fillMaxWidth(0.72f)
                         .align(Alignment.Center),
                     horizontalAlignment = Alignment.CenterHorizontally
                 ) {
@@ -413,32 +413,10 @@ fun PunchCaptureScreen(
                         )
                     }
                 }
-
-                // Top-Right: Flash / Torch Toggle
-                Surface(
-                    onClick = {
-                        userManuallyToggled = true
-                        isFlashEnabled = !isFlashEnabled
-                    },
-                    shape = CircleShape,
-                    color = if (isFlashEnabled) Color(0xFFFEF08A) else Color.Black.copy(alpha = 0.45f),
-                    contentColor = if (isFlashEnabled) Color(0xFF854D0E) else Color.White,
-                    modifier = Modifier
-                        .size(44.dp)
-                        .align(Alignment.CenterEnd)
-                ) {
-                    Box(contentAlignment = Alignment.Center) {
-                        Icon(
-                            imageVector = if (isFlashEnabled) Icons.Filled.FlashOn else Icons.Filled.FlashOff,
-                            contentDescription = "Flash",
-                            modifier = Modifier.size(20.dp)
-                        )
-                    }
-                }
             }
         }
 
-        // Camera Bottom Control Bar: Perfectly Balanced Shutter + Camera Switch
+        // Camera Bottom Control Bar: Flash (Left), Shutter (Center), Flip Camera (Right)
         if (uiState.step == CaptureStep.READY || uiState.step == CaptureStep.INITIALIZING) {
             Box(
                 modifier = Modifier
@@ -447,18 +425,34 @@ fun PunchCaptureScreen(
                     .background(Color.Black.copy(alpha = 0.6f))
                     .padding(horizontal = 32.dp, vertical = 32.dp)
             ) {
-                // Symmetrical 3-zone layout: Spacer (Left), Shutter (Center), Flip Camera (Right)
+                // Symmetrical 3-zone layout: Flash (Left), Shutter (Center), Flip Camera (Right)
                 Row(
                     modifier = Modifier.fillMaxWidth(),
                     verticalAlignment = Alignment.CenterVertically
                 ) {
-                    // Left balancing anchor
+                    // Left: Flash / Torch Button
                     Box(
                         modifier = Modifier.weight(1f),
                         contentAlignment = Alignment.CenterStart
                     ) {
-                        // Empty balancing placeholder so shutter is mathematically centered
-                        Spacer(modifier = Modifier.size(54.dp))
+                        Surface(
+                            onClick = {
+                                userManuallyToggled = true
+                                isFlashEnabled = !isFlashEnabled
+                            },
+                            shape = CircleShape,
+                            color = if (isFlashEnabled) Color(0xFFFEF08A) else Color.White.copy(alpha = 0.2f),
+                            contentColor = if (isFlashEnabled) Color(0xFF854D0E) else Color.White,
+                            modifier = Modifier.size(54.dp)
+                        ) {
+                            Box(contentAlignment = Alignment.Center) {
+                                Icon(
+                                    imageVector = if (isFlashEnabled) Icons.Filled.FlashOn else Icons.Filled.FlashOff,
+                                    contentDescription = "Flash",
+                                    modifier = Modifier.size(24.dp)
+                                )
+                            }
+                        }
                     }
 
                     // Center: Shutter Button
