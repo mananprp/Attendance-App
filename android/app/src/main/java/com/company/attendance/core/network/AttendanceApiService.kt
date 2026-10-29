@@ -14,9 +14,12 @@ import com.company.attendance.core.network.model.CreateUserRequestDto
 import com.company.attendance.core.network.model.CreateSiteRequestDto
 import com.company.attendance.core.network.model.UpdateUserSiteRequestDto
 import com.company.attendance.core.network.model.UpdateUserRoleRequestDto
+import com.company.attendance.core.network.model.UpdateUserPasswordRequestDto
+import com.company.attendance.core.network.model.AdminActionResponseDto
 import okhttp3.MultipartBody
 import retrofit2.Response
 import retrofit2.http.Body
+import retrofit2.http.DELETE
 import retrofit2.http.GET
 import retrofit2.http.Multipart
 import retrofit2.http.PATCH
@@ -94,4 +97,15 @@ interface AttendanceApiService {
         @Path("userId") userId: String,
         @Body request: UpdateUserRoleRequestDto
     ): Response<AdminUserDto>
+
+    @PATCH("admin/users/{userId}/password")
+    suspend fun updateAdminUserPassword(
+        @Path("userId") userId: String,
+        @Body request: UpdateUserPasswordRequestDto
+    ): Response<AdminUserDto>
+
+    @DELETE("admin/users/{userId}")
+    suspend fun deleteAdminUser(
+        @Path("userId") userId: String
+    ): Response<AdminActionResponseDto>
 }

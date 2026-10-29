@@ -6,6 +6,7 @@
   "private": true,
   "license": "UNLICENSED",
   "scripts": {
+    "postinstall": "npm --prefix admin-ui install",
     "build": "npm --prefix admin-ui run build && nest build",
     "build:admin": "npm --prefix admin-ui run build",
     "build:all": "npm run build:admin && npm run build",

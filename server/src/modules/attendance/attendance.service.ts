@@ -146,8 +146,26 @@ export class AttendanceService {
 
       const rawLocType = (item.location_type || (item as any).locationType || '').toString().trim().toUpperCase();
       const resolvedLocType = rawLocType === 'NEW_LOCATION' ? LocationType.NEW_LOCATION : LocationType.OFFICE;
-      const rawShiftType = (item.shift_type || (item as any).shiftType || 'GENERAL').toString().trim().toUpperCase();
-      const resolvedShiftType = ['GENERAL', 'EVENING', 'NIGHT'].includes(rawShiftType) ? rawShiftType : 'GENERAL';
+      const rawShiftType = (item.shift_type || (item as any).shiftType || '').toString().trim().toUpperCase();
+      let resolvedShiftType = ['GENERAL', 'EVENING', 'NIGHT'].includes(rawShiftType) ? rawShiftType : '';
+      if (!resolvedShiftType || resolvedShiftType === 'GENERAL') {
+        const punchDate = new Date(item.punch_time_utc);
+        const istHour = parseInt(
+          new Intl.DateTimeFormat('en-IN', {
+            timeZone: 'Asia/Kolkata',
+            hour: 'numeric',
+            hour12: false,
+          }).format(punchDate),
+          10
+        );
+        if (istHour >= 13 && istHour <= 18) {
+          resolvedShiftType = 'EVENING';
+        } else if (istHour >= 19 || istHour < 6) {
+          resolvedShiftType = 'NIGHT';
+        } else {
+          resolvedShiftType = 'GENERAL';
+        }
+      }
 
       // Persist punch
       const punchEntity = this.punchRepository.create({

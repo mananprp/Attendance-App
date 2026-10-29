@@ -86,7 +86,8 @@ class AttendanceSyncWorker @AssistedInject constructor(
                 distanceM = punch.distanceMeters,
                 matchScore = punch.matchScore,
                 imageFileName = imageFileName,
-                locationType = punch.locationType
+                locationType = punch.locationType,
+                shiftType = punch.shiftType.name
             )
         }
 

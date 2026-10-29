@@ -28,6 +28,7 @@ import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.Business
 import androidx.compose.material.icons.filled.Check
 import androidx.compose.material.icons.filled.Close
+import androidx.compose.material.icons.filled.Lock
 import androidx.compose.material.icons.filled.Person
 import androidx.compose.material.icons.filled.Place
 import androidx.compose.material.icons.filled.Refresh
@@ -54,6 +55,7 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.text.input.PasswordVisualTransformation
+import androidx.compose.ui.text.input.VisualTransformation
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.window.Dialog
 import java.util.Locale
@@ -234,7 +236,10 @@ fun AdminScreen(
                     SiteEmployeesView(
                         site = selectedSite!!,
                         users = uiState.users.filter { it.siteCode == selectedSite!!.officeId },
-                        onChangeSiteClick = { user -> viewModel.openSiteChangeDialog(user) }
+                        currentUserId = viewModel.getCurrentUserId(),
+                        onChangeSiteClick = { user -> viewModel.openSiteChangeDialog(user) },
+                        onResetPasswordClick = { user -> viewModel.openResetPasswordDialog(user) },
+                        onDeleteUserClick = { user -> viewModel.openDeleteUserDialog(user) }
                     )
                 }
             }
@@ -278,6 +283,30 @@ fun AdminScreen(
             onDismiss = viewModel::closeSiteChangeDialog,
             onConfirm = { newSiteCode ->
                 viewModel.updateUserSite(targetUser.userId, newSiteCode)
+            }
+        )
+    }
+
+    // Reset Password Dialog
+    uiState.selectedUserForPasswordReset?.let { targetUser ->
+        AdminResetPasswordDialog(
+            user = targetUser,
+            isLoading = uiState.isActionLoading,
+            onDismiss = viewModel::closeResetPasswordDialog,
+            onConfirm = { newPassword ->
+                viewModel.resetUserPassword(targetUser.userId, newPassword)
+            }
+        )
+    }
+
+    // Delete User Confirmation Dialog
+    uiState.selectedUserForDelete?.let { targetUser ->
+        AdminDeleteUserDialog(
+            user = targetUser,
+            isLoading = uiState.isActionLoading,
+            onDismiss = viewModel::closeDeleteUserDialog,
+            onConfirm = {
+                viewModel.deleteUser(targetUser.userId)
             }
         )
     }
@@ -454,7 +483,10 @@ private fun SiteCardItem(
 private fun SiteEmployeesView(
     site: AdminSiteDto,
     users: List<AdminUserDto>,
-    onChangeSiteClick: (AdminUserDto) -> Unit
+    currentUserId: String?,
+    onChangeSiteClick: (AdminUserDto) -> Unit,
+    onResetPasswordClick: (AdminUserDto) -> Unit,
+    onDeleteUserClick: (AdminUserDto) -> Unit
 ) {
     Column(modifier = Modifier.fillMaxSize()) {
         // Site details header card
@@ -535,7 +567,10 @@ private fun SiteEmployeesView(
                 items(users, key = { it.userId }) { user ->
                     UserItemCard(
                         user = user,
-                        onChangeSiteClick = { onChangeSiteClick(user) }
+                        isSelf = currentUserId?.equals(user.userId, ignoreCase = true) == true,
+                        onChangeSiteClick = { onChangeSiteClick(user) },
+                        onResetPasswordClick = { onResetPasswordClick(user) },
+                        onDeleteUserClick = { onDeleteUserClick(user) }
                     )
                 }
                 item {
@@ -549,7 +584,10 @@ private fun SiteEmployeesView(
 @Composable
 private fun UserItemCard(
     user: AdminUserDto,
-    onChangeSiteClick: () -> Unit
+    isSelf: Boolean,
+    onChangeSiteClick: () -> Unit,
+    onResetPasswordClick: () -> Unit,
+    onDeleteUserClick: () -> Unit
 ) {
     Surface(
         modifier = Modifier.fillMaxWidth(),
@@ -618,33 +656,60 @@ private fun UserItemCard(
             Spacer(modifier = Modifier.height(AppDimensions.Spacing12))
 
             Row(
+                verticalAlignment = Alignment.CenterVertically,
+                modifier = Modifier.fillMaxWidth()
+            ) {
+                Icon(
+                    imageVector = Icons.Default.Business,
+                    contentDescription = null,
+                    tint = AppSecondaryText,
+                    modifier = Modifier.size(16.dp)
+                )
+                Spacer(modifier = Modifier.width(AppDimensions.Spacing4))
+                Text(
+                    text = "${user.siteName} (${user.siteCode})",
+                    style = AppTypographyTokens.CaptionMedium,
+                    color = AppPrimaryText
+                )
+            }
+
+            Spacer(modifier = Modifier.height(AppDimensions.Spacing12))
+
+            Row(
                 modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.SpaceBetween,
+                horizontalArrangement = Arrangement.spacedBy(AppDimensions.Spacing8),
                 verticalAlignment = Alignment.CenterVertically
             ) {
-                Row(
-                    verticalAlignment = Alignment.CenterVertically,
-                    modifier = Modifier.weight(1f)
-                ) {
-                    Icon(
-                        imageVector = Icons.Default.Business,
-                        contentDescription = null,
-                        tint = AppSecondaryText,
-                        modifier = Modifier.size(16.dp)
-                    )
-                    Spacer(modifier = Modifier.width(AppDimensions.Spacing4))
-                    Text(
-                        text = "${user.siteName} (${user.siteCode})",
-                        style = AppTypographyTokens.CaptionMedium,
-                        color = AppPrimaryText
-                    )
-                }
-
                 SecondaryButton(
                     text = "Change Site",
                     onClick = onChangeSiteClick,
-                    modifier = Modifier.width(130.dp)
+                    modifier = Modifier.weight(1.1f)
                 )
+
+                SecondaryButton(
+                    text = "Password",
+                    onClick = onResetPasswordClick,
+                    modifier = Modifier.weight(0.9f)
+                )
+
+                if (!isSelf) {
+                    Button(
+                        onClick = onDeleteUserClick,
+                        colors = ButtonDefaults.buttonColors(
+                            containerColor = AppErrorTint,
+                            contentColor = AppError
+                        ),
+                        shape = RoundedCornerShape(AppDimensions.ButtonCornerRadius),
+                        modifier = Modifier.weight(0.8f),
+                        contentPadding = PaddingValues(horizontal = 4.dp, vertical = 8.dp)
+                    ) {
+                        Text(
+                            text = "Delete",
+                            style = AppTypographyTokens.CaptionMedium,
+                            fontWeight = FontWeight.SemiBold
+                        )
+                    }
+                }
             }
         }
     }
@@ -1191,6 +1256,181 @@ private fun CreateSiteDialog(
                     },
                     enabled = !isLoading && isFormValid
                 )
+            }
+        }
+    }
+}
+
+@Composable
+private fun AdminResetPasswordDialog(
+    user: AdminUserDto,
+    isLoading: Boolean,
+    onDismiss: () -> Unit,
+    onConfirm: (String) -> Unit
+) {
+    var newPassword by remember { mutableStateOf("") }
+    var passwordVisible by remember { mutableStateOf(false) }
+
+    Dialog(onDismissRequest = onDismiss) {
+        Surface(
+            shape = RoundedCornerShape(AppDimensions.CardCornerRadius),
+            color = AppSurface,
+            border = BorderStroke(AppDimensions.BorderWidth, AppBorder),
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(AppDimensions.ScreenPadding)
+        ) {
+            Column(modifier = Modifier.padding(AppDimensions.Spacing20)) {
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Text(
+                        text = "Reset Password",
+                        style = AppTypographyTokens.SectionHeading,
+                        color = AppPrimaryText
+                    )
+                    IconButton(onClick = onDismiss, modifier = Modifier.size(24.dp)) {
+                        Icon(Icons.Default.Close, contentDescription = "Close", tint = AppSecondaryText)
+                    }
+                }
+
+                Spacer(modifier = Modifier.height(AppDimensions.Spacing8))
+
+                Text(
+                    text = "Set a new password for ${user.name} (${user.userId}). Minimum 6 characters required.",
+                    style = AppTypographyTokens.Caption,
+                    color = AppSecondaryText
+                )
+
+                Spacer(modifier = Modifier.height(AppDimensions.Spacing16))
+
+                AttendanceTextField(
+                    value = newPassword,
+                    onValueChange = { newPassword = it },
+                    label = "New Password",
+                    placeholder = "Enter new password",
+                    visualTransformation = if (passwordVisible) VisualTransformation.None else PasswordVisualTransformation(),
+                    trailingIcon = {
+                        IconButton(onClick = { passwordVisible = !passwordVisible }) {
+                            Icon(
+                                imageVector = Icons.Default.Lock,
+                                contentDescription = if (passwordVisible) "Hide password" else "Show password",
+                                tint = AppSecondaryText
+                            )
+                        }
+                    },
+                    modifier = Modifier.fillMaxWidth()
+                )
+
+                Spacer(modifier = Modifier.height(AppDimensions.Spacing24))
+
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.spacedBy(AppDimensions.Spacing12)
+                ) {
+                    SecondaryButton(
+                        text = "Cancel",
+                        onClick = onDismiss,
+                        modifier = Modifier.weight(1f)
+                    )
+                    PrimaryButton(
+                        text = if (isLoading) "Saving..." else "Update",
+                        onClick = { onConfirm(newPassword) },
+                        enabled = !isLoading && newPassword.length >= 6,
+                        modifier = Modifier.weight(1f)
+                    )
+                }
+            }
+        }
+    }
+}
+
+@Composable
+private fun AdminDeleteUserDialog(
+    user: AdminUserDto,
+    isLoading: Boolean,
+    onDismiss: () -> Unit,
+    onConfirm: () -> Unit
+) {
+    Dialog(onDismissRequest = onDismiss) {
+        Surface(
+            shape = RoundedCornerShape(AppDimensions.CardCornerRadius),
+            color = AppSurface,
+            border = BorderStroke(AppDimensions.BorderWidth, AppBorder),
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(AppDimensions.ScreenPadding)
+        ) {
+            Column(modifier = Modifier.padding(AppDimensions.Spacing20)) {
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Text(
+                        text = "Delete Employee",
+                        style = AppTypographyTokens.SectionHeading,
+                        color = AppError
+                    )
+                    IconButton(onClick = onDismiss, modifier = Modifier.size(24.dp)) {
+                        Icon(Icons.Default.Close, contentDescription = "Close", tint = AppSecondaryText)
+                    }
+                }
+
+                Spacer(modifier = Modifier.height(AppDimensions.Spacing12))
+
+                Text(
+                    text = "Are you sure you want to permanently delete ${user.name} (${user.userId})?",
+                    style = AppTypographyTokens.BodyMedium,
+                    color = AppPrimaryText
+                )
+
+                Spacer(modifier = Modifier.height(AppDimensions.Spacing8))
+
+                Surface(
+                    shape = RoundedCornerShape(AppDimensions.CardCornerRadius),
+                    color = AppErrorTint,
+                    border = BorderStroke(1.dp, AppError.copy(alpha = 0.3f)),
+                    modifier = Modifier.fillMaxWidth()
+                ) {
+                    Text(
+                        text = "Warning: This user account and their records will be removed. This action cannot be undone.",
+                        style = AppTypographyTokens.Caption,
+                        color = AppError,
+                        modifier = Modifier.padding(AppDimensions.Spacing12)
+                    )
+                }
+
+                Spacer(modifier = Modifier.height(AppDimensions.Spacing24))
+
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.spacedBy(AppDimensions.Spacing12)
+                ) {
+                    SecondaryButton(
+                        text = "Cancel",
+                        onClick = onDismiss,
+                        modifier = Modifier.weight(1f)
+                    )
+                    Button(
+                        onClick = onConfirm,
+                        enabled = !isLoading,
+                        colors = ButtonDefaults.buttonColors(
+                            containerColor = AppError,
+                            contentColor = Color.White
+                        ),
+                        shape = RoundedCornerShape(AppDimensions.ButtonCornerRadius),
+                        modifier = Modifier.weight(1f)
+                    ) {
+                        Text(
+                            text = if (isLoading) "Deleting..." else "Delete",
+                            style = AppTypographyTokens.ButtonText,
+                            fontWeight = FontWeight.SemiBold
+                        )
+                    }
+                }
             }
         }
     }

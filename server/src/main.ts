@@ -166,6 +166,7 @@ async function bootstrap() {
   // Serve admin web portal statically
   const adminDistPath = path.resolve(process.cwd(), 'admin-ui', 'dist');
   app.use('/admin', express.static(adminDistPath));
+  app.use('/assets', express.static(path.join(adminDistPath, 'assets')));
   app.use('/admin/*', (req: express.Request, res: express.Response) => {
     res.sendFile(path.join(adminDistPath, 'index.html'));
   });
@@ -180,8 +181,10 @@ async function bootstrap() {
   const document = SwaggerModule.createDocument(app, config);
   SwaggerModule.setup('docs', app, document);
 
-  // Seed default configuration & users if empty
-  await autoSeedIfEmpty(app);
+  // Auto-seed is disabled by default so deleted users/configs are not recreated on restart
+  if (process.env.AUTO_SEED === 'true') {
+    await autoSeedIfEmpty(app);
+  }
 
   const port = process.env.PORT || 3000;
   await app.listen(port, '0.0.0.0');

@@ -209,7 +209,8 @@ class SyncSchedulerImpl @Inject constructor(
                 distanceM = punch.distanceMeters,
                 matchScore = punch.matchScore,
                 imageFileName = imageFileName,
-                locationType = punch.locationType
+                locationType = punch.locationType,
+                shiftType = punch.shiftType.name
             )
         }
 

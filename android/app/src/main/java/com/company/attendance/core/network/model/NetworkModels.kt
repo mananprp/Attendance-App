@@ -86,6 +86,17 @@ data class UpdateUserRoleRequestDto(
 )
 
 @Serializable
+data class UpdateUserPasswordRequestDto(
+    @SerialName("password") val password: String
+)
+
+@Serializable
+data class AdminActionResponseDto(
+    @SerialName("success") val success: Boolean = true,
+    @SerialName("message") val message: String = ""
+)
+
+@Serializable
 data class AppConfigResponseDto(
     @SerialName("office_lat") val officeLat: Double,
     @SerialName("office_lng") val officeLng: Double,

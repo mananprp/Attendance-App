@@ -205,6 +205,60 @@ export class AdminService {
     };
   }
 
+  async updateUserPassword(userId: string, newPassword: string): Promise<AdminUserDto> {
+    const user = await this.userRepository.findOne({ where: { userId } });
+    if (!user) {
+      throw new NotFoundException({
+        code: 'USER_NOT_FOUND',
+        message: `User '${userId}' not found.`,
+      });
+    }
+
+    const saltRounds = 10;
+    user.passwordHash = await bcrypt.hash(newPassword, saltRounds);
+    const saved = await this.userRepository.save(user);
+
+    const site = await this.officeConfigRepository.findOne({
+      where: { officeId: saved.siteCode },
+    });
+
+    return {
+      user_id: saved.userId,
+      name: saved.name,
+      role: saved.role,
+      site_code: saved.siteCode,
+      site_name: site?.name || 'Headquarters',
+      status: saved.status,
+      photo_change_used: saved.photoChangeUsed,
+    };
+  }
+
+  async deleteUser(userId: string, adminUserId?: string): Promise<{ success: boolean; message: string }> {
+    if (adminUserId && userId.toLowerCase() === adminUserId.toLowerCase()) {
+      throw new BadRequestException({
+        code: 'CANNOT_DELETE_SELF',
+        message: 'You cannot delete your own account.',
+      });
+    }
+
+    const user = await this.userRepository.findOne({ where: { userId } });
+    if (!user) {
+      throw new NotFoundException({
+        code: 'USER_NOT_FOUND',
+        message: `User '${userId}' not found.`,
+      });
+    }
+
+    // Clean up punches first if any
+    await this.punchRepository.delete({ userId });
+    await this.userRepository.remove(user);
+
+    return {
+      success: true,
+      message: `User '${userId}' deleted successfully.`,
+    };
+  }
+
   async getAllPunches(filter: AdminPunchFilterDto): Promise<AdminPunchDto[]> {
     const qb = this.punchRepository
       .createQueryBuilder('p')
@@ -375,7 +429,26 @@ export class AdminService {
       const siteCode = refPunch.user?.siteCode || 'DEFAULT_OFFICE';
       const dateLocal = refPunch.dateLocal;
 
-      const shiftType = (refPunch as any).shiftType || 'GENERAL';
+      let shiftType = (refPunch as any).shiftType || 'GENERAL';
+      if (!shiftType || shiftType === 'GENERAL') {
+        const timeRef = firstIn?.punchTimeUtc || lastOut?.punchTimeUtc || refPunch.punchTimeUtc;
+        if (timeRef) {
+          const punchDate = timeRef instanceof Date ? timeRef : new Date(timeRef);
+          const istHour = parseInt(
+            new Intl.DateTimeFormat('en-IN', {
+              timeZone: 'Asia/Kolkata',
+              hour: 'numeric',
+              hour12: false,
+            }).format(punchDate),
+            10
+          );
+          if (istHour >= 13 && istHour <= 18) {
+            shiftType = 'EVENING';
+          } else if (istHour >= 19 || istHour < 6) {
+            shiftType = 'NIGHT';
+          }
+        }
+      }
       const locationType = refPunch.locationType || LocationType.OFFICE;
 
       const lat = Number(firstIn?.latitude ?? lastOut?.latitude ?? refPunch.latitude);

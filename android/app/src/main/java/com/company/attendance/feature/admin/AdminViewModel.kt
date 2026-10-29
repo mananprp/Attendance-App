@@ -9,6 +9,8 @@ import com.company.attendance.core.network.model.AdminUserDto
 import com.company.attendance.core.network.model.CreateSiteRequestDto
 import com.company.attendance.core.network.model.CreateUserRequestDto
 import com.company.attendance.core.network.model.UpdateUserSiteRequestDto
+import com.company.attendance.core.network.model.UpdateUserPasswordRequestDto
+import com.company.attendance.core.storage.TokenStorage
 import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
@@ -20,7 +22,8 @@ import javax.inject.Inject
 @HiltViewModel
 class AdminViewModel @Inject constructor(
     private val apiService: AttendanceApiService,
-    private val locationChecker: LocationChecker
+    private val locationChecker: LocationChecker,
+    private val tokenStorage: TokenStorage
 ) : ViewModel() {
 
     private val _uiState = MutableStateFlow(AdminUiState())
@@ -253,6 +256,95 @@ class AdminViewModel @Inject constructor(
             } catch (e: Exception) {
                 _uiState.update {
                     it.copy(isActionLoading = false, errorMessage = e.message ?: "Failed to update user site.")
+                }
+            }
+        }
+    }
+
+    fun getCurrentUserId(): String? = tokenStorage.getUserId()
+
+    fun openResetPasswordDialog(user: AdminUserDto) {
+        _uiState.update { it.copy(selectedUserForPasswordReset = user, errorMessage = null, successMessage = null) }
+    }
+
+    fun closeResetPasswordDialog() {
+        _uiState.update { it.copy(selectedUserForPasswordReset = null) }
+    }
+
+    fun resetUserPassword(userId: String, newPassword: String) {
+        if (newPassword.length < 6) {
+            _uiState.update { it.copy(errorMessage = "Password must be at least 6 characters.") }
+            return
+        }
+
+        viewModelScope.launch {
+            _uiState.update { it.copy(isActionLoading = true, errorMessage = null) }
+            try {
+                val response = apiService.updateAdminUserPassword(
+                    userId = userId,
+                    request = UpdateUserPasswordRequestDto(password = newPassword)
+                )
+                val result = NetworkHelper.parseResponse(response)
+
+                result.onSuccess { user ->
+                    _uiState.update { current ->
+                        current.copy(
+                            isActionLoading = false,
+                            selectedUserForPasswordReset = null,
+                            successMessage = "Password for '${user.name}' (${user.userId}) updated successfully."
+                        )
+                    }
+                }.onFailure { err ->
+                    _uiState.update {
+                        it.copy(isActionLoading = false, errorMessage = err.message ?: "Failed to reset password.")
+                    }
+                }
+            } catch (e: Exception) {
+                _uiState.update {
+                    it.copy(isActionLoading = false, errorMessage = e.message ?: "Failed to reset password.")
+                }
+            }
+        }
+    }
+
+    fun openDeleteUserDialog(user: AdminUserDto) {
+        _uiState.update { it.copy(selectedUserForDelete = user, errorMessage = null, successMessage = null) }
+    }
+
+    fun closeDeleteUserDialog() {
+        _uiState.update { it.copy(selectedUserForDelete = null) }
+    }
+
+    fun deleteUser(userId: String) {
+        val currentUserId = tokenStorage.getUserId()
+        if (currentUserId?.equals(userId, ignoreCase = true) == true) {
+            _uiState.update { it.copy(errorMessage = "You cannot delete your own account.") }
+            return
+        }
+
+        viewModelScope.launch {
+            _uiState.update { it.copy(isActionLoading = true, errorMessage = null) }
+            try {
+                val response = apiService.deleteAdminUser(userId = userId)
+                val result = NetworkHelper.parseResponse(response)
+
+                result.onSuccess {
+                    _uiState.update { current ->
+                        current.copy(
+                            isActionLoading = false,
+                            selectedUserForDelete = null,
+                            users = current.users.filter { it.userId != userId },
+                            successMessage = "User '$userId' deleted successfully."
+                        )
+                    }
+                }.onFailure { err ->
+                    _uiState.update {
+                        it.copy(isActionLoading = false, errorMessage = err.message ?: "Failed to delete user.")
+                    }
+                }
+            } catch (e: Exception) {
+                _uiState.update {
+                    it.copy(isActionLoading = false, errorMessage = e.message ?: "Failed to delete user.")
                 }
             }
         }

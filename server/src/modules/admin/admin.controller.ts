@@ -3,6 +3,7 @@ import {
   Get,
   Post,
   Patch,
+  Delete,
   Body,
   Param,
   Query,
@@ -18,6 +19,10 @@ import {
 } from '@nestjs/swagger';
 import { JwtAuthGuard } from '../../common/guards/jwt-auth.guard';
 import { AdminGuard } from '../../common/guards/admin.guard';
+import {
+  CurrentUser,
+  AuthenticatedUser,
+} from '../../common/decorators/current-user.decorator';
 import { AdminService } from './admin.service';
 import { AdminUserDto } from './dto/admin-user.dto';
 import { AdminSiteDto } from './dto/admin-site.dto';
@@ -25,6 +30,7 @@ import { CreateUserDto } from './dto/create-user.dto';
 import { CreateSiteDto } from './dto/create-site.dto';
 import { UpdateUserSiteDto } from './dto/update-user-site.dto';
 import { UpdateUserRoleDto } from './dto/update-user-role.dto';
+import { UpdateUserPasswordDto } from './dto/update-user-password.dto';
 import { AdminPunchDto } from './dto/admin-punch.dto';
 import { AdminPunchFilterDto } from './dto/admin-punch-filter.dto';
 import { AdminDailyAttendanceDto } from './dto/admin-daily-attendance.dto';
@@ -82,6 +88,26 @@ export class AdminController {
     @Body() dto: UpdateUserRoleDto,
   ): Promise<AdminUserDto> {
     return this.adminService.updateUserRole(userId, dto.role);
+  }
+
+  @Patch('users/:userId/password')
+  @ApiOperation({ summary: 'Update password for a user' })
+  @ApiResponse({ status: 200, type: AdminUserDto })
+  async updateUserPassword(
+    @Param('userId') userId: string,
+    @Body() dto: UpdateUserPasswordDto,
+  ): Promise<AdminUserDto> {
+    return this.adminService.updateUserPassword(userId, dto.password);
+  }
+
+  @Delete('users/:userId')
+  @ApiOperation({ summary: 'Delete a user account' })
+  @ApiResponse({ status: 200, description: 'User deleted successfully' })
+  async deleteUser(
+    @Param('userId') userId: string,
+    @CurrentUser() adminUser: AuthenticatedUser,
+  ): Promise<{ success: boolean; message: string }> {
+    return this.adminService.deleteUser(userId, adminUser?.userId);
   }
 
   @Get('attendance')

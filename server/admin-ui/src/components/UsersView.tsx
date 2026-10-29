@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
-import { api } from '../api';
+import { api, getStoredUser } from '../api';
 import { AdminUser, AdminSite } from '../types';
-import { UserPlus, Shield, User, MapPin, RefreshCw, X } from 'lucide-react';
+import { UserPlus, Shield, User, MapPin, RefreshCw, X, Key, Trash2, CheckCircle, AlertCircle } from 'lucide-react';
 
 interface UsersViewProps {
   sites: AdminSite[];
@@ -11,6 +11,8 @@ export const UsersView: React.FC<UsersViewProps> = ({ sites }) => {
   const [users, setUsers] = useState<AdminUser[]>([]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+
+  const currentUser = getStoredUser();
 
   // Create User Modal State
   const [showCreateModal, setShowCreateModal] = useState(false);
@@ -25,6 +27,17 @@ export const UsersView: React.FC<UsersViewProps> = ({ sites }) => {
   const [editingUser, setEditingUser] = useState<AdminUser | null>(null);
   const [selectedSiteCode, setSelectedSiteCode] = useState('');
   const [savingSite, setSavingSite] = useState(false);
+
+  // Reset Password Modal State
+  const [resettingUser, setResettingUser] = useState<AdminUser | null>(null);
+  const [newPasswordForReset, setNewPasswordForReset] = useState('');
+  const [savingPassword, setSavingPassword] = useState(false);
+  const [resetPasswordSuccess, setResetPasswordSuccess] = useState<string | null>(null);
+  const [resetPasswordError, setResetPasswordError] = useState<string | null>(null);
+
+  // Delete User Modal State
+  const [deletingUser, setDeletingUser] = useState<AdminUser | null>(null);
+  const [deleting, setDeleting] = useState(false);
 
   const loadUsers = async () => {
     try {
@@ -97,6 +110,58 @@ export const UsersView: React.FC<UsersViewProps> = ({ sites }) => {
       alert(`Failed to update assigned site: ${err.message}`);
     } finally {
       setSavingSite(false);
+    }
+  };
+
+  const handleOpenResetPasswordModal = (user: AdminUser) => {
+    setResettingUser(user);
+    setNewPasswordForReset('');
+    setResetPasswordSuccess(null);
+    setResetPasswordError(null);
+  };
+
+  const handleSavePassword = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!resettingUser) return;
+    setResetPasswordError(null);
+    setResetPasswordSuccess(null);
+
+    if (newPasswordForReset.length < 6) {
+      setResetPasswordError('Password must be at least 6 characters.');
+      return;
+    }
+    try {
+      setSavingPassword(true);
+      await api.updateUserPassword(resettingUser.user_id, newPasswordForReset);
+      setResetPasswordSuccess(`Password for ${resettingUser.name} (${resettingUser.user_id}) updated successfully!`);
+      setTimeout(() => {
+        setResettingUser(null);
+        setNewPasswordForReset('');
+        setResetPasswordSuccess(null);
+        setResetPasswordError(null);
+      }, 1800);
+    } catch (err: any) {
+      setResetPasswordError(err.message || 'Failed to update password');
+    } finally {
+      setSavingPassword(false);
+    }
+  };
+
+  const handleOpenDeleteModal = (user: AdminUser) => {
+    setDeletingUser(user);
+  };
+
+  const handleConfirmDelete = async () => {
+    if (!deletingUser) return;
+    try {
+      setDeleting(true);
+      await api.deleteUser(deletingUser.user_id);
+      setDeletingUser(null);
+      await loadUsers();
+    } catch (err: any) {
+      alert(`Failed to delete user: ${err.message}`);
+    } finally {
+      setDeleting(false);
     }
   };
 
@@ -182,7 +247,7 @@ export const UsersView: React.FC<UsersViewProps> = ({ sites }) => {
                     </span>
                   </td>
                   <td style={{ textAlign: 'right' }}>
-                    <div style={{ display: 'inline-flex', gap: 8 }}>
+                    <div style={{ display: 'inline-flex', gap: 6, flexWrap: 'wrap', justifyContent: 'flex-end' }}>
                       <button
                         onClick={() => handleOpenSiteModal(u)}
                         className="btn btn-secondary btn-sm"
@@ -196,6 +261,32 @@ export const UsersView: React.FC<UsersViewProps> = ({ sites }) => {
                         title="Toggle Admin / Employee role"
                       >
                         {u.role === 'ADMIN' ? 'Set Employee' : 'Promote Admin'}
+                      </button>
+                      <button
+                        onClick={() => handleOpenResetPasswordModal(u)}
+                        className="btn btn-secondary btn-sm"
+                        title="Reset employee password"
+                        style={{ display: 'inline-flex', alignItems: 'center', gap: 4 }}
+                      >
+                        <Key size={13} /> Password
+                      </button>
+                      <button
+                        onClick={() => handleOpenDeleteModal(u)}
+                        disabled={currentUser?.userId === u.user_id}
+                        className="btn btn-sm"
+                        style={{
+                          background: 'rgba(239, 68, 68, 0.1)',
+                          color: '#ef4444',
+                          border: '1px solid rgba(239, 68, 68, 0.2)',
+                          display: 'inline-flex',
+                          alignItems: 'center',
+                          gap: 4,
+                          cursor: currentUser?.userId === u.user_id ? 'not-allowed' : 'pointer',
+                          opacity: currentUser?.userId === u.user_id ? 0.5 : 1,
+                        }}
+                        title={currentUser?.userId === u.user_id ? 'Cannot delete own account' : 'Delete user account'}
+                      >
+                        <Trash2 size={13} /> Delete
                       </button>
                     </div>
                   </td>
@@ -351,6 +442,172 @@ export const UsersView: React.FC<UsersViewProps> = ({ sites }) => {
                 className="btn btn-primary"
               >
                 {savingSite ? 'Saving...' : 'Save Site Assignment'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Reset Password Modal */}
+      {resettingUser && (
+        <div className="modal-overlay">
+          <div className="modal-content">
+            <div className="modal-header">
+              <h3 style={{ fontSize: '1.1rem', fontWeight: 700 }}>
+                Reset Password: {resettingUser.name} ({resettingUser.user_id})
+              </h3>
+              <button
+                onClick={() => {
+                  setResettingUser(null);
+                  setResetPasswordSuccess(null);
+                  setResetPasswordError(null);
+                }}
+                style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--text-secondary)' }}
+              >
+                <X size={20} />
+              </button>
+            </div>
+            <form onSubmit={handleSavePassword}>
+              <div className="modal-body">
+                {resetPasswordSuccess && (
+                  <div
+                    style={{
+                      display: 'flex',
+                      alignItems: 'center',
+                      gap: 10,
+                      backgroundColor: 'var(--success-bg)',
+                      color: '#065f46',
+                      border: '1px solid #a7f3d0',
+                      padding: '12px 14px',
+                      borderRadius: 8,
+                      marginBottom: 16,
+                      fontSize: '0.88rem',
+                      fontWeight: 500,
+                    }}
+                  >
+                    <CheckCircle size={18} color="#10b981" />
+                    <span>{resetPasswordSuccess}</span>
+                  </div>
+                )}
+
+                {resetPasswordError && (
+                  <div
+                    style={{
+                      display: 'flex',
+                      alignItems: 'center',
+                      gap: 10,
+                      backgroundColor: 'var(--error-bg)',
+                      color: '#991b1b',
+                      border: '1px solid #fecaca',
+                      padding: '12px 14px',
+                      borderRadius: 8,
+                      marginBottom: 16,
+                      fontSize: '0.88rem',
+                      fontWeight: 500,
+                    }}
+                  >
+                    <AlertCircle size={18} color="#ef4444" />
+                    <span>{resetPasswordError}</span>
+                  </div>
+                )}
+
+                {!resetPasswordSuccess && (
+                  <>
+                    <p style={{ fontSize: '0.88rem', color: 'var(--text-secondary)', marginBottom: 16 }}>
+                      Enter a new password for this user. The password must be at least 6 characters.
+                    </p>
+                    <div className="filter-group">
+                      <label className="filter-label">New Password</label>
+                      <input
+                        type="password"
+                        className="input"
+                        placeholder="Enter new password (min 6 chars)"
+                        value={newPasswordForReset}
+                        onChange={(e) => {
+                          setNewPasswordForReset(e.target.value);
+                          if (resetPasswordError) setResetPasswordError(null);
+                        }}
+                        required
+                        minLength={6}
+                        autoFocus
+                        disabled={savingPassword}
+                      />
+                    </div>
+                  </>
+                )}
+              </div>
+              <div className="modal-footer">
+                <button
+                  type="button"
+                  onClick={() => {
+                    setResettingUser(null);
+                    setResetPasswordSuccess(null);
+                    setResetPasswordError(null);
+                  }}
+                  className="btn btn-secondary"
+                  disabled={savingPassword}
+                >
+                  {resetPasswordSuccess ? 'Close' : 'Cancel'}
+                </button>
+                {!resetPasswordSuccess && (
+                  <button
+                    type="submit"
+                    disabled={savingPassword || newPasswordForReset.length < 6}
+                    className="btn btn-primary"
+                  >
+                    {savingPassword ? 'Updating...' : 'Update Password'}
+                  </button>
+                )}
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
+      {/* Delete User Confirmation Modal */}
+      {deletingUser && (
+        <div className="modal-overlay">
+          <div className="modal-content" style={{ maxWidth: 440 }}>
+            <div className="modal-header">
+              <h3 style={{ fontSize: '1.1rem', fontWeight: 700, color: '#ef4444' }}>
+                Confirm Delete Employee
+              </h3>
+              <button
+                onClick={() => setDeletingUser(null)}
+                style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--text-secondary)' }}
+              >
+                <X size={20} />
+              </button>
+            </div>
+            <div className="modal-body">
+              <p style={{ fontSize: '0.9rem', color: 'var(--text-primary)', marginBottom: 12 }}>
+                Are you sure you want to permanently delete <strong>{deletingUser.name}</strong> (<code>{deletingUser.user_id}</code>)?
+              </p>
+              <div style={{ padding: 12, borderRadius: 8, background: 'rgba(239, 68, 68, 0.08)', border: '1px solid rgba(239, 68, 68, 0.2)', fontSize: '0.82rem', color: '#b91c1c' }}>
+                ⚠️ Warning: This will delete the user account and associated punch records. This action cannot be undone.
+              </div>
+            </div>
+            <div className="modal-footer">
+              <button
+                type="button"
+                onClick={() => setDeletingUser(null)}
+                disabled={deleting}
+                className="btn btn-secondary"
+              >
+                Cancel
+              </button>
+              <button
+                type="button"
+                onClick={handleConfirmDelete}
+                disabled={deleting}
+                className="btn"
+                style={{
+                  background: '#ef4444',
+                  color: '#fff',
+                  border: 'none',
+                }}
+              >
+                {deleting ? 'Deleting...' : 'Delete Permanently'}
               </button>
             </div>
           </div>

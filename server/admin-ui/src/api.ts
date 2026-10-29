@@ -2,7 +2,7 @@ import { AdminUser, AdminSite, AdminPunch, AdminDailyAttendance, AuthSession } f
 
 const API_BASE =
   import.meta.env.VITE_API_BASE ||
-  (typeof window !== 'undefined' && window.location.origin.includes('pess.co.in')
+  (typeof window !== 'undefined' && !window.location.hostname.endsWith('vercel.app') && !window.location.hostname.endsWith('netlify.app')
     ? '/v1'
     : 'https://attendance.pess.co.in/v1');
 
@@ -237,6 +237,19 @@ export const api = {
     return request<AdminUser>(`/admin/users/${userId}/role`, {
       method: 'PATCH',
       body: JSON.stringify({ role }),
+    });
+  },
+
+  async updateUserPassword(userId: string, password: string): Promise<AdminUser> {
+    return request<AdminUser>(`/admin/users/${userId}/password`, {
+      method: 'PATCH',
+      body: JSON.stringify({ password }),
+    });
+  },
+
+  async deleteUser(userId: string): Promise<{ success: boolean; message: string }> {
+    return request<{ success: boolean; message: string }>(`/admin/users/${userId}`, {
+      method: 'DELETE',
     });
   },
 
