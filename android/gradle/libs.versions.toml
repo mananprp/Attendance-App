@@ -27,7 +27,7 @@ kotlinxCoroutinesTest = "1.8.0"
 androidxTestExtJunit = "1.1.5"
 espressoCore = "3.5.1"
 commonsNet = "3.10.0"
-mlkitPose = "18.0.0-beta3"
+mlkitPose = "18.0.0-beta5"
 
 [libraries]
 androidx-core-ktx = { group = "androidx.core", name = "core-ktx", version.ref = "coreKtx" }

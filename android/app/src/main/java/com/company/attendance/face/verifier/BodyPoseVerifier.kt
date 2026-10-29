@@ -85,7 +85,13 @@ class BodyPoseVerifierImpl(
             return BodyPoseResult.Failure("Full body required: shoes/feet must be visible inside the frame.")
         }
 
-        // 4. Vertical Span Check (Head-to-Toe span relative to total image height)
+        // 4. Boundary & Horizontal Framing Check
+        val avgShoulderX = ( (leftShoulder?.position?.x ?: 0f) + (rightShoulder?.position?.x ?: imageWidth) ) / 2f
+        if (avgShoulderX < 0.05f * imageWidth || avgShoulderX > 0.95f * imageWidth) {
+            return BodyPoseResult.Failure("Please center yourself inside the camera frame.")
+        }
+
+        // 5. Vertical Span Check (Head-to-Toe span relative to total image height)
         val nose = pose.getPoseLandmark(PoseLandmark.NOSE)
         val lowestFootY = maxOf(
             leftAnkle?.position?.y ?: 0f,
