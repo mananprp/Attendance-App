@@ -418,3 +418,17 @@
     - **Verification & Build:**
       - Unit test suites (`NavigationRoutesTest`, `ThemeTokensTest`, `SwipeToPunchThresholdTest`, `WorkDurationCalculatorTest`, `HomeViewModelTest`, `CalendarViewModelTest`, `LoginViewModelTest`) all 100% PASS.
       - `assembleDebug` APK build: **BUILD SUCCESSFUL**. Output: `android/app/build/outputs/apk/debug/app-debug.apk`.
+
+  - **Phase S1-S6: Profile Photos Stored in Database & Punch Image Deprecation:**
+    - **Database Storage for Profile Photos:** Added dialect-aware binary column `image_data` (`varbinary(max)` for MSSQL, `longblob` for MySQL, `blob` for SQLite) and `mime_type` varchar(32) to `user_photos` entity, excluded from default selects.
+    - **Safe Database Migration:** Created `server/src/database/migrations/002_store_profile_photos_in_db.sql` for MSSQL with idempotent ALTER TABLE checks and MySQL equivalents documented.
+    - **Upload & File Serving Endpoints:**
+      - Updated `uploadPhotoV1` and `replacePhotoV2` to validate magic bytes (JPEG/PNG only) and 5 MB max size, storing bytes directly into DB with sha256 hash. Removed all disk file writing.
+      - Removed `PHOTO_ALREADY_EXISTS` blockage for legacy rows missing image data: legacy rows are cleared, allowing smooth re-enrolment.
+      - Added `GET /v1/users/me/photo/file` returning active photo bytes with HTTP ETag caching (304 Not Modified).
+      - Set stored `image_path` to `/v1/users/me/photo/file` for seamless backward compatibility.
+    - **Auth & Admin Enhancements:**
+      - Login `has_photo` and `active_photo_version` now strictly require an active row with image data.
+      - Added Admin photo reset endpoint `POST /v1/admin/users/:userId/photo/reset` and `GET /v1/admin/users/:userId/photo`.
+      - Added "Reset Photo" action with confirmation dialog to the Admin Web UI.
+    - **Punch Images Deprecated:** Removed punch disk folder writes and file saving during sync. Punches now cleanly store `image_path = null` while maintaining backward-compatible DTO acceptance.

@@ -28,9 +28,10 @@ describe('ConfigController', () => {
   });
 
   it('should return app configuration', async () => {
-    const result = await controller.getConfig();
+    const mockReq = { user: { userId: 'EMP1001' } };
+    const result = await controller.getConfig(mockReq);
     expect(result.office_lat).toBe(28.613939);
     expect(result.radius_m).toBe(100);
-    expect(configService.getAppConfig).toHaveBeenCalled();
+    expect(configService.getAppConfig).toHaveBeenCalledWith('EMP1001');
   });
 });

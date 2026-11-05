@@ -60,6 +60,35 @@ describe('AttendanceService', () => {
   });
 
   describe('syncPunches', () => {
+    it('should ignore attached multipart image files and store image_path as null for punches', async () => {
+      punchRepo.findOne.mockResolvedValue(null);
+      punchRepo.find.mockResolvedValue([
+        { type: PunchType.IN, punchTimeUtc: new Date('2026-09-30T03:45:00.000Z'), timeUnverified: false },
+      ]);
+      dayRepo.findOne.mockResolvedValue(null);
+
+      const punchWithImg = {
+        ...punchIn,
+        image_file_name: 'test_punch.jpg',
+      };
+      const batchJson = JSON.stringify([punchWithImg]);
+      const mockFiles = [
+        {
+          fieldname: 'files',
+          originalname: 'test_punch.jpg',
+          buffer: Buffer.from('punch_image_bytes'),
+        } as Express.Multer.File,
+      ];
+
+      const result = await service.syncPunches('EMP1001', batchJson, mockFiles);
+      expect(result.results[0].status).toBe(PunchSyncStatus.ACCEPTED);
+      expect(punchRepo.create).toHaveBeenCalledWith(
+        expect.objectContaining({
+          imagePath: null,
+        }),
+      );
+    });
+
     const punchIn = {
       punch_uuid: '550e8400-e29b-41d4-a716-446655440001',
       user_id: 'EMP1001',

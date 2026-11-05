@@ -89,11 +89,14 @@ export class AuthService {
     // Reset rate limit counter on successful login
     this.loginAttempts.delete(rateLimitKey);
 
-    // Fetch active photo info
-    const activePhoto = await this.photoRepository.findOne({
-      where: { userId: user.userId, isActive: true },
-      order: { version: 'DESC' },
-    });
+    // Fetch active photo info (only consider photos that have stored image data)
+    const activePhoto = await this.photoRepository
+      .createQueryBuilder('photo')
+      .where('photo.userId = :userId', { userId: user.userId })
+      .andWhere('photo.isActive = :isActive', { isActive: true })
+      .andWhere('photo.imageData IS NOT NULL')
+      .orderBy('photo.version', 'DESC')
+      .getOne();
 
     const payload = {
       sub: user.userId,

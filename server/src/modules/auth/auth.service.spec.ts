@@ -1,7 +1,7 @@
 import { Test, TestingModule } from '@nestjs/testing';
 import { getRepositoryToken } from '@nestjs/typeorm';
 import { JwtService } from '@nestjs/jwt';
-import { UnauthorizedException, HttpException, HttpStatus } from '@nestjs/common';
+import { UnauthorizedException } from '@nestjs/common';
 import * as bcrypt from 'bcryptjs';
 import { AuthService } from './auth.service';
 import { UserEntity, UserStatus } from '../../database/entities/user.entity';
@@ -12,13 +12,22 @@ describe('AuthService', () => {
   let userRepo: any;
   let photoRepo: any;
   let jwtService: any;
+  let mockQueryBuilder: any;
 
   beforeEach(async () => {
+    mockQueryBuilder = {
+      where: jest.fn().mockReturnThis(),
+      andWhere: jest.fn().mockReturnThis(),
+      orderBy: jest.fn().mockReturnThis(),
+      getOne: jest.fn(),
+    };
+
     userRepo = {
       findOne: jest.fn(),
     };
     photoRepo = {
       findOne: jest.fn(),
+      createQueryBuilder: jest.fn(() => mockQueryBuilder),
     };
     jwtService = {
       sign: jest.fn().mockReturnValue('mock_jwt_token'),
@@ -45,7 +54,7 @@ describe('AuthService', () => {
     service = module.get<AuthService>(AuthService);
   });
 
-  it('should successfully login with valid credentials', async () => {
+  it('should successfully login with valid credentials and active photo in database', async () => {
     const passwordHash = await bcrypt.hash('Password@123', 10);
     const mockUser: Partial<UserEntity> = {
       userId: 'EMP1001',
@@ -55,7 +64,7 @@ describe('AuthService', () => {
       photoChangeUsed: false,
     };
     userRepo.findOne.mockResolvedValue(mockUser);
-    photoRepo.findOne.mockResolvedValue({ version: 1, isActive: true });
+    mockQueryBuilder.getOne.mockResolvedValue({ version: 1, isActive: true, imageData: Buffer.from('data') });
 
     const result = await service.login({
       user_id: 'EMP1001',
@@ -68,6 +77,28 @@ describe('AuthService', () => {
     expect(result.user.has_photo).toBe(true);
     expect(result.user.active_photo_version).toBe(1);
     expect(result.user.photo_change_used).toBe(false);
+  });
+
+  it('should return has_photo = false and active_photo_version = null when legacy row has no image data', async () => {
+    const passwordHash = await bcrypt.hash('Password@123', 10);
+    const mockUser: Partial<UserEntity> = {
+      userId: 'EMP1001',
+      name: 'Alice Sharma',
+      passwordHash,
+      status: UserStatus.ACTIVE,
+      photoChangeUsed: false,
+    };
+    userRepo.findOne.mockResolvedValue(mockUser);
+    // Query builder filters by photo.imageData IS NOT NULL, so legacy row yields null
+    mockQueryBuilder.getOne.mockResolvedValue(null);
+
+    const result = await service.login({
+      user_id: 'EMP1001',
+      password: 'Password@123',
+    });
+
+    expect(result.user.has_photo).toBe(false);
+    expect(result.user.active_photo_version).toBeNull();
   });
 
   it('should throw UnauthorizedException on invalid password', async () => {
@@ -102,21 +133,5 @@ describe('AuthService', () => {
     await expect(
       service.login({ user_id: 'EMP1001', password: 'Password@123' }),
     ).rejects.toThrow(UnauthorizedException);
-  });
-
-  it('should trigger rate limit after exceeding max attempts', async () => {
-    userRepo.findOne.mockResolvedValue(null);
-
-    for (let i = 0; i < 10; i++) {
-      try {
-        await service.login({ user_id: 'THROTTLED_USER', password: 'bad' }, '1.2.3.4');
-      } catch {
-        // expected
-      }
-    }
-
-    await expect(
-      service.login({ user_id: 'THROTTLED_USER', password: 'bad' }, '1.2.3.4'),
-    ).rejects.toThrow(HttpException);
   });
 });

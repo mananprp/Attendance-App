@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { api, getStoredUser } from '../api';
 import { AdminUser, AdminSite } from '../types';
-import { UserPlus, Shield, User, MapPin, RefreshCw, X, Key, Trash2, CheckCircle, AlertCircle } from 'lucide-react';
+import { UserPlus, Shield, User, MapPin, RefreshCw, X, Key, Trash2, CheckCircle, AlertCircle, Camera } from 'lucide-react';
 
 interface UsersViewProps {
   sites: AdminSite[];
@@ -38,6 +38,12 @@ export const UsersView: React.FC<UsersViewProps> = ({ sites }) => {
   // Delete User Modal State
   const [deletingUser, setDeletingUser] = useState<AdminUser | null>(null);
   const [deleting, setDeleting] = useState(false);
+
+  // Reset Photo Modal State
+  const [resettingPhotoUser, setResettingPhotoUser] = useState<AdminUser | null>(null);
+  const [resettingPhoto, setResettingPhoto] = useState(false);
+  const [resetPhotoSuccess, setResetPhotoSuccess] = useState<string | null>(null);
+  const [resetPhotoError, setResetPhotoError] = useState<string | null>(null);
 
   const loadUsers = async () => {
     try {
@@ -149,6 +155,31 @@ export const UsersView: React.FC<UsersViewProps> = ({ sites }) => {
 
   const handleOpenDeleteModal = (user: AdminUser) => {
     setDeletingUser(user);
+  };
+
+  const handleOpenResetPhotoModal = (user: AdminUser) => {
+    setResettingPhotoUser(user);
+    setResetPhotoSuccess(null);
+    setResetPhotoError(null);
+  };
+
+  const handleConfirmResetPhoto = async () => {
+    if (!resettingPhotoUser) return;
+    try {
+      setResettingPhoto(true);
+      setResetPhotoError(null);
+      const res = await api.resetUserPhoto(resettingPhotoUser.user_id);
+      setResetPhotoSuccess(res.message || 'Photo reset successfully');
+      setTimeout(async () => {
+        setResettingPhotoUser(null);
+        setResetPhotoSuccess(null);
+        await loadUsers();
+      }, 1500);
+    } catch (err: any) {
+      setResetPhotoError(err.message || 'Failed to reset photo');
+    } finally {
+      setResettingPhoto(false);
+    }
   };
 
   const handleConfirmDelete = async () => {
@@ -609,6 +640,106 @@ export const UsersView: React.FC<UsersViewProps> = ({ sites }) => {
               >
                 {deleting ? 'Deleting...' : 'Delete Permanently'}
               </button>
+            </div>
+          </div>
+        </div>
+      )}
+      {/* Reset Photo Confirmation Modal */}
+      {resettingPhotoUser && (
+        <div className="modal-overlay">
+          <div className="modal-content" style={{ maxWidth: 440 }}>
+            <div className="modal-header">
+              <h3 style={{ fontSize: '1.1rem', fontWeight: 700 }}>
+                Reset Photo: {resettingPhotoUser.name} ({resettingPhotoUser.user_id})
+              </h3>
+              <button
+                onClick={() => {
+                  setResettingPhotoUser(null);
+                  setResetPhotoSuccess(null);
+                  setResetPhotoError(null);
+                }}
+                style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--text-secondary)' }}
+              >
+                <X size={20} />
+              </button>
+            </div>
+            <div className="modal-body">
+              {resetPhotoSuccess && (
+                <div
+                  style={{
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: 10,
+                    backgroundColor: 'var(--success-bg)',
+                    color: '#065f46',
+                    border: '1px solid #a7f3d0',
+                    padding: '12px 14px',
+                    borderRadius: 8,
+                    marginBottom: 16,
+                    fontSize: '0.88rem',
+                    fontWeight: 500,
+                  }}
+                >
+                  <CheckCircle size={18} color="#10b981" />
+                  <span>{resetPhotoSuccess}</span>
+                </div>
+              )}
+
+              {resetPhotoError && (
+                <div
+                  style={{
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: 10,
+                    backgroundColor: 'var(--error-bg)',
+                    color: '#991b1b',
+                    border: '1px solid #fecaca',
+                    padding: '12px 14px',
+                    borderRadius: 8,
+                    marginBottom: 16,
+                    fontSize: '0.88rem',
+                    fontWeight: 500,
+                  }}
+                >
+                  <AlertCircle size={18} color="#ef4444" />
+                  <span>{resetPhotoError}</span>
+                </div>
+              )}
+
+              {!resetPhotoSuccess && (
+                <>
+                  <p style={{ fontSize: '0.9rem', color: 'var(--text-primary)', marginBottom: 12 }}>
+                    Are you sure you want to reset the profile photo for <strong>{resettingPhotoUser.name}</strong> (<code>{resettingPhotoUser.user_id}</code>)?
+                  </p>
+                  <div style={{ padding: 12, borderRadius: 8, background: 'rgba(234, 179, 8, 0.1)', border: '1px solid rgba(234, 179, 8, 0.3)', fontSize: '0.82rem', color: '#854d0e' }}>
+                    ℹ️ The user will be asked to re-enrol their profile photo at next login. Attendance days and punch records will not be affected.
+                  </div>
+                </>
+              )}
+            </div>
+            <div className="modal-footer">
+              <button
+                type="button"
+                onClick={() => {
+                  setResettingPhotoUser(null);
+                  setResetPhotoSuccess(null);
+                  setResetPhotoError(null);
+                }}
+                disabled={resettingPhoto}
+                className="btn btn-secondary"
+              >
+                {resetPhotoSuccess ? 'Close' : 'Cancel'}
+              </button>
+              {!resetPhotoSuccess && (
+                <button
+                  type="button"
+                  onClick={handleConfirmResetPhoto}
+                  disabled={resettingPhoto}
+                  className="btn btn-primary"
+                >
+                  {resettingPhoto ? 'Resetting...' : 'Confirm Reset Photo'}
+                </button>
+              )}
             </div>
           </div>
         </div>

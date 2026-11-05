@@ -7,10 +7,11 @@ import {
   Body,
   Param,
   Query,
+  Req,
   Res,
   UseGuards,
 } from '@nestjs/common';
-import { Response } from 'express';
+import { Request, Response } from 'express';
 import {
   ApiTags,
   ApiOperation,
@@ -155,5 +156,40 @@ export class AdminController {
       `attachment; filename="attendance_punches_${timestamp}.csv"`,
     );
     res.send(csv);
+  }
+  @Post('users/:userId/photo/reset')
+  @ApiOperation({ summary: 'Reset profile photo for a user' })
+  @ApiResponse({ status: 200, description: 'Photo reset successfully' })
+  @ApiResponse({ status: 404, description: 'User not found' })
+  async resetUserPhoto(
+    @Param('userId') userId: string,
+  ): Promise<{ success: boolean; message: string }> {
+    return this.adminService.resetUserPhoto(userId);
+  }
+
+  @Get('users/:userId/photo')
+  @ApiOperation({ summary: 'Get active profile photo file for a user' })
+  @ApiResponse({ status: 200, description: 'Active photo file bytes' })
+  @ApiResponse({ status: 304, description: 'Photo not modified' })
+  @ApiResponse({ status: 404, description: 'No active photo found' })
+  async getUserPhoto(
+    @Param('userId') userId: string,
+    @Req() req: Request,
+    @Res() res: Response,
+  ): Promise<void> {
+    const photo = await this.adminService.getUserPhotoFile(userId);
+    const etag = `"${photo.hash}"`;
+    const clientEtag = req.headers['if-none-match'];
+
+    res.setHeader('ETag', etag);
+    res.setHeader('Cache-Control', 'private, max-age=0, must-revalidate');
+
+    if (clientEtag && (clientEtag === etag || clientEtag === photo.hash)) {
+      res.status(304).send();
+      return;
+    }
+
+    res.setHeader('Content-Type', photo.mimeType);
+    res.status(200).send(photo.data);
   }
 }

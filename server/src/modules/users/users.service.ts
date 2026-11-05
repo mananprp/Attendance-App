@@ -7,8 +7,6 @@ import {
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
 import * as crypto from 'crypto';
-import * as fs from 'fs';
-import * as path from 'path';
 import { UserEntity } from '../../database/entities/user.entity';
 import { UserPhotoEntity } from '../../database/entities/user-photo.entity';
 import {
@@ -16,35 +14,60 @@ import {
   PhotoDetailResponseDto,
 } from './dto/photo-response.dto';
 
+function validateAndDetectImageType(file: Express.Multer.File): { mimeType: string } {
+  if (!file || !file.buffer) {
+    throw new BadRequestException({
+      code: 'PHOTO_MISSING',
+      message: 'No photo file provided in request.',
+    });
+  }
+
+  const MAX_SIZE = 5 * 1024 * 1024; // 5 MB
+  if (file.buffer.length > MAX_SIZE) {
+    throw new BadRequestException({
+      code: 'INVALID_IMAGE',
+      message: 'Photo size exceeds maximum allowed size of 5 MB.',
+    });
+  }
+
+  const buf = file.buffer;
+  if (buf.length >= 3 && buf[0] === 0xff && buf[1] === 0xd8 && buf[2] === 0xff) {
+    return { mimeType: 'image/jpeg' };
+  }
+  if (
+    buf.length >= 8 &&
+    buf[0] === 0x89 &&
+    buf[1] === 0x50 &&
+    buf[2] === 0x4e &&
+    buf[3] === 0x47 &&
+    buf[4] === 0x0d &&
+    buf[5] === 0x0a &&
+    buf[6] === 0x1a &&
+    buf[7] === 0x0a
+  ) {
+    return { mimeType: 'image/png' };
+  }
+
+  throw new BadRequestException({
+    code: 'INVALID_IMAGE',
+    message: 'Invalid image format. Only JPEG and PNG images are allowed.',
+  });
+}
+
 @Injectable()
 export class UsersService {
-  private readonly uploadDir = path.resolve(
-    process.cwd(),
-    process.env.UPLOAD_DIR || 'uploads',
-    'photos',
-  );
-
   constructor(
     @InjectRepository(UserEntity)
     private readonly userRepository: Repository<UserEntity>,
     @InjectRepository(UserPhotoEntity)
     private readonly photoRepository: Repository<UserPhotoEntity>,
-  ) {
-    if (!fs.existsSync(this.uploadDir)) {
-      fs.mkdirSync(this.uploadDir, { recursive: true });
-    }
-  }
+  ) {}
 
   async uploadPhotoV1(
     userId: string,
     file: Express.Multer.File,
   ): Promise<PhotoUploadResponseDto> {
-    if (!file) {
-      throw new BadRequestException({
-        code: 'PHOTO_MISSING',
-        message: 'No photo file provided in request.',
-      });
-    }
+    const { mimeType } = validateAndDetectImageType(file);
 
     const user = await this.userRepository.findOne({ where: { userId } });
     if (!user) {
@@ -54,31 +77,43 @@ export class UsersService {
       });
     }
 
-    // Check if photo v1 already exists
-    const existingV1 = await this.photoRepository.findOne({
-      where: { userId, version: 1 },
-    });
-    if (existingV1) {
+    // Check existing photos for user
+    const userPhotos = await this.photoRepository
+      .createQueryBuilder('photo')
+      .addSelect('photo.imageData')
+      .where('photo.userId = :userId', { userId })
+      .getMany();
+
+    const existingV1WithData = userPhotos.find(
+      (p) => p.version === 1 && p.imageData && p.imageData.length > 0,
+    );
+    if (existingV1WithData) {
       throw new BadRequestException({
         code: 'PHOTO_ALREADY_EXISTS',
         message: 'Initial profile photo (version 1) has already been uploaded.',
       });
     }
 
+    // If legacy rows exist without image data, delete them and reset photo_change_used
+    const legacyPhotos = userPhotos.filter(
+      (p) => !p.imageData || p.imageData.length === 0,
+    );
+    if (legacyPhotos.length > 0) {
+      await this.photoRepository.remove(legacyPhotos);
+      user.photoChangeUsed = false;
+      await this.userRepository.save(user);
+    }
+
     // Compute sha256
     const hash = crypto.createHash('sha256').update(file.buffer).digest('hex');
-
-    // Save file to disk
-    const filename = `${userId}_v1.jpg`;
-    const filePath = path.join(this.uploadDir, filename);
-    fs.writeFileSync(filePath, file.buffer);
-
-    const relativeUrl = `/uploads/photos/${filename}`;
+    const photoUrl = '/v1/users/me/photo/file';
 
     const photoEntity = this.photoRepository.create({
       userId,
       version: 1,
-      imagePath: relativeUrl,
+      imagePath: photoUrl,
+      imageData: file.buffer,
+      mimeType,
       hash,
       isActive: true,
     });
@@ -86,7 +121,7 @@ export class UsersService {
 
     return {
       version: 1,
-      photo_url: relativeUrl,
+      photo_url: photoUrl,
       photo_change_used: user.photoChangeUsed,
     };
   }
@@ -95,12 +130,7 @@ export class UsersService {
     userId: string,
     file: Express.Multer.File,
   ): Promise<PhotoUploadResponseDto> {
-    if (!file) {
-      throw new BadRequestException({
-        code: 'PHOTO_MISSING',
-        message: 'No photo file provided in request.',
-      });
-    }
+    const { mimeType } = validateAndDetectImageType(file);
 
     const user = await this.userRepository.findOne({ where: { userId } });
     if (!user) {
@@ -119,11 +149,14 @@ export class UsersService {
       });
     }
 
-    // Check if photo v1 exists
-    const existingV1 = await this.photoRepository.findOne({
-      where: { userId, version: 1 },
-    });
-    if (!existingV1) {
+    // Check if photo v1 with image data exists
+    const existingV1 = await this.photoRepository
+      .createQueryBuilder('photo')
+      .addSelect('photo.imageData')
+      .where('photo.userId = :userId AND photo.version = 1', { userId })
+      .getOne();
+
+    if (!existingV1 || !existingV1.imageData || existingV1.imageData.length === 0) {
       throw new BadRequestException({
         code: 'PHOTO_V1_MISSING',
         message: 'Cannot replace photo before initial photo (version 1) is uploaded.',
@@ -132,13 +165,7 @@ export class UsersService {
 
     // Compute sha256
     const hash = crypto.createHash('sha256').update(file.buffer).digest('hex');
-
-    // Save file to disk
-    const filename = `${userId}_v2.jpg`;
-    const filePath = path.join(this.uploadDir, filename);
-    fs.writeFileSync(filePath, file.buffer);
-
-    const relativeUrl = `/uploads/photos/${filename}`;
+    const photoUrl = '/v1/users/me/photo/file';
 
     // Deactivate version 1
     await this.photoRepository.update({ userId, version: 1 }, { isActive: false });
@@ -147,7 +174,9 @@ export class UsersService {
     const photoV2 = this.photoRepository.create({
       userId,
       version: 2,
-      imagePath: relativeUrl,
+      imagePath: photoUrl,
+      imageData: file.buffer,
+      mimeType,
       hash,
       isActive: true,
     });
@@ -159,16 +188,19 @@ export class UsersService {
 
     return {
       version: 2,
-      photo_url: relativeUrl,
+      photo_url: photoUrl,
       photo_change_used: true,
     };
   }
 
   async getActivePhoto(userId: string): Promise<PhotoDetailResponseDto> {
-    const photo = await this.photoRepository.findOne({
-      where: { userId, isActive: true },
-      order: { version: 'DESC' },
-    });
+    const photo = await this.photoRepository
+      .createQueryBuilder('photo')
+      .where('photo.userId = :userId', { userId })
+      .andWhere('photo.isActive = :isActive', { isActive: true })
+      .andWhere('photo.imageData IS NOT NULL')
+      .orderBy('photo.version', 'DESC')
+      .getOne();
 
     if (!photo) {
       throw new NotFoundException({
@@ -181,6 +213,32 @@ export class UsersService {
       version: photo.version,
       photo_url: photo.imagePath,
       uploaded_at: photo.uploadedAt.toISOString(),
+      hash: photo.hash,
+    };
+  }
+
+  async getActivePhotoFile(
+    userId: string,
+  ): Promise<{ data: Buffer; mimeType: string; hash: string }> {
+    const photo = await this.photoRepository
+      .createQueryBuilder('photo')
+      .addSelect('photo.imageData')
+      .where('photo.userId = :userId', { userId })
+      .andWhere('photo.isActive = :isActive', { isActive: true })
+      .andWhere('photo.imageData IS NOT NULL')
+      .orderBy('photo.version', 'DESC')
+      .getOne();
+
+    if (!photo || !photo.imageData) {
+      throw new NotFoundException({
+        code: 'PHOTO_NOT_FOUND',
+        message: 'No active profile photo found for this user.',
+      });
+    }
+
+    return {
+      data: photo.imageData,
+      mimeType: photo.mimeType || 'image/jpeg',
       hash: photo.hash,
     };
   }

@@ -34,11 +34,7 @@ import {
 
 @Injectable()
 export class AttendanceService {
-  private readonly punchesUploadDir = path.resolve(
-    process.cwd(),
-    'uploads',
-    'punches',
-  );
+
 
   constructor(
     @InjectRepository(AttendancePunchEntity)
@@ -47,11 +43,7 @@ export class AttendanceService {
     private readonly dayRepository: Repository<AttendanceDayEntity>,
     @InjectRepository(SyncBatchEntity)
     private readonly syncBatchRepository: Repository<SyncBatchEntity>,
-  ) {
-    if (!fs.existsSync(this.punchesUploadDir)) {
-      fs.mkdirSync(this.punchesUploadDir, { recursive: true });
-    }
-  }
+  ) {}
 
   async syncPunches(
     userId: string,
@@ -95,13 +87,7 @@ export class AttendanceService {
     });
     await this.syncBatchRepository.save(batchEntity);
 
-    // Map files by normalized filename/uuid
-    const fileMap = new Map<string, Express.Multer.File>();
-    for (const file of files) {
-      fileMap.set(file.originalname, file);
-      const nameWithoutExt = path.parse(file.originalname).name;
-      fileMap.set(nameWithoutExt, file);
-    }
+    // We accept files for backward compatibility with older clients, but no longer write them
 
     for (const item of items) {
       if (!item.punch_uuid || !item.date_local || !item.type || !item.punch_time_utc) {
@@ -127,22 +113,8 @@ export class AttendanceService {
         continue;
       }
 
-      // Handle image attachment if available
-      let imagePath: string | null = null;
-      const matchedFile =
-        fileMap.get(item.punch_uuid) ||
-        (item.image_file_name ? fileMap.get(item.image_file_name) : null) ||
-        fileMap.get(`${item.punch_uuid}.jpg`) ||
-        fileMap.get(`${item.punch_uuid}.jpeg`) ||
-        fileMap.get(`${item.punch_uuid}.png`);
-
-      if (matchedFile) {
-        const ext = path.extname(matchedFile.originalname) || '.jpg';
-        const filename = `${item.punch_uuid}${ext}`;
-        const targetPath = path.join(this.punchesUploadDir, filename);
-        fs.writeFileSync(targetPath, matchedFile.buffer);
-        imagePath = `/uploads/punches/${filename}`;
-      }
+      // We no longer store punch images on disk or in DB; punch image uploads are safely ignored
+      const imagePath: string | null = null;
 
       const rawLocType = (item.location_type || (item as any).locationType || '').toString().trim().toUpperCase();
       const resolvedLocType = rawLocType === 'NEW_LOCATION' ? LocationType.NEW_LOCATION : LocationType.OFFICE;

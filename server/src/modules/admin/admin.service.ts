@@ -10,6 +10,7 @@ import * as bcrypt from 'bcryptjs';
 import { UserEntity, UserRole, UserStatus } from '../../database/entities/user.entity';
 import { OfficeConfigEntity } from '../../database/entities/office-config.entity';
 import { AttendancePunchEntity, LocationType, PunchType } from '../../database/entities/attendance-punch.entity';
+import { UserPhotoEntity } from '../../database/entities/user-photo.entity';
 import { AdminUserDto } from './dto/admin-user.dto';
 import { AdminSiteDto } from './dto/admin-site.dto';
 import { CreateUserDto } from './dto/create-user.dto';
@@ -27,6 +28,8 @@ export class AdminService {
     private readonly officeConfigRepository: Repository<OfficeConfigEntity>,
     @InjectRepository(AttendancePunchEntity)
     private readonly punchRepository: Repository<AttendancePunchEntity>,
+    @InjectRepository(UserPhotoEntity)
+    private readonly photoRepository: Repository<UserPhotoEntity>,
   ) {}
 
   async getSites(): Promise<AdminSiteDto[]> {
@@ -612,5 +615,55 @@ export class AdminService {
     );
 
     return [headers.join(','), ...rows].join('\r\n');
+  }
+  async resetUserPhoto(userId: string): Promise<{ success: boolean; message: string }> {
+    const user = await this.userRepository.findOne({ where: { userId } });
+    if (!user) {
+      throw new NotFoundException({
+        code: 'USER_NOT_FOUND',
+        message: `User '${userId}' not found.`,
+      });
+    }
+
+    await this.photoRepository.delete({ userId });
+    user.photoChangeUsed = false;
+    await this.userRepository.save(user);
+
+    return {
+      success: true,
+      message: `Profile photo for user '${userId}' reset successfully. User will be asked to re-enrol their photo at next login.`,
+    };
+  }
+
+  async getUserPhotoFile(userId: string): Promise<{ data: Buffer; mimeType: string; hash: string }> {
+    const user = await this.userRepository.findOne({ where: { userId } });
+    if (!user) {
+      throw new NotFoundException({
+        code: 'USER_NOT_FOUND',
+        message: `User '${userId}' not found.`,
+      });
+    }
+
+    const photo = await this.photoRepository
+      .createQueryBuilder('photo')
+      .addSelect('photo.imageData')
+      .where('photo.userId = :userId', { userId })
+      .andWhere('photo.isActive = :isActive', { isActive: true })
+      .andWhere('photo.imageData IS NOT NULL')
+      .orderBy('photo.version', 'DESC')
+      .getOne();
+
+    if (!photo || !photo.imageData) {
+      throw new NotFoundException({
+        code: 'PHOTO_NOT_FOUND',
+        message: `No active profile photo found for user '${userId}'.`,
+      });
+    }
+
+    return {
+      data: photo.imageData,
+      mimeType: photo.mimeType || 'image/jpeg',
+      hash: photo.hash,
+    };
   }
 }

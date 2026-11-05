@@ -5,7 +5,7 @@ export class PhotoUploadResponseDto {
   version: number;
 
   @ApiProperty({
-    example: '/uploads/photos/EMP1001_v1.jpg',
+    example: '/v1/users/me/photo/file',
     description: 'URL path to download the uploaded photo',
   })
   photo_url: string;
@@ -21,7 +21,7 @@ export class PhotoDetailResponseDto {
   @ApiProperty({ example: 1, enum: [1, 2] })
   version: number;
 
-  @ApiProperty({ example: '/uploads/photos/EMP1001_v1.jpg' })
+  @ApiProperty({ example: '/v1/users/me/photo/file' })
   photo_url: string;
 
   @ApiProperty({ example: '2026-09-30T09:00:00.000Z' })

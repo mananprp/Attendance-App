@@ -253,6 +253,12 @@ export const api = {
     });
   },
 
+  async resetUserPhoto(userId: string): Promise<{ success: boolean; message: string }> {
+    return request<{ success: boolean; message: string }>('/admin/users/' + userId + '/photo/reset', {
+      method: 'POST',
+    });
+  },
+
   async getSites(): Promise<AdminSite[]> {
     return request<AdminSite[]>('/admin/sites');
   },
