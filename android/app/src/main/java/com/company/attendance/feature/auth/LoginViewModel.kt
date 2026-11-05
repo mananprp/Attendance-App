@@ -184,22 +184,27 @@ class LoginViewModel @Inject constructor(
 
     private suspend fun fetchAndCacheMonthlyHistory(userId: String) {
         runCatching {
-            val currentMonth = YearMonth.now().format(DateTimeFormatter.ofPattern("yyyy-MM"))
-            val response = apiService.getMonthlyAttendance(currentMonth)
-            val parsed = NetworkHelper.parseResponse(response)
-            parsed.onSuccess { attendanceDto ->
-                val summaries = attendanceDto.days.map { dayDto ->
-                    DaySummary(
-                        userId = userId,
-                        dateLocal = dayDto.dateLocal,
-                        inTimeUtcEpochMs = dayDto.inTime?.let { parseIsoToEpochMs(it) },
-                        outTimeUtcEpochMs = dayDto.outTime?.let { parseIsoToEpochMs(it) },
-                        status = runCatching { DayStatus.valueOf(dayDto.status) }.getOrDefault(DayStatus.NO_RECORD),
-                        timeUnverified = dayDto.timeUnverified
-                    )
+            val now = YearMonth.now()
+            (0L..3L).forEach { offset ->
+                val targetMonth = now.minusMonths(offset).format(DateTimeFormatter.ofPattern("yyyy-MM"))
+                val response = apiService.getMonthlyAttendance(targetMonth)
+                val parsed = NetworkHelper.parseResponse(response)
+                parsed.onSuccess { attendanceDto ->
+                    val summaries = attendanceDto.days.map { dayDto ->
+                        DaySummary(
+                            userId = userId,
+                            dateLocal = dayDto.dateLocal,
+                            inTimeUtcEpochMs = dayDto.inTime?.let { parseIsoToEpochMs(it) },
+                            outTimeUtcEpochMs = dayDto.outTime?.let { parseIsoToEpochMs(it) },
+                            status = runCatching { DayStatus.valueOf(dayDto.status) }.getOrDefault(DayStatus.NO_RECORD),
+                            timeUnverified = dayDto.timeUnverified
+                        )
+                    }
+                    punchRepository.upsertDaySummaries(summaries)
                 }
-                punchRepository.upsertDaySummaries(summaries)
             }
+        }.onFailure { e ->
+            android.util.Log.e("LoginViewModel", "fetchAndCacheMonthlyHistory failed", e)
         }
     }
 
@@ -216,15 +221,19 @@ class LoginViewModel @Inject constructor(
 
             // If not on disk, download from active photo endpoint
             if (bitmap == null) {
+                android.util.Log.d("LoginViewModel", "Fetching active photo from API for " + userId)
                 val response = apiService.getActivePhoto()
                 val parsed = NetworkHelper.parseResponse(response)
                 parsed.onSuccess { photoDto ->
+                    android.util.Log.d("LoginViewModel", "Got photo URL: " + photoDto.photoUrl)
                     bitmap = ImageStorageUtils.fetchAndSaveProfilePhoto(
                         context = context,
                         userId = userId,
                         photoUrl = photoDto.photoUrl,
                         okHttpClient = okHttpClient
                     )
+                }.onFailure { err ->
+                    android.util.Log.e("LoginViewModel", "getActivePhoto error: " + err.message)
                 }
             }
 
@@ -233,8 +242,18 @@ class LoginViewModel @Inject constructor(
                 extractResult.onSuccess { floats ->
                     val bytes = CameraCaptureUtils.floatArrayToByteArray(floats)
                     userLocalDao.updateReferenceEmbedding(userId, bytes)
+                    android.util.Log.d("LoginViewModel", "Reference embedding updated for " + userId)
+                }.onFailure { err ->
+                    android.util.Log.e("LoginViewModel", "extractReferenceEmbedding error: " + err.message)
                 }
+            } else {
+                // Photo file missing on server – mark has_photo=false locally so user can re-enroll
+                android.util.Log.w("LoginViewModel", "Photo missing from server for $userId – resetting has_photo locally")
+                tokenStorage.updateHasPhoto(false, null)
+                userLocalDao.updateHasPhoto(userId, false)
             }
+        }.onFailure { e ->
+            android.util.Log.e("LoginViewModel", "fetchAndCacheProfilePhotoAndEmbedding failed", e)
         }
     }
 }

@@ -7,6 +7,7 @@ object BackendConfig {
     const val EMULATOR_HOST = "10.0.2.2"
     const val PHYSICAL_HOST = "172.31.122.136"
     const val PORT = 3000
+    const val DEFAULT_PRODUCTION_URL = "https://attendance.pess.co.in/"
 
     fun isEmulator(): Boolean {
         return (Build.BRAND.startsWith("generic") && Build.DEVICE.startsWith("generic"))
@@ -32,11 +33,13 @@ object BackendConfig {
 
     fun getBaseUrl(): String {
         val configuredUrl = BuildConfig.SERVER_BASE_URL.trim()
-        if (configuredUrl.isNotEmpty()) {
-            val trimmed = configuredUrl.trimEnd('/')
-            return if (trimmed.endsWith("/v1")) "$trimmed/" else "$trimmed/v1/"
+        val targetUrl = if (configuredUrl.isNotEmpty() && !configuredUrl.contains("10.0.2.2") && !configuredUrl.contains("172.31.122.136")) {
+            configuredUrl
+        } else {
+            DEFAULT_PRODUCTION_URL
         }
-        return "http://${getBaseHost()}:$PORT/v1/"
+        val trimmed = targetUrl.trimEnd('/')
+        return if (trimmed.endsWith("/v1")) "$trimmed/" else "$trimmed/v1/"
     }
 
     fun getFileUrl(path: String): String {
@@ -46,10 +49,12 @@ object BackendConfig {
             path.removePrefix("/")
         }
         val configuredUrl = BuildConfig.SERVER_BASE_URL.trim()
-        if (configuredUrl.isNotEmpty()) {
-            val baseRoot = configuredUrl.trimEnd('/').removeSuffix("/v1")
-            return "$baseRoot/$cleanPath"
+        val targetUrl = if (configuredUrl.isNotEmpty() && !configuredUrl.contains("10.0.2.2") && !configuredUrl.contains("172.31.122.136")) {
+            configuredUrl
+        } else {
+            DEFAULT_PRODUCTION_URL
         }
-        return "http://${getBaseHost()}:$PORT/$cleanPath"
+        val baseRoot = targetUrl.trimEnd('/').removeSuffix("/v1")
+        return "$baseRoot/$cleanPath"
     }
 }

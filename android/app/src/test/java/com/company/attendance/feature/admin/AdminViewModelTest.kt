@@ -5,6 +5,7 @@ import com.company.attendance.core.network.AttendanceApiService
 import com.company.attendance.core.network.model.AdminSiteDto
 import com.company.attendance.core.network.model.AdminUserDto
 import com.company.attendance.core.network.model.CreateSiteRequestDto
+import com.company.attendance.core.storage.TokenStorage
 import io.mockk.coEvery
 import io.mockk.mockk
 import kotlinx.coroutines.Dispatchers
@@ -28,6 +29,7 @@ class AdminViewModelTest {
     private val testDispatcher = StandardTestDispatcher()
     private val apiService: AttendanceApiService = mockk(relaxed = true)
     private val locationChecker: LocationChecker = mockk(relaxed = true)
+    private val tokenStorage: TokenStorage = mockk(relaxed = true)
 
     private lateinit var viewModel: AdminViewModel
 
@@ -60,7 +62,7 @@ class AdminViewModelTest {
                 )
             )
         )
-        viewModel = AdminViewModel(apiService, locationChecker)
+        viewModel = AdminViewModel(apiService, locationChecker, tokenStorage)
     }
 
     @After

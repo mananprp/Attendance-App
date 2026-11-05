@@ -14,6 +14,7 @@
 | **Wave 1** | Core (Agent 1), Design (Agent 2), Face (Agent 5), Backend (Agent 8) | **COMPLETED** | Core, Design system, ONNX Face pipeline & Backend built + tested |
 | **Wave 2** | Onboarding (Agent 3), Punch (Agent 4), Sync (Agent 6), Calendar (Agent 7) | **COMPLETED** | Auth/Onboarding, Punch state machine, Sync engine & Calendar built + tested |
 | **Wave 3** | QA, Integration & End-to-End Testing (Agent 9 + Agent 0) | **COMPLETED** | Manual device test matrix written, cross-cutting integration verified, 100% tests pass |
+| **Wave 4** | Mobile UI Revamp (Findez Aesthetic Dark Theme) | **COMPLETED** | Full Findez design overhaul, tokens, 14 vector drawables, Work Ring, Swipe to Punch, Calendar, Bottom Bar |
 
 ---
 
@@ -319,3 +320,101 @@
     - Executed Backend E2E Test Suite via `npm run test:e2e` (24/24 tests PASS) & Unit Test Suite via `npm test` (31/31 tests PASS).
   - **QA Recommendation:** Zero blocking/critical defects. **APPROVED FOR RELEASE CANDIDATE (RC-1)**.
 
+---
+
+### Wave 4: Mobile UI Revamp (Findez Aesthetic Dark Theme)
+- **Status:** Wave 4 Completed
+- **Branch:** `ui-revamp`
+- **Scope:** Complete design transformation of the Android application based on Dribbble "Findez – Digital Attendance App".
+- **Deliverables Completed:**
+  - **Phase A1: Design System Foundation:**
+    - Custom dark theme tokens: `AppBackground` (`#070B0F`), `AppHeaderBackground` (`#14181D`), `AppSurface` (`#14181D`), `AppAccent` (`#4EFFCA` mint), `AppAccentTint` (`0x244EFFCA`), `AppOnAccent` (`#04120D`), `AppDisabled` (`#0C1015`), `AppBorder` (`#2A2E33`), `AppWarning` (`#FBBF24`), `AppError` (`#F87171`).
+    - Bundled Google Fonts Poppins family (`poppins_regular.ttf`, `poppins_medium.ttf`, `poppins_semibold.ttf`, `poppins_bold.ttf`).
+    - Updated typography (`ClockTime` 48sp, `StatValue` 22sp, `StatLabel` 13sp, `RingCaption` 14sp, `NavLabel` 12sp).
+    - Updated corner radii and dimensions: Pill buttons (26dp radius, 52dp height), card radius 20dp, stat tiles 20dp, body panel top corners 32dp, 44dp icon circle button.
+    - Updated `ThemeTokensTest.kt`: 100% PASS.
+  - **Phase A2: Hand-Traced Vector Drawables:**
+    - 14 crisp vector drawables in `res/drawable/` on 24dp grid with 1.5–2dp stroke: `ic_findez_check_in`, `ic_findez_check_out`, `ic_findez_checked_box`, `ic_findez_calendar_dots`, `ic_findez_calendar_8`, `ic_findez_menu_four_dots`, `ic_findez_nav_home`, `ic_findez_nav_home_active`, `ic_findez_nav_schedule`, `ic_findez_nav_schedule_active`, `ic_findez_nav_settings`, `ic_findez_nav_settings_active`, `ic_findez_punch_in`, `ic_findez_punch_out`.
+  - **Phase A3: Restyled Core Components:**
+    - Pill mint primary button with dark text (`#04120D`), outlined secondary button on dark surface, restyled danger button.
+    - Day cell selected mint filled circle; today mint outline.
+    - Dialogs with 28dp radius surface.
+  - **Phase A4: New Findez Components:**
+    - `IconCircleButton`: 44dp circular button with 1dp border.
+    - `SectionHeader`: Clean heading with optional text action button ("See more").
+    - `StatCard`: 20dp tile with icon top-right, value + label, tap-to-refresh spinner.
+    - `WorkRing`: 200dp ring, 14dp stroke, round caps, 4 states (`NotStarted`, `InProgress`, `Complete`, `MissedPunch`), trusted clock caption, shift chip.
+    - `SwipeToPunch`: 64dp pill, 52dp thumb, haptic feedback, TalkBack support, pure tested threshold logic (`SwipeToPunchThresholdTest`: 100% PASS).
+    - `WeekStrip`: Horizontally scrollable day circles with day numbers over weekday letters and status dots.
+  - **Phase A7: Nav Shell & Center Button:**
+    - 4 slots on bottom bar: Home | Calendar | raised 56dp center punch button protruding 18dp | Settings.
+    - Center punch button triggers punch on Home, navigates to Home on Calendar/Settings.
+    - Admin panel moved inside Settings only.
+    - Updated `NavigationRoutesTest.kt`: 100% PASS.
+  - **Phase A5: Home Screen Revamp:**
+    - Created pure `WorkDurationCalculator` (+ comprehensive unit test: 100% PASS).
+    - Updated `HomeUiState` & `HomeViewModel`: derives duration, ring progress, center punch state (IN/OUT/DONE/BLOCKED), and monthly attendance count.
+    - Revamped `HomeScreen`: Two-tone layout (header `#14181D`, body `#070B0F` with 32dp top corners), 2×2 stat grid, WorkRing, SyncStatusBar, pinned SwipeToPunch slider.
+    - `HomeViewModelTest.kt`: 100% PASS.
+  - **Phase A6: Calendar Screen Revamp:**
+    - Additive `CalendarUiState` fields (`isMonthViewExpanded`, `summariesMap`).
+    - Enhanced `CalendarViewModel` (`toggleMonthView`, `selectDate`, `openDetailSheet`) with month-boundary selection and summary loading.
+    - Revamped `CalendarScreen`: Header zone with circular 4-dots toggle, formatted month + date, circular today button; collapsible `HorizontalPager` week strip; expanded month grid; "Your Attendance" section with Check In / Check Out cards and unverified time badge; `DayDetailBottomSheet` integration.
+    - `CalendarViewModelTest.kt` & `CalendarDateUtilsTest.kt`: 100% PASS.
+  - **Phase A8: Other Screens & Contrast:**
+    - Login: Dark hero layout with mint focus rings and pill primary button.
+    - Profile/Settings: Verified theme tokens, replaced `Color.White` with theme tokens.
+    - Punch Capture: Oval guide and progress ring turned mint accent (`#4EFFCA`), hardcoded colors replaced with tokens.
+    - Onboarding: Camera shutter button and progress indicators aligned to mint accent and tokens.
+    - Admin: FloatingActionButton and chips updated to `AppOnAccent` text on `AppAccent` for high contrast.
+    - Component Gallery: Added sections 12 & 13 previewing all new Findez components and 14 vector drawables.
+  - **Phase A9: QA & Verification:**
+    - Zero stray `Color(0x...)` literals outside `design/theme/`.
+    - 100% passing UI Revamp unit test suites (`ThemeTokensTest`, `NavigationRoutesTest`, `SwipeToPunchThresholdTest`, `WorkDurationCalculatorTest`, `HomeViewModelTest`, `CalendarViewModelTest`, `CalendarDateUtilsTest`).
+    - Full application `assembleDebug` APK build: **BUILD SUCCESSFUL**.
+
+  - **Phase A10: UI & Architecture Review Patch (Production Hardening & Anti-Slop):**
+    - **Production Backend URL:** Set production endpoint `https://attendance.pess.co.in/` as default fallback in `BackendConfig.kt` and `build.gradle.kts`.
+    - **Global Punch Coordinator:** Implemented `PunchCoordinator` to trigger geofence checks and directly dispatch `GlobalPunchEvent.NavigateToCapture` from ANY tab (Home, Calendar, Settings) rather than just redirecting to Home.
+    - **Single Profile & Settings Tab:** Maintained the unified `Profile & Settings` screen per user instruction.
+    - **Anti-Slop Cleanups:**
+      - Removed ticking office-time captions and shift chip clutter from `WorkRing`.
+      - Redesigned `StatCard` to exact Findez reference: bold Value top-left, clean Icon top-right, minimal Label bottom-left (eliminated subtitle clutter like "16 m away" / "This month").
+      - Unpinned `SwipeToPunch` from bottom overlay Box in `HomeScreen`, nesting it smoothly inside the scrollable column to prevent overlap over cards and `SyncStatusBar`.
+    - **Calendar Streamlining:** Removed status dots from `WeekStrip` and `CalendarDayCell`, and removed the redundant `CalendarLegend`.
+    - **Admin Screen:** Replaced oversized green pill site card with a sleek `DropdownMenu` selector styled with `AppSurface` and `AppBorder`.
+    - **Comprehensive Verification:** Unit tests for `PunchCoordinatorTest` and all revamped components 100% passing; debug APK build fully successful.
+
+  - **Phase A11: Production Connection & Polish Patch:**
+    - **Fixed Localhost / 172.31 Timeout:** Updated `local.properties`, `build.gradle.kts`, and `BackendConfig.kt` to ensure `https://attendance.pess.co.in/` is baked into `BuildConfig.SERVER_BASE_URL` and never overridden by stale emulator / local IP configs. Guarded `HostFallbackInterceptor` against local fallback on HTTPS / production domains.
+    - **Cleaned Calendar Expanded View:** Removed status dots from `CalendarDayCell.kt` so days render cleanly centered inside circular cells without dots. Removed the bottom `MonthlySummaryCard` pill and `CalendarLegend` from `CalendarScreen.kt` to match Findez minimal style.
+    - **Cleaned Pending Sync / Sync Now:** Restyled `SyncStatusBar.kt` into a sleek, compact status pill that returns early and renders **nothing** when `pendingCount == 0 && !isSyncing`, completely removing the AI-slop banner when synced.
+    - **Verification:** Unit test suite 100% PASS; `assembleDebug` built successfully with production URL.
+
+  - **Phase A12: Multi-Month Data Sync, Camera Ergonomics, 5-Slot Bottom Bar, and Admin De-Slop:**
+    - **Multi-Month Attendance Preloading & Photo Cache on Login:**
+      - Updated `LoginViewModel.kt` to asynchronously loop through 4 months (`0L..3L`: current month + past 3 months) to fetch and upsert attendance into Room DB.
+      - Fixed `TokenStorageImpl` in-memory token retrieval and synchronous commit to avoid race conditions.
+      - Added profile photo download from `/users/me/photo` with graceful error logging and embedding generation.
+      - Provided default fallback values in `PhotoDetailResponseDto` and `PhotoUploadResponseDto` so deserialization never fails.
+    - **Camera-Style Punch Capture HUD (All 3 Bottom Controls):**
+      - Restructured `PunchCaptureScreen.kt` controls deck: all 3 controls are positioned side-by-side at the bottom for one-handed thumb reach (Left: Screen Flash toggle glass button, Center: 76dp dual-ring mint shutter trigger, Right: Close/Cancel glass button).
+    - **5-Slot Bottom Navigation with Tracker ("Coming Soon"):**
+      - Created Findez vector drawables `ic_findez_nav_tracker.xml` and `ic_findez_nav_tracker_active.xml`.
+      - Added `BottomNavItem.TRACKER` and `Screen.Tracker` (route `"tracker"`).
+      - Built `TrackerScreen.kt` featuring a glowing activity dashboard with "COMING SOON" badge and upcoming feature preview cards.
+    - **Calendar Double-Menu Elimination:**
+      - Updated `CalendarViewModel.kt` so `onDaySelected` strictly updates inline attendance cards (`selectDate(day.date, openSheet = false)`).
+      - The `DayDetailBottomSheet` opens strictly when the user taps "See more".
+    - **Minimalist StatCards & Unclickable Home Profile Avatar:**
+      - Stripped background circle from `StatCard.kt`, presenting clean vector outlines directly on dark cards per Findez closeup reference.
+      - Removed click navigation on Home profile avatar.
+    - **Admin Screen Complete De-Slop:**
+      - Removed FloatingActionButton. Placed clean "+ Add Staff" action in top bar.
+      - Added 2-tile metrics overview at top of Sites MenuView (`StatCard`: Office Sites, Enrolled Staff).
+      - In `SiteCardItem`: Clean site name, active staff count, geofence radius. Removed developer jargon (`Threshold: 0.38`).
+      - In `UserItemCard`: Replaced jammed row of 3 buttons (`Change Site`, `Password`, `Delete`) with a 3-dot `DropdownMenu` (`MoreVert`).
+      - In `CreateSiteDialog`: Removed debug policy note box.
+    - **Verification & Build:**
+      - Unit test suites (`NavigationRoutesTest`, `ThemeTokensTest`, `SwipeToPunchThresholdTest`, `WorkDurationCalculatorTest`, `HomeViewModelTest`, `CalendarViewModelTest`, `LoginViewModelTest`) all 100% PASS.
+      - `assembleDebug` APK build: **BUILD SUCCESSFUL**. Output: `android/app/build/outputs/apk/debug/app-debug.apk`.

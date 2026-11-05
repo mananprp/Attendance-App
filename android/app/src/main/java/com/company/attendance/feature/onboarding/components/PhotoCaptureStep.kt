@@ -61,6 +61,7 @@ import androidx.core.content.ContextCompat
 import com.company.attendance.design.components.PrimaryButton
 import com.company.attendance.design.components.SecondaryButton
 import com.company.attendance.design.theme.AppAccent
+import com.company.attendance.design.theme.AppBorder
 import com.company.attendance.design.theme.AppBackground
 import com.company.attendance.design.theme.AppDimensions
 import com.company.attendance.design.theme.AppError
@@ -218,7 +219,7 @@ fun PhotoCaptureStep(
                 if (uiState.isAnalyzingFace || isCapturing) {
                     CircularProgressIndicator(
                         modifier = Modifier.size(64.dp),
-                        color = Color.White,
+                        color = AppAccent,
                         strokeWidth = 3.dp
                     )
                 } else {
@@ -247,13 +248,13 @@ fun PhotoCaptureStep(
                         },
                         modifier = Modifier
                             .size(72.dp)
-                            .background(Color.White, CircleShape)
-                            .border(4.dp, AppAccent, CircleShape)
+                            .background(AppAccent, CircleShape)
+                            .border(4.dp, AppBorder, CircleShape)
                     ) {
                         Box(
                             modifier = Modifier
                                 .size(56.dp)
-                                .background(Color.White, CircleShape)
+                                .background(AppAccent, CircleShape)
                         )
                     }
                 }

@@ -39,6 +39,11 @@ import androidx.compose.material.icons.filled.Lock
 import androidx.compose.material.icons.filled.Palette
 import androidx.compose.material.icons.filled.Person
 import androidx.compose.material.icons.filled.PhotoCamera
+import androidx.compose.foundation.clickable
+import androidx.compose.material.icons.filled.Business
+import androidx.compose.material.icons.filled.ExitToApp
+import androidx.compose.material.icons.outlined.ChevronRight
+import com.company.attendance.design.theme.AppIconCircle
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
@@ -197,203 +202,251 @@ fun ProfileScreenContent(
                 }
             }
 
-            // User Info Card
+            // 1. Profile Header Card (Clean, minimal, Findez style)
             Surface(
                 modifier = Modifier.fillMaxWidth(),
                 shape = RoundedCornerShape(AppDimensions.CardCornerRadius),
                 color = AppSurface,
-                border = BorderStroke(AppDimensions.BorderWidth, AppBorder)
+                border = BorderStroke(1.dp, AppBorder)
             ) {
                 Column(
-                    modifier = Modifier.padding(AppDimensions.Spacing20),
+                    modifier = Modifier.padding(vertical = 24.dp, horizontal = 20.dp),
                     horizontalAlignment = Alignment.CenterHorizontally
                 ) {
-                    // Profile Avatar (Actual photo or initials fallback)
-                    if (uiState.profilePhotoBitmap != null) {
-                        Image(
-                            bitmap = uiState.profilePhotoBitmap.asImageBitmap(),
-                            contentDescription = "Profile Photo",
-                            modifier = Modifier
-                                .size(88.dp)
-                                .clip(CircleShape)
-                                .border(2.dp, AppAccent, CircleShape),
-                            contentScale = ContentScale.Crop
-                        )
-                    } else {
-                        Surface(
-                            shape = CircleShape,
-                            color = AppAccentTint,
-                            modifier = Modifier
-                                .size(88.dp)
-                                .border(2.dp, AppAccent, CircleShape)
-                        ) {
-                            Box(contentAlignment = Alignment.Center) {
-                                Text(
-                                    text = uiState.displayName.take(2).uppercase().ifBlank { "EM" },
-                                    style = AppTypographyTokens.Title.copy(fontWeight = FontWeight.Bold),
-                                    color = AppAccent
-                                )
+                    // Profile Avatar (Photo or initials fallback)
+                    Box(
+                        contentAlignment = Alignment.BottomEnd,
+                        modifier = Modifier.clickable(enabled = uiState.canChangePhoto) { onChangePhotoClick() }
+                    ) {
+                        if (uiState.profilePhotoBitmap != null) {
+                            Image(
+                                bitmap = uiState.profilePhotoBitmap.asImageBitmap(),
+                                contentDescription = "Profile Photo",
+                                modifier = Modifier
+                                    .size(88.dp)
+                                    .clip(CircleShape)
+                                    .border(2.dp, AppAccent, CircleShape),
+                                contentScale = ContentScale.Crop
+                            )
+                        } else {
+                            Surface(
+                                shape = CircleShape,
+                                color = AppAccentTint,
+                                modifier = Modifier
+                                    .size(88.dp)
+                                    .border(2.dp, AppAccent, CircleShape)
+                            ) {
+                                Box(contentAlignment = Alignment.Center) {
+                                    Text(
+                                        text = uiState.displayName.take(2).uppercase().ifBlank { "EM" },
+                                        style = AppTypographyTokens.Title.copy(fontWeight = FontWeight.Bold),
+                                        color = AppAccent
+                                    )
+                                }
+                            }
+                        }
+
+                        if (uiState.canChangePhoto) {
+                            Surface(
+                                shape = CircleShape,
+                                color = AppAccent,
+                                modifier = Modifier
+                                    .size(28.dp)
+                                    .border(2.dp, AppSurface, CircleShape)
+                            ) {
+                                Box(contentAlignment = Alignment.Center) {
+                                    Icon(
+                                        imageVector = Icons.Default.PhotoCamera,
+                                        contentDescription = "Take Photo",
+                                        tint = AppBackground,
+                                        modifier = Modifier.size(15.dp)
+                                    )
+                                }
                             }
                         }
                     }
 
-                    Spacer(modifier = Modifier.height(AppDimensions.Spacing12))
+                    Spacer(modifier = Modifier.height(14.dp))
 
                     Text(
                         text = uiState.displayName.ifBlank { "Employee" },
-                        style = AppTypographyTokens.Title,
-                        color = AppPrimaryText,
-                        fontWeight = FontWeight.SemiBold
+                        style = AppTypographyTokens.Title.copy(fontWeight = FontWeight.SemiBold),
+                        color = AppPrimaryText
                     )
 
-                    Spacer(modifier = Modifier.height(AppDimensions.Spacing4))
+                    Spacer(modifier = Modifier.height(4.dp))
 
+                    val siteLabel = uiState.siteCode.ifBlank { "Headquarters" }
                     Text(
-                        text = "ID: ${uiState.userId}",
+                        text = "${uiState.userId} • $siteLabel",
                         style = AppTypographyTokens.BodyMedium,
                         color = AppSecondaryText
                     )
 
-                    Spacer(modifier = Modifier.height(AppDimensions.Spacing4))
-
-                    Row(horizontalArrangement = Arrangement.spacedBy(AppDimensions.Spacing8)) {
+                    if (uiState.isAdmin) {
+                        Spacer(modifier = Modifier.height(10.dp))
                         Surface(
                             shape = RoundedCornerShape(AppDimensions.ChipCornerRadius),
                             color = AppBackground,
                             border = BorderStroke(1.dp, AppBorder)
                         ) {
                             Text(
-                                text = "Site: ${uiState.siteCode.ifBlank { "DEFAULT_OFFICE" }}",
-                                style = AppTypographyTokens.CaptionMedium,
+                                text = "ADMIN",
+                                style = AppTypographyTokens.CaptionMedium.copy(fontWeight = FontWeight.Bold),
                                 color = AppSecondaryText,
-                                modifier = Modifier.padding(horizontal = 8.dp, vertical = 3.dp)
-                            )
-                        }
-
-                        if (uiState.isAdmin) {
-                            Surface(
-                                shape = RoundedCornerShape(AppDimensions.ChipCornerRadius),
-                                color = AppAccentTint
-                            ) {
-                                Text(
-                                    text = "ADMIN",
-                                    style = AppTypographyTokens.CaptionMedium,
-                                    color = AppAccent,
-                                    modifier = Modifier.padding(horizontal = 8.dp, vertical = 3.dp)
-                                )
-                            }
-                        }
-                    }
-
-                    if (uiState.activePhotoVersion != null) {
-                        Spacer(modifier = Modifier.height(AppDimensions.Spacing8))
-                        Surface(
-                            shape = RoundedCornerShape(AppDimensions.ChipCornerRadius),
-                            color = AppAccentTint
-                        ) {
-                            Text(
-                                text = "Photo Version ${uiState.activePhotoVersion}",
-                                style = AppTypographyTokens.CaptionMedium,
-                                color = AppAccent,
-                                modifier = Modifier.padding(horizontal = 10.dp, vertical = 4.dp)
+                                modifier = Modifier.padding(horizontal = 8.dp, vertical = 2.dp)
                             )
                         }
                     }
                 }
             }
 
-            Spacer(modifier = Modifier.height(AppDimensions.Spacing20))
-
-            // Photo Management Section
+            // 2. Settings Group: Account & Biometrics
             Text(
-                text = "Biometrics & Photo",
-                style = AppTypographyTokens.SectionHeading,
-                color = AppPrimaryText,
-                modifier = Modifier.padding(bottom = AppDimensions.Spacing8)
+                text = "Account & Biometrics",
+                style = AppTypographyTokens.CaptionMedium.copy(fontWeight = FontWeight.SemiBold),
+                color = AppSecondaryText,
+                modifier = Modifier.padding(start = 4.dp, top = 24.dp, bottom = 8.dp)
             )
 
             Surface(
                 modifier = Modifier.fillMaxWidth(),
                 shape = RoundedCornerShape(AppDimensions.CardCornerRadius),
                 color = AppSurface,
-                border = BorderStroke(AppDimensions.BorderWidth, AppBorder)
+                border = BorderStroke(1.dp, AppBorder)
             ) {
-                Column(modifier = Modifier.padding(AppDimensions.Spacing16)) {
-                    Row(
-                        verticalAlignment = Alignment.CenterVertically,
-                        modifier = Modifier.fillMaxWidth()
-                    ) {
-                        Surface(
-                            shape = CircleShape,
-                            color = if (uiState.canChangePhoto) AppAccentTint else AppDisabled,
-                            modifier = Modifier.size(40.dp)
-                        ) {
-                            Box(contentAlignment = Alignment.Center) {
-                                Icon(
-                                    imageVector = if (uiState.canChangePhoto) Icons.Default.PhotoCamera else Icons.Default.Lock,
-                                    contentDescription = null,
-                                    tint = if (uiState.canChangePhoto) AppAccent else AppDisabledText,
-                                    modifier = Modifier.size(20.dp)
-                                )
-                            }
-                        }
+                Column {
+                    ProfileOptionRow(
+                        icon = Icons.Default.PhotoCamera,
+                        title = if (uiState.profilePhotoBitmap != null) "Update Profile Photo" else "Enroll Face / Take Photo",
+                        subtitle = if (uiState.photoChangeUsed) "Photo change limit reached (1/1)" else "Capture and verify photo for presence matching",
+                        enabled = uiState.canChangePhoto,
+                        actionText = if (uiState.canChangePhoto) (if (uiState.profilePhotoBitmap != null) "Update" else "Capture") else "Locked",
+                        onClick = { if (uiState.canChangePhoto) onChangePhotoClick() }
+                    )
 
-                        Spacer(modifier = Modifier.width(AppDimensions.Spacing12))
-
-                        Column(modifier = Modifier.weight(1f)) {
-                            Text(
-                                text = "Profile Photo",
-                                style = AppTypographyTokens.BodyMedium.copy(fontWeight = FontWeight.SemiBold),
-                                color = AppPrimaryText
-                            )
-                            Text(
-                                text = if (uiState.photoChangeUsed) {
-                                    "Photo change used (1 change limit reached)"
-                                } else {
-                                    "1 photo change allowed"
-                                },
-                                style = AppTypographyTokens.Caption,
-                                color = if (uiState.photoChangeUsed) AppWarning else AppSecondaryText
-                            )
-                        }
-                    }
-
-                    if (uiState.canChangePhoto) {
-                        Spacer(modifier = Modifier.height(AppDimensions.Spacing16))
-                        SecondaryButton(
-                            text = "Change Profile Photo",
-                            onClick = onChangePhotoClick,
-                            leadingIcon = Icons.Default.CameraAlt
+                    if (uiState.isAdmin) {
+                        Box(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .height(1.dp)
+                                .background(AppBorder)
+                        )
+                        ProfileOptionRow(
+                            icon = Icons.Default.Business,
+                            title = "Admin Console",
+                            subtitle = "Manage sites, employees & credentials",
+                            onClick = onNavigateToAdminPanel
                         )
                     }
                 }
             }
 
-            if (uiState.isAdmin) {
-                Spacer(modifier = Modifier.height(AppDimensions.Spacing24))
+            // 3. Settings Group: Session
+            Text(
+                text = "Session",
+                style = AppTypographyTokens.CaptionMedium.copy(fontWeight = FontWeight.SemiBold),
+                color = AppSecondaryText,
+                modifier = Modifier.padding(start = 4.dp, top = 24.dp, bottom = 8.dp)
+            )
 
-                Text(
-                    text = "Administration",
-                    style = AppTypographyTokens.SectionHeading,
-                    color = AppPrimaryText,
-                    modifier = Modifier.padding(bottom = AppDimensions.Spacing8)
-                )
-
-                PrimaryButton(
-                    text = "Open Admin Panel",
-                    onClick = onNavigateToAdminPanel
+            Surface(
+                modifier = Modifier.fillMaxWidth(),
+                shape = RoundedCornerShape(AppDimensions.CardCornerRadius),
+                color = AppSurface,
+                border = BorderStroke(1.dp, AppBorder)
+            ) {
+                ProfileOptionRow(
+                    icon = Icons.Default.ExitToApp,
+                    title = "Sign Out",
+                    subtitle = "Log out from this device",
+                    iconTint = AppError,
+                    titleColor = AppError,
+                    showChevron = false,
+                    onClick = onSignOutClick
                 )
             }
 
             Spacer(modifier = Modifier.height(AppDimensions.Spacing32))
+        }
+    }
+}
 
-            // Sign Out
-            DangerButton(
-                text = "Sign Out",
-                onClick = onSignOutClick
+@Composable
+private fun ProfileOptionRow(
+    icon: ImageVector,
+    title: String,
+    subtitle: String? = null,
+    enabled: Boolean = true,
+    actionText: String? = null,
+    iconTint: Color = AppPrimaryText,
+    titleColor: Color = AppPrimaryText,
+    showChevron: Boolean = true,
+    onClick: () -> Unit
+) {
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .clickable(enabled = enabled, onClick = onClick)
+            .padding(horizontal = 16.dp, vertical = 14.dp),
+        verticalAlignment = Alignment.CenterVertically
+    ) {
+        Surface(
+            shape = CircleShape,
+            color = if (iconTint == AppError) AppErrorTint else AppIconCircle,
+            modifier = Modifier.size(38.dp)
+        ) {
+            Box(contentAlignment = Alignment.Center) {
+                Icon(
+                    imageVector = icon,
+                    contentDescription = null,
+                    tint = if (enabled) iconTint else AppDisabledText,
+                    modifier = Modifier.size(18.dp)
+                )
+            }
+        }
+
+        Spacer(modifier = Modifier.width(14.dp))
+
+        Column(modifier = Modifier.weight(1f)) {
+            Text(
+                text = title,
+                style = AppTypographyTokens.BodyMedium.copy(fontWeight = FontWeight.Medium),
+                color = if (enabled) titleColor else AppDisabledText
             )
+            if (subtitle != null) {
+                Spacer(modifier = Modifier.height(2.dp))
+                Text(
+                    text = subtitle,
+                    style = AppTypographyTokens.Caption,
+                    color = AppSecondaryText
+                )
+            }
+        }
 
-            Spacer(modifier = Modifier.height(AppDimensions.Spacing24))
+        if (actionText != null) {
+            Surface(
+                shape = RoundedCornerShape(AppDimensions.ChipCornerRadius),
+                color = if (enabled) AppAccentTint else AppSurface,
+                border = BorderStroke(1.dp, if (enabled) AppAccent else AppBorder)
+            ) {
+                Text(
+                    text = actionText,
+                    style = AppTypographyTokens.CaptionMedium,
+                    color = if (enabled) AppAccent else AppSecondaryText,
+                    modifier = Modifier.padding(horizontal = 10.dp, vertical = 4.dp)
+                )
+            }
+            Spacer(modifier = Modifier.width(6.dp))
+        }
+
+        if (showChevron) {
+            Icon(
+                imageVector = Icons.Outlined.ChevronRight,
+                contentDescription = null,
+                tint = if (enabled) AppSecondaryText else AppDisabledText,
+                modifier = Modifier.size(18.dp)
+            )
         }
     }
 }

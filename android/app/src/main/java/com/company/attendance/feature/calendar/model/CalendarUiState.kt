@@ -55,5 +55,7 @@ data class CalendarUiState(
     val summaryStats: MonthAttendanceSummary = MonthAttendanceSummary(),
     val officeTimezone: String = "Asia/Kolkata",
     val isLoading: Boolean = false,
-    val errorMessage: String? = null
+    val errorMessage: String? = null,
+    val isMonthViewExpanded: Boolean = false,
+    val summariesMap: Map<String, DaySummary> = emptyMap()
 )

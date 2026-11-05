@@ -115,6 +115,7 @@ class CalendarViewModelTest {
         every { punchRepository.observeMonthSummaries(testUserId, "2026-09") } returns flowOf(testSummaries)
         every { punchRepository.observeMonthSummaries(testUserId, "2026-08") } returns flowOf(emptyList())
         every { punchRepository.observeMonthSummaries(testUserId, "2026-10") } returns flowOf(emptyList())
+        coEvery { punchDao.getPunchesForDateDirect(any(), any()) } returns emptyList()
 
         viewModel = CalendarViewModel(
             punchRepository = punchRepository,
@@ -259,6 +260,9 @@ class CalendarViewModelTest {
         assertEquals(DayStatus.COMPLETE, detail?.status)
         assertFalse(detail?.timeUnverified ?: true)
         assertEquals(SyncStatus.SYNCED, detail?.syncStatus)
+        assertFalse(viewModel.isDetailSheetVisible.value)
+
+        viewModel.openDetailSheet()
         assertTrue(viewModel.isDetailSheetVisible.value)
     }
 
@@ -318,7 +322,7 @@ class CalendarViewModelTest {
         testDispatcher.scheduler.advanceUntilIdle()
 
         assertFalse(viewModel.isDetailSheetVisible.value)
-        assertNull(viewModel.selectedDayDetail.value)
+        assertEquals(testToday, viewModel.selectedDayDetail.value?.date)
     }
 
     @Test
@@ -334,9 +338,47 @@ class CalendarViewModelTest {
         )
         viewModel.onDaySelected(dayModel)
         testDispatcher.scheduler.advanceUntilIdle()
+        viewModel.openDetailSheet()
         assertTrue(viewModel.isDetailSheetVisible.value)
 
         viewModel.onDismissDetailSheet()
         assertFalse(viewModel.isDetailSheetVisible.value)
+    }
+
+    @Test
+    fun `toggleMonthView toggles isMonthViewExpanded state`() = runTest {
+        assertFalse(viewModel.isMonthViewExpanded.value)
+
+        viewModel.toggleMonthView()
+        assertTrue(viewModel.isMonthViewExpanded.value)
+
+        viewModel.toggleMonthView()
+        assertFalse(viewModel.isMonthViewExpanded.value)
+    }
+
+    @Test
+    fun `selectDate crossing month boundary updates currentYearMonth and fetches summaries`() = runTest {
+        viewModel.uiState.test {
+            testDispatcher.scheduler.advanceUntilIdle()
+
+            val octDate = LocalDate.of(2026, 10, 15)
+            viewModel.selectDate(octDate, openSheet = false)
+            testDispatcher.scheduler.advanceUntilIdle()
+
+            val state = expectMostRecentItem()
+            assertEquals(YearMonth.of(2026, 10), state.currentYearMonth)
+            assertEquals(octDate, state.selectedDate)
+            assertFalse(state.isDetailSheetVisible)
+
+            cancelAndIgnoreRemainingEvents()
+        }
+    }
+
+    @Test
+    fun `openDetailSheet sets isDetailSheetVisible to true`() = runTest {
+        assertFalse(viewModel.isDetailSheetVisible.value)
+        viewModel.openDetailSheet()
+        testDispatcher.scheduler.advanceUntilIdle()
+        assertTrue(viewModel.isDetailSheetVisible.value)
     }
 }

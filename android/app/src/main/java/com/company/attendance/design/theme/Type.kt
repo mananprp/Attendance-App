@@ -2,26 +2,55 @@ package com.company.attendance.design.theme
 
 import androidx.compose.material3.Typography
 import androidx.compose.ui.text.TextStyle
+import androidx.compose.ui.text.font.Font
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.sp
+import com.company.attendance.R
 
 /**
- * Attendance App Typography specifications (PRD Section 8).
- * Roboto / System Sans-Serif font hierarchy.
+ * Poppins Font Family definition (Findez Dark Theme).
+ */
+val PoppinsFontFamily = FontFamily(
+    Font(R.font.poppins_regular, FontWeight.Normal),
+    Font(R.font.poppins_medium, FontWeight.Medium),
+    Font(R.font.poppins_semibold, FontWeight.SemiBold),
+    Font(R.font.poppins_bold, FontWeight.Bold)
+)
+
+/**
+ * Attendance App Typography specifications (Findez dark theme, Poppins hierarchy).
  */
 object AppTypographyTokens {
+    val HeroTitle = TextStyle(
+        fontFamily = PoppinsFontFamily,
+        fontWeight = FontWeight.Bold,
+        fontSize = 28.sp,
+        lineHeight = 36.sp,
+        letterSpacing = (-0.5).sp,
+        color = AppPrimaryText
+    )
+
+    val HeroTime = TextStyle(
+        fontFamily = PoppinsFontFamily,
+        fontWeight = FontWeight.SemiBold,
+        fontSize = 26.sp,
+        lineHeight = 32.sp,
+        letterSpacing = (-0.5).sp,
+        color = AppPrimaryText
+    )
+
     val ClockTime = TextStyle(
-        fontFamily = FontFamily.Default,
-        fontWeight = FontWeight.Medium,
-        fontSize = 40.sp,
-        lineHeight = 48.sp,
+        fontFamily = PoppinsFontFamily,
+        fontWeight = FontWeight.SemiBold,
+        fontSize = 48.sp,
+        lineHeight = 56.sp,
         letterSpacing = (-0.5).sp,
         color = AppPrimaryText
     )
 
     val Title = TextStyle(
-        fontFamily = FontFamily.Default,
+        fontFamily = PoppinsFontFamily,
         fontWeight = FontWeight.SemiBold,
         fontSize = 22.sp,
         lineHeight = 28.sp,
@@ -29,8 +58,26 @@ object AppTypographyTokens {
         color = AppPrimaryText
     )
 
+    val StatValue = TextStyle(
+        fontFamily = PoppinsFontFamily,
+        fontWeight = FontWeight.Medium,
+        fontSize = 22.sp,
+        lineHeight = 28.sp,
+        letterSpacing = 0.sp,
+        color = AppPrimaryText
+    )
+
+    val StatLabel = TextStyle(
+        fontFamily = PoppinsFontFamily,
+        fontWeight = FontWeight.Normal,
+        fontSize = 13.sp,
+        lineHeight = 18.sp,
+        letterSpacing = 0.1.sp,
+        color = AppSecondaryText
+    )
+
     val SectionHeading = TextStyle(
-        fontFamily = FontFamily.Default,
+        fontFamily = PoppinsFontFamily,
         fontWeight = FontWeight.Medium,
         fontSize = 16.sp,
         lineHeight = 24.sp,
@@ -38,8 +85,17 @@ object AppTypographyTokens {
         color = AppPrimaryText
     )
 
+    val RingCaption = TextStyle(
+        fontFamily = PoppinsFontFamily,
+        fontWeight = FontWeight.Normal,
+        fontSize = 14.sp,
+        lineHeight = 20.sp,
+        letterSpacing = 0.2.sp,
+        color = AppSecondaryText
+    )
+
     val Body = TextStyle(
-        fontFamily = FontFamily.Default,
+        fontFamily = PoppinsFontFamily,
         fontWeight = FontWeight.Normal,
         fontSize = 14.sp,
         lineHeight = 20.sp,
@@ -48,7 +104,7 @@ object AppTypographyTokens {
     )
 
     val BodyMedium = TextStyle(
-        fontFamily = FontFamily.Default,
+        fontFamily = PoppinsFontFamily,
         fontWeight = FontWeight.Medium,
         fontSize = 14.sp,
         lineHeight = 20.sp,
@@ -57,7 +113,7 @@ object AppTypographyTokens {
     )
 
     val Caption = TextStyle(
-        fontFamily = FontFamily.Default,
+        fontFamily = PoppinsFontFamily,
         fontWeight = FontWeight.Normal,
         fontSize = 12.sp,
         lineHeight = 16.sp,
@@ -68,7 +124,7 @@ object AppTypographyTokens {
     val CaptionRegular = Caption
 
     val CaptionMedium = TextStyle(
-        fontFamily = FontFamily.Default,
+        fontFamily = PoppinsFontFamily,
         fontWeight = FontWeight.Medium,
         fontSize = 12.sp,
         lineHeight = 16.sp,
@@ -76,8 +132,17 @@ object AppTypographyTokens {
         color = AppSecondaryText
     )
 
+    val NavLabel = TextStyle(
+        fontFamily = PoppinsFontFamily,
+        fontWeight = FontWeight.Medium,
+        fontSize = 12.sp,
+        lineHeight = 16.sp,
+        letterSpacing = 0.2.sp,
+        color = AppSecondaryText
+    )
+
     val ButtonText = TextStyle(
-        fontFamily = FontFamily.Default,
+        fontFamily = PoppinsFontFamily,
         fontWeight = FontWeight.SemiBold,
         fontSize = 16.sp,
         lineHeight = 24.sp,

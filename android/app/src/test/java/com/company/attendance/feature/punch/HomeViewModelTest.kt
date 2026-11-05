@@ -16,6 +16,8 @@ import com.company.attendance.core.model.PunchType
 import com.company.attendance.core.model.TimeSource
 import com.company.attendance.core.model.TrustedTime
 import com.company.attendance.core.model.UserSession
+import com.company.attendance.design.components.CenterPunchState
+import com.company.attendance.design.components.WorkRingState
 import com.company.attendance.core.storage.TokenStorage
 import io.mockk.coEvery
 import io.mockk.coVerify
@@ -107,6 +109,7 @@ class HomeViewModelTest {
         coEvery { trustedTimeProvider.getOfficeLocalDate() } answers { timeFlow.value.localDate }
 
         coEvery { remoteConfigRepository.getConfig() } returns testConfig
+        coEvery { remoteConfigRepository.fetchAndCacheConfig() } returns Result.success(testConfig)
         every { syncScheduler.syncState } returns syncStateFlow
         every { punchRepository.observeDaySummary("EMP1001", any()) } returns daySummaryFlow
     }
@@ -138,7 +141,7 @@ class HomeViewModelTest {
         advanceUntilIdle()
 
         val state = viewModel.uiState.value
-        assertEquals("Alice Smith", state.displayName)
+                assertEquals("Alice Smith", state.displayName)
         assertEquals("EMP1001", state.userId)
         assertTrue(state.isPunchInEnabled)
         assertFalse(state.isPunchInBlocked)
@@ -268,8 +271,17 @@ class HomeViewModelTest {
     @Test
     fun `geofence inside triggers navigation to punch capture and resolves past missed punches`() = runTest {
         coEvery {
-            locationChecker.checkGeofence(12.9716, 77.5946, 100)
-        } returns GeofenceResult.Inside(distanceMeters = 25f, latitude = 12.9718, longitude = 77.5947)
+            locationMonitor.freshFixOrRefresh(any(), any())
+        } returns com.company.attendance.core.location.LocationStatus.Fix(
+            latitude = 12.9718,
+            longitude = 77.5947,
+            accuracyMeters = 10f,
+            distanceMeters = 25f,
+            allowedRadiusMeters = 100,
+            isInside = true,
+            fixElapsedRealtimeMs = System.currentTimeMillis(),
+            fixTimestampMs = System.currentTimeMillis()
+        )
 
         val viewModel = createViewModel()
         advanceUntilIdle()
@@ -293,12 +305,16 @@ class HomeViewModelTest {
     @Test
     fun `geofence outside shows outside radius alert dialog with distance`() = runTest {
         coEvery {
-            locationChecker.checkGeofence(12.9716, 77.5946, 100)
-        } returns GeofenceResult.Outside(
+            locationMonitor.freshFixOrRefresh(any(), any())
+        } returns com.company.attendance.core.location.LocationStatus.Fix(
+            latitude = 12.9750,
+            longitude = 77.5990,
+            accuracyMeters = 10f,
             distanceMeters = 350f,
             allowedRadiusMeters = 100,
-            latitude = 12.9750,
-            longitude = 77.5990
+            isInside = false,
+            fixElapsedRealtimeMs = System.currentTimeMillis(),
+            fixTimestampMs = System.currentTimeMillis()
         )
 
         val viewModel = createViewModel()
@@ -319,8 +335,8 @@ class HomeViewModelTest {
     @Test
     fun `geofence permission denied shows permission dialog`() = runTest {
         coEvery {
-            locationChecker.checkGeofence(any(), any(), any())
-        } returns GeofenceResult.PermissionDenied
+            locationMonitor.freshFixOrRefresh(any(), any())
+        } returns com.company.attendance.core.location.LocationStatus.PermissionDenied
 
         val viewModel = createViewModel()
         advanceUntilIdle()
@@ -335,8 +351,8 @@ class HomeViewModelTest {
     @Test
     fun `geofence location services disabled shows disabled dialog`() = runTest {
         coEvery {
-            locationChecker.checkGeofence(any(), any(), any())
-        } returns GeofenceResult.LocationServicesDisabled
+            locationMonitor.freshFixOrRefresh(any(), any())
+        } returns com.company.attendance.core.location.LocationStatus.ServicesDisabled
 
         val viewModel = createViewModel()
         advanceUntilIdle()
@@ -359,5 +375,70 @@ class HomeViewModelTest {
         advanceUntilIdle()
 
         coVerify { syncScheduler.triggerSyncNow() }
+    }
+    @Test
+    fun `ring and center button state transitions`() = runTest {
+        val viewModel = createViewModel()
+        advanceUntilIdle()
+
+        // 1. Initial / Not started
+        assertEquals(WorkRingState.NotStarted, viewModel.uiState.value.ringState)
+        assertEquals(CenterPunchState.PUNCH_IN, viewModel.uiState.value.centerPunchState)
+
+        // 2. Punched in -> InProgress & PUNCH_OUT
+        val inEpoch = ZonedDateTime.of(2026, 9, 30, 9, 0, 0, 0, ZoneId.of("Asia/Kolkata")).toInstant().toEpochMilli()
+        daySummaryFlow.value = DaySummary(
+            dateLocal = "2026-09-30",
+            userId = "EMP1001",
+            shiftType = com.company.attendance.core.model.ShiftType.GENERAL,
+            inTimeUtcEpochMs = inEpoch,
+            outTimeUtcEpochMs = null,
+            status = DayStatus.NO_RECORD
+        )
+        advanceUntilIdle()
+        assertEquals(WorkRingState.InProgress, viewModel.uiState.value.ringState)
+        assertEquals(CenterPunchState.PUNCH_OUT, viewModel.uiState.value.centerPunchState)
+
+        // 3. Punched out -> Complete & COMPLETE
+        val outEpoch = ZonedDateTime.of(2026, 9, 30, 18, 0, 0, 0, ZoneId.of("Asia/Kolkata")).toInstant().toEpochMilli()
+        daySummaryFlow.value = DaySummary(
+            dateLocal = "2026-09-30",
+            userId = "EMP1001",
+            shiftType = com.company.attendance.core.model.ShiftType.GENERAL,
+            inTimeUtcEpochMs = inEpoch,
+            outTimeUtcEpochMs = outEpoch,
+            status = DayStatus.COMPLETE
+        )
+        advanceUntilIdle()
+        assertEquals(WorkRingState.Complete, viewModel.uiState.value.ringState)
+        assertEquals(CenterPunchState.COMPLETE, viewModel.uiState.value.centerPunchState)
+    }
+
+    @Test
+    fun `total attended days updates from month summaries`() = runTest {
+        val summaries = listOf(
+            DaySummary(
+                dateLocal = "2026-09-01",
+                userId = "EMP1001",
+                shiftType = com.company.attendance.core.model.ShiftType.GENERAL,
+                inTimeUtcEpochMs = 1700000000L,
+                outTimeUtcEpochMs = null,
+                status = DayStatus.COMPLETE
+            ),
+            DaySummary(
+                dateLocal = "2026-09-02",
+                userId = "EMP1001",
+                shiftType = com.company.attendance.core.model.ShiftType.GENERAL,
+                inTimeUtcEpochMs = 1700100000L,
+                outTimeUtcEpochMs = null,
+                status = DayStatus.COMPLETE
+            )
+        )
+        every { punchRepository.observeMonthSummaries("EMP1001", "2026-09") } returns flowOf(summaries)
+
+        val viewModel = createViewModel()
+        advanceUntilIdle()
+
+        assertEquals(2, viewModel.uiState.value.totalAttendedDays)
     }
 }

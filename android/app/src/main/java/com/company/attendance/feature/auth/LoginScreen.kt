@@ -1,6 +1,7 @@
 package com.company.attendance.feature.auth
 
 import androidx.compose.foundation.background
+import androidx.compose.foundation.border
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -13,6 +14,7 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.KeyboardActions
 import androidx.compose.foundation.text.KeyboardOptions
@@ -36,26 +38,33 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
 import androidx.compose.ui.focus.FocusDirection
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalFocusManager
+import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.text.input.PasswordVisualTransformation
 import androidx.compose.ui.text.input.VisualTransformation
+import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
 import androidx.hilt.navigation.compose.hiltViewModel
+import com.company.attendance.R
 import com.company.attendance.design.components.AttendanceTextField
 import com.company.attendance.design.components.PrimaryButton
 import com.company.attendance.design.theme.AppAccent
 import com.company.attendance.design.theme.AppAccentTint
 import com.company.attendance.design.theme.AppBackground
+import com.company.attendance.design.theme.AppBorder
 import com.company.attendance.design.theme.AppDimensions
 import com.company.attendance.design.theme.AppError
 import com.company.attendance.design.theme.AppErrorTint
 import com.company.attendance.design.theme.AppPrimaryText
 import com.company.attendance.design.theme.AppSecondaryText
+import com.company.attendance.design.theme.AppSurface
 import com.company.attendance.design.theme.AppTypographyTokens
 import com.company.attendance.feature.auth.model.LoginNavigationEvent
 import com.company.attendance.feature.auth.model.LoginUiState
@@ -111,36 +120,46 @@ fun LoginScreenContent(
             horizontalAlignment = Alignment.CenterHorizontally,
             verticalArrangement = Arrangement.Center
         ) {
-            // App branding / header
+            Spacer(modifier = Modifier.height(AppDimensions.Spacing16))
+
+            // Findez Iconic Brand Emblem (Clean, bold, modern)
             Surface(
-                shape = RoundedCornerShape(16.dp),
-                color = AppAccentTint,
-                modifier = Modifier.size(64.dp)
+                shape = CircleShape,
+                color = AppAccent,
+                modifier = Modifier.size(68.dp)
             ) {
                 Box(contentAlignment = Alignment.Center) {
                     Icon(
-                        imageVector = Icons.Default.Person,
-                        contentDescription = null,
-                        tint = AppAccent,
-                        modifier = Modifier.size(36.dp)
+                        painter = painterResource(id = R.drawable.ic_findez_punch_in),
+                        contentDescription = "Findez Logo",
+                        tint = AppBackground,
+                        modifier = Modifier.size(32.dp)
                     )
                 }
             }
 
             Spacer(modifier = Modifier.height(AppDimensions.Spacing24))
 
+            // Findez Bold Hero Headline
             Text(
-                text = "Welcome to Attendance",
-                style = AppTypographyTokens.Title.copy(fontWeight = FontWeight.Bold),
-                color = AppPrimaryText
+                text = "Welcome to Findez",
+                style = AppTypographyTokens.HeroTitle.copy(
+                    fontSize = 26.sp,
+                    fontWeight = FontWeight.Bold
+                ),
+                color = AppPrimaryText,
+                textAlign = TextAlign.Center
             )
 
             Spacer(modifier = Modifier.height(AppDimensions.Spacing8))
 
             Text(
                 text = "Sign in with your employee credentials",
-                style = AppTypographyTokens.Body,
-                color = AppSecondaryText
+                style = AppTypographyTokens.Body.copy(
+                    fontSize = 14.sp,
+                    color = AppSecondaryText
+                ),
+                textAlign = TextAlign.Center
             )
 
             Spacer(modifier = Modifier.height(AppDimensions.Spacing32))
@@ -151,24 +170,33 @@ fun LoginScreenContent(
                     modifier = Modifier
                         .fillMaxWidth()
                         .padding(bottom = AppDimensions.Spacing16),
-                    shape = RoundedCornerShape(AppDimensions.ChipCornerRadius),
-                    color = AppErrorTint
+                    shape = RoundedCornerShape(AppDimensions.CardCornerRadius),
+                    color = AppSurface,
+                    border = androidx.compose.foundation.BorderStroke(1.dp, AppBorder)
                 ) {
                     Row(
-                        modifier = Modifier.padding(AppDimensions.Spacing12),
+                        modifier = Modifier.padding(horizontal = 14.dp, vertical = 12.dp),
                         verticalAlignment = Alignment.CenterVertically
                     ) {
-                        Icon(
-                            imageVector = Icons.Default.ErrorOutline,
-                            contentDescription = "Error",
-                            tint = AppError,
-                            modifier = Modifier.size(20.dp)
-                        )
-                        Spacer(modifier = Modifier.width(AppDimensions.Spacing8))
+                        Surface(
+                            shape = CircleShape,
+                            color = AppErrorTint,
+                            modifier = Modifier.size(28.dp)
+                        ) {
+                            Box(contentAlignment = Alignment.Center) {
+                                Icon(
+                                    imageVector = Icons.Default.ErrorOutline,
+                                    contentDescription = "Error",
+                                    tint = AppError,
+                                    modifier = Modifier.size(16.dp)
+                                )
+                            }
+                        }
+                        Spacer(modifier = Modifier.width(12.dp))
                         Text(
                             text = uiState.generalError,
                             style = AppTypographyTokens.CaptionMedium,
-                            color = AppError
+                            color = AppPrimaryText
                         )
                     }
                 }
@@ -179,7 +207,7 @@ fun LoginScreenContent(
                 value = uiState.userId,
                 onValueChange = onUserIdChanged,
                 label = "User ID / Employee ID",
-                placeholder = "e.g. EMP1001",
+                placeholder = "e.g. EMP2001",
                 isError = uiState.userIdError != null,
                 errorMessage = uiState.userIdError,
                 enabled = !uiState.isLoading,
@@ -211,7 +239,6 @@ fun LoginScreenContent(
                 isError = uiState.passwordError != null,
                 errorMessage = uiState.passwordError,
                 enabled = !uiState.isLoading,
-                visualTransformation = if (passwordVisible) VisualTransformation.None else PasswordVisualTransformation(),
                 leadingIcon = {
                     Icon(
                         imageVector = Icons.Default.Lock,
@@ -230,6 +257,7 @@ fun LoginScreenContent(
                         )
                     }
                 },
+                visualTransformation = if (passwordVisible) VisualTransformation.None else PasswordVisualTransformation(),
                 keyboardOptions = KeyboardOptions(
                     keyboardType = KeyboardType.Password,
                     imeAction = ImeAction.Done
@@ -244,7 +272,7 @@ fun LoginScreenContent(
 
             Spacer(modifier = Modifier.height(AppDimensions.Spacing24))
 
-            // Sign In Button
+            // Sign In Action Button
             PrimaryButton(
                 text = "Sign In",
                 onClick = {
@@ -252,16 +280,23 @@ fun LoginScreenContent(
                     onLoginClick()
                 },
                 isLoading = uiState.isLoading,
-                enabled = !uiState.isLoading
+                enabled = !uiState.isLoading,
+                modifier = Modifier.fillMaxWidth()
             )
 
             Spacer(modifier = Modifier.height(AppDimensions.Spacing24))
 
+            // Sleek system footer
             Text(
                 text = "Accounts are provisioned by your system administrator.",
-                style = AppTypographyTokens.Caption,
-                color = AppSecondaryText
+                style = AppTypographyTokens.Caption.copy(
+                    fontSize = 12.sp,
+                    color = AppSecondaryText.copy(alpha = 0.8f)
+                ),
+                textAlign = TextAlign.Center
             )
+
+            Spacer(modifier = Modifier.height(AppDimensions.Spacing16))
         }
     }
 }

@@ -162,6 +162,7 @@ async function bootstrap() {
   const uploadsDir = process.env.UPLOAD_DIR || 'uploads';
   const uploadsPath = path.resolve(process.cwd(), uploadsDir);
   app.use('/uploads', express.static(uploadsPath));
+  app.use('/v1/uploads', express.static(uploadsPath));
 
   // Serve admin web portal statically
   const adminDistPath = path.resolve(process.cwd(), 'admin-ui', 'dist');

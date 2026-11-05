@@ -9,6 +9,7 @@ import okhttp3.OkHttpClient
 import okhttp3.Request
 import java.io.File
 import java.io.FileOutputStream
+import java.util.concurrent.TimeUnit
 
 object ImageStorageUtils {
 
@@ -43,31 +44,50 @@ object ImageStorageUtils {
         photoUrl: String,
         okHttpClient: OkHttpClient
     ): Bitmap? = withContext(Dispatchers.IO) {
-        try {
-            val fullUrl = if (photoUrl.startsWith("https://") && !photoUrl.contains("localhost") && !photoUrl.contains("127.0.0.1")) {
-                photoUrl
-            } else {
-                com.company.attendance.core.network.BackendConfig.getFileUrl(photoUrl)
-            }
+        val filename = photoUrl.substringAfterLast("/")
+        val baseUrl = com.company.attendance.core.network.BackendConfig.getBaseUrl().trimEnd('/')
+        val candidateUrls = mutableListOf<String>()
 
-            val request = Request.Builder()
-                .url(fullUrl)
-                .header("Accept", "image/*, */*")
-                .build()
-            val response = okHttpClient.newCall(request).execute()
-            if (response.isSuccessful) {
-                val bytes = response.body?.bytes()
-                if (bytes != null && bytes.isNotEmpty()) {
-                    val bitmap = BitmapFactory.decodeByteArray(bytes, 0, bytes.size)
-                    if (bitmap != null) {
-                        saveProfilePhoto(context, userId, bitmap)
-                        return@withContext bitmap
+        // 1. Direct configured file URL & v1 upload paths
+        candidateUrls.add(com.company.attendance.core.network.BackendConfig.getFileUrl(photoUrl))
+        candidateUrls.add("$baseUrl/uploads/photos/$filename")
+        candidateUrls.add("$baseUrl/uploads/$filename")
+        candidateUrls.add("https://attendance.pess.co.in/uploads/photos/$filename")
+        candidateUrls.add("https://attendance.pess.co.in/v1/uploads/photos/$filename")
+        candidateUrls.add("https://attendance.pess.co.in/v1/uploads/$filename")
+        // 2. Physical & emulator host fallbacks (office LAN / dev server)
+        candidateUrls.add("http://${com.company.attendance.core.network.BackendConfig.PHYSICAL_HOST}:${com.company.attendance.core.network.BackendConfig.PORT}/uploads/photos/$filename")
+        candidateUrls.add("http://${com.company.attendance.core.network.BackendConfig.EMULATOR_HOST}:${com.company.attendance.core.network.BackendConfig.PORT}/uploads/photos/$filename")
+        if (photoUrl.startsWith("http://") || photoUrl.startsWith("https://")) {
+            candidateUrls.add(photoUrl)
+        }
+
+        val fastClient = okHttpClient.newBuilder()
+            .connectTimeout(3, TimeUnit.SECONDS)
+            .readTimeout(5, TimeUnit.SECONDS)
+            .build()
+
+        for (url in candidateUrls.distinct()) {
+            try {
+                val request = Request.Builder()
+                    .url(url)
+                    .header("Accept", "image/*, */*")
+                    .build()
+                val response = fastClient.newCall(request).execute()
+                if (response.isSuccessful) {
+                    val bytes = response.body?.bytes()
+                    if (bytes != null && bytes.isNotEmpty()) {
+                        val bitmap = BitmapFactory.decodeByteArray(bytes, 0, bytes.size)
+                        if (bitmap != null) {
+                            saveProfilePhoto(context, userId, bitmap)
+                            return@withContext bitmap
+                        }
                     }
                 }
+            } catch (_: Exception) {
+                // Try next candidate URL
             }
-            null
-        } catch (_: Exception) {
-            null
         }
+        null
     }
 }

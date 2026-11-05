@@ -14,6 +14,13 @@ import androidx.compose.ui.Modifier
 import androidx.navigation.NavHostController
 import androidx.navigation.compose.NavHost
 import androidx.navigation.compose.composable
+import androidx.compose.animation.core.tween
+import androidx.compose.animation.core.FastOutSlowInEasing
+import androidx.compose.animation.core.FastOutLinearInEasing
+import androidx.compose.animation.fadeIn
+import androidx.compose.animation.fadeOut
+import androidx.compose.animation.slideInVertically
+import androidx.compose.animation.slideOutVertically
 import com.company.attendance.core.model.PunchType
 import com.company.attendance.design.gallery.ComponentGalleryScreen
 import com.company.attendance.design.theme.AppBackground
@@ -122,7 +129,28 @@ fun AttendanceNavGraph(
 
         composable(
             route = Screen.PunchCapture.route,
-            arguments = Screen.PunchCapture.arguments
+            arguments = Screen.PunchCapture.arguments,
+            enterTransition = {
+                slideInVertically(
+                    initialOffsetY = { fullHeight -> fullHeight },
+                    animationSpec = tween(durationMillis = 350, easing = FastOutSlowInEasing)
+                ) + fadeIn(animationSpec = tween(200))
+            },
+            exitTransition = {
+                slideOutVertically(
+                    targetOffsetY = { fullHeight -> fullHeight },
+                    animationSpec = tween(durationMillis = 300, easing = FastOutLinearInEasing)
+                ) + fadeOut(animationSpec = tween(200))
+            },
+            popEnterTransition = {
+                fadeIn(animationSpec = tween(200))
+            },
+            popExitTransition = {
+                slideOutVertically(
+                    targetOffsetY = { fullHeight -> fullHeight },
+                    animationSpec = tween(durationMillis = 300, easing = FastOutLinearInEasing)
+                ) + fadeOut(animationSpec = tween(200))
+            }
         ) { backStackEntry ->
             val punchTypeName = backStackEntry.arguments?.getString(Screen.ARG_PUNCH_TYPE) ?: PunchType.IN.name
             val locationType = backStackEntry.arguments?.getString(Screen.ARG_LOCATION_TYPE) ?: "OFFICE"
@@ -155,6 +183,10 @@ fun AttendanceNavGraph(
             } else {
                 com.company.attendance.feature.calendar.CalendarScreen()
             }
+        }
+
+        composable(Screen.Tracker.route) {
+            com.company.attendance.feature.tracker.TrackerScreen()
         }
 
         composable(Screen.ProfileSettings.route) {

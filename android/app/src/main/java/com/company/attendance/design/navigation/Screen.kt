@@ -17,6 +17,7 @@ sealed class Screen(
     data object ModelDownload : Screen("model_download")
     data object Home : Screen("home")
     data object Calendar : Screen("calendar")
+    data object Tracker : Screen("tracker")
     data object ProfileSettings : Screen("profile_settings")
     data object AdminPanel : Screen("admin_panel")
     data object ComponentGallery : Screen("component_gallery")
@@ -64,9 +65,9 @@ sealed class Screen(
         const val ARG_DIST = "dist"
 
         /**
-         * List of top-level destinations that display the bottom navigation bar.
+         * List of top-level destinations that display the bottom navigation bar (Findez 4-slot bar).
          */
-        val bottomNavRoutes: Set<String> by lazy { setOf(Home.route, Calendar.route, AdminPanel.route) }
+        val bottomNavRoutes: Set<String> by lazy { setOf(Home.route, Calendar.route, Tracker.route, ProfileSettings.route, AdminPanel.route) }
 
         fun shouldShowBottomBar(route: String?): Boolean {
             if (route == null) return false

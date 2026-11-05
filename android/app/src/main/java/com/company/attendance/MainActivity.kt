@@ -7,6 +7,7 @@ import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import com.company.attendance.core.storage.TokenStorage
 import com.company.attendance.design.navigation.AttendanceAppScaffold
+import com.company.attendance.design.navigation.PunchCoordinator
 import com.company.attendance.design.navigation.Screen
 import dagger.hilt.android.AndroidEntryPoint
 import javax.inject.Inject
@@ -16,6 +17,9 @@ class MainActivity : ComponentActivity() {
 
     @Inject
     lateinit var tokenStorage: TokenStorage
+
+    @Inject
+    lateinit var punchCoordinator: PunchCoordinator
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -36,7 +40,8 @@ class MainActivity : ComponentActivity() {
 
             AttendanceAppScaffold(
                 startDestination = startDestination,
-                isAdmin = isAdmin
+                isAdmin = isAdmin,
+                punchCoordinator = punchCoordinator
             )
         }
     }

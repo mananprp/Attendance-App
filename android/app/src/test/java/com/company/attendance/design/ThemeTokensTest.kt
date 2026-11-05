@@ -13,6 +13,8 @@ import com.company.attendance.design.theme.AppDimensions
 import com.company.attendance.design.theme.AppDisabled
 import com.company.attendance.design.theme.AppDisabledText
 import com.company.attendance.design.theme.AppError
+import com.company.attendance.design.theme.AppHeaderBackground
+import com.company.attendance.design.theme.AppOnAccent
 import com.company.attendance.design.theme.AppPrimaryText
 import com.company.attendance.design.theme.AppSecondaryText
 import com.company.attendance.design.theme.AppSuccess
@@ -26,34 +28,42 @@ import org.junit.Test
 class ThemeTokensTest {
 
     @Test
-    fun `verify exact PRD Section 8 color palette hex values`() {
-        assertEquals(Color(0xFFFAFAFA), AppBackground)
-        assertEquals(Color(0xFFFFFFFF), AppSurface)
-        assertEquals(Color(0xFF111827), AppPrimaryText)
-        assertEquals(Color(0xFF6B7280), AppSecondaryText)
-        assertEquals(Color(0xFFE5E7EB), AppBorder)
-        assertEquals(Color(0xFF2563EB), AppAccent)
-        assertEquals(Color(0xFFEFF4FF), AppAccentTint)
-        assertEquals(Color(0xFF16A34A), AppSuccess)
-        assertEquals(Color(0xFFD97706), AppWarning)
-        assertEquals(Color(0xFFDC2626), AppError)
+    fun `verify exact Findez dark theme color palette hex values`() {
+        assertEquals(Color(0xFF070B0F), AppBackground)
+        assertEquals(Color(0xFF14181D), AppHeaderBackground)
+        assertEquals(Color(0xFF14181D), AppSurface)
+        assertEquals(Color(0xFFFFFFFF), AppPrimaryText)
+        assertEquals(Color(0xFFA3A9B0), AppSecondaryText)
+        assertEquals(Color(0xFF2A2E33), AppBorder)
+        assertEquals(Color(0xFF4EFFCA), AppAccent)
+        assertEquals(Color(0x244EFFCA), AppAccentTint)
+        assertEquals(Color(0xFF04120D), AppOnAccent)
+        assertEquals(Color(0xFF4EFFCA), AppSuccess)
+        assertEquals(Color(0xFFFBBF24), AppWarning)
+        assertEquals(Color(0xFFF87171), AppError)
     }
 
     @Test
     fun `verify typography font sizes`() {
-        assertEquals(40.sp, AppTypographyTokens.ClockTime.fontSize)
+        assertEquals(48.sp, AppTypographyTokens.ClockTime.fontSize)
         assertEquals(22.sp, AppTypographyTokens.Title.fontSize)
+        assertEquals(22.sp, AppTypographyTokens.StatValue.fontSize)
         assertEquals(16.sp, AppTypographyTokens.SectionHeading.fontSize)
         assertEquals(14.sp, AppTypographyTokens.Body.fontSize)
+        assertEquals(14.sp, AppTypographyTokens.RingCaption.fontSize)
+        assertEquals(13.sp, AppTypographyTokens.StatLabel.fontSize)
         assertEquals(12.sp, AppTypographyTokens.Caption.fontSize)
+        assertEquals(12.sp, AppTypographyTokens.NavLabel.fontSize)
     }
 
     @Test
     fun `verify design system dimensions`() {
         assertEquals(20.dp, AppDimensions.ScreenPadding)
         assertEquals(52.dp, AppDimensions.ButtonHeight)
-        assertEquals(12.dp, AppDimensions.ButtonCornerRadius)
-        assertEquals(12.dp, AppDimensions.CardCornerRadius)
+        assertEquals(26.dp, AppDimensions.ButtonCornerRadius)
+        assertEquals(20.dp, AppDimensions.CardCornerRadius)
+        assertEquals(12.dp, AppDimensions.ChipCornerRadius)
+        assertEquals(32.dp, AppDimensions.BodyPanelTopCornerRadius)
         assertEquals(1.dp, AppDimensions.BorderWidth)
         assertEquals(48.dp, AppDimensions.MinTouchTarget)
     }

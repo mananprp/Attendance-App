@@ -58,7 +58,7 @@ fun PermissionGuardDialog(
         modifier = modifier
     ) {
         Surface(
-            shape = RoundedCornerShape(AppDimensions.CardCornerRadius),
+            shape = RoundedCornerShape(28.dp),
             color = AppSurface,
             border = BorderStroke(AppDimensions.BorderWidth, AppBorder),
             modifier = Modifier.fillMaxWidth()

@@ -84,15 +84,15 @@ class TokenStorageImpl @Inject constructor(
         )
     }
 
-    override fun getToken(): String? = prefs.getString(KEY_TOKEN, null)
+    override fun getToken(): String? = _sessionFlow.value?.token ?: prefs.getString(KEY_TOKEN, null)
 
-    override fun getUserId(): String? = prefs.getString(KEY_USER_ID, null)
+    override fun getUserId(): String? = _sessionFlow.value?.userId ?: prefs.getString(KEY_USER_ID, null)
 
-    override fun getDisplayName(): String? = prefs.getString(KEY_DISPLAY_NAME, null)
+    override fun getDisplayName(): String? = _sessionFlow.value?.displayName ?: prefs.getString(KEY_DISPLAY_NAME, null)
 
     override fun isPhotoChangeUsed(): Boolean = prefs.getBoolean(KEY_PHOTO_CHANGE_USED, false)
 
-    override fun hasPhoto(): Boolean = prefs.getBoolean(KEY_HAS_PHOTO, false)
+    override fun hasPhoto(): Boolean = _sessionFlow.value?.hasPhoto ?: prefs.getBoolean(KEY_HAS_PHOTO, false)
 
     override fun getActivePhotoVersion(): Int? {
         return if (prefs.contains(KEY_ACTIVE_PHOTO_VERSION)) prefs.getInt(KEY_ACTIVE_PHOTO_VERSION, 1) else null
@@ -107,6 +107,7 @@ class TokenStorageImpl @Inject constructor(
     override fun getUserSession(): UserSession? = _sessionFlow.value
 
     override fun saveSession(session: UserSession) {
+        _sessionFlow.value = session
         prefs.edit().apply {
             putString(KEY_TOKEN, session.token)
             putString(KEY_USER_ID, session.userId)
@@ -120,9 +121,8 @@ class TokenStorageImpl @Inject constructor(
             } else {
                 remove(KEY_ACTIVE_PHOTO_VERSION)
             }
-            apply()
+            commit()
         }
-        _sessionFlow.value = session
     }
 
     override fun updatePhotoChangeUsed(used: Boolean) {

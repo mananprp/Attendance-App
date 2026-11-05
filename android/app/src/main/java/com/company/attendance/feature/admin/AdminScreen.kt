@@ -32,7 +32,14 @@ import androidx.compose.material.icons.filled.Lock
 import androidx.compose.material.icons.filled.Person
 import androidx.compose.material.icons.filled.Place
 import androidx.compose.material.icons.filled.Refresh
+import androidx.compose.material.icons.filled.MoreVert
+import androidx.compose.material.icons.filled.Delete
+import androidx.compose.material.icons.filled.PersonAdd
+import androidx.compose.material3.DropdownMenu
+import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material.icons.outlined.ChevronRight
+import androidx.compose.material.icons.outlined.ErrorOutline
+import androidx.compose.material.icons.outlined.CheckCircle
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.CircularProgressIndicator
@@ -73,6 +80,7 @@ import com.company.attendance.design.theme.AppBorder
 import com.company.attendance.design.theme.AppDimensions
 import com.company.attendance.design.theme.AppError
 import com.company.attendance.design.theme.AppErrorTint
+import com.company.attendance.design.theme.AppOnAccent
 import com.company.attendance.design.theme.AppPrimaryText
 import com.company.attendance.design.theme.AppSecondaryText
 import com.company.attendance.design.theme.AppSuccess
@@ -105,8 +113,16 @@ fun AdminScreen(
             if (selectedSite == null) {
                 AttendanceTopAppBar(
                     title = "Office Sites",
-                    canNavigateBack = false,
+                    canNavigateBack = true,
+                    onNavigateBack = onNavigateBack,
                     actions = {
+                        IconButton(onClick = { viewModel.openCreateUserDialog(null) }) {
+                            Icon(
+                                imageVector = Icons.Default.PersonAdd,
+                                contentDescription = "Add User",
+                                tint = AppAccent
+                            )
+                        }
                         IconButton(onClick = viewModel::loadData) {
                             Icon(
                                 imageVector = Icons.Default.Refresh,
@@ -122,6 +138,13 @@ fun AdminScreen(
                     canNavigateBack = true,
                     onNavigateBack = { selectedSite = null },
                     actions = {
+                        IconButton(onClick = { viewModel.openCreateUserDialog(selectedSite?.officeId) }) {
+                            Icon(
+                                imageVector = Icons.Default.PersonAdd,
+                                contentDescription = "Add Staff",
+                                tint = AppAccent
+                            )
+                        }
                         IconButton(onClick = viewModel::loadData) {
                             Icon(
                                 imageVector = Icons.Default.Refresh,
@@ -131,18 +154,6 @@ fun AdminScreen(
                         }
                     }
                 )
-            }
-        },
-        floatingActionButton = {
-            FloatingActionButton(
-                onClick = {
-                    val target = selectedSite?.officeId
-                    viewModel.openCreateUserDialog(target)
-                },
-                containerColor = AppAccent,
-                contentColor = Color.White
-            ) {
-                Icon(imageVector = Icons.Default.Add, contentDescription = "Add User")
             }
         },
         containerColor = AppBackground,
@@ -160,55 +171,85 @@ fun AdminScreen(
             ) {
                 Spacer(modifier = Modifier.height(AppDimensions.Spacing16))
 
-                // Error Banner
+                // Error Alert Banner (Clean Findez style)
                 uiState.errorMessage?.let { error ->
                     Surface(
                         modifier = Modifier
                             .fillMaxWidth()
                             .padding(bottom = AppDimensions.Spacing12),
                         shape = RoundedCornerShape(AppDimensions.CardCornerRadius),
-                        color = AppErrorTint,
-                        border = BorderStroke(1.dp, AppError)
+                        color = AppSurface,
+                        border = BorderStroke(1.dp, AppBorder)
                     ) {
                         Row(
-                            modifier = Modifier.padding(AppDimensions.Spacing12),
+                            modifier = Modifier.padding(horizontal = 14.dp, vertical = 12.dp),
                             verticalAlignment = Alignment.CenterVertically
                         ) {
+                            Surface(
+                                shape = CircleShape,
+                                color = AppErrorTint,
+                                modifier = Modifier.size(28.dp)
+                            ) {
+                                Box(contentAlignment = Alignment.Center) {
+                                    Icon(
+                                        imageVector = Icons.Outlined.ErrorOutline,
+                                        contentDescription = null,
+                                        tint = AppError,
+                                        modifier = Modifier.size(16.dp)
+                                    )
+                                }
+                            }
+                            Spacer(modifier = Modifier.width(12.dp))
                             Text(
                                 text = error,
-                                style = AppTypographyTokens.BodyMedium,
-                                color = AppError,
+                                style = AppTypographyTokens.CaptionMedium,
+                                color = AppPrimaryText,
                                 modifier = Modifier.weight(1f)
                             )
                             IconButton(onClick = viewModel::dismissMessages, modifier = Modifier.size(24.dp)) {
-                                Icon(Icons.Default.Close, contentDescription = "Dismiss", tint = AppError)
+                                Icon(Icons.Default.Close, contentDescription = "Dismiss", tint = AppSecondaryText, modifier = Modifier.size(16.dp))
                             }
                         }
                     }
                 }
 
-                // Success Banner
+                // Success Alert Banner (Clean Findez style)
                 uiState.successMessage?.let { success ->
                     Surface(
                         modifier = Modifier
                             .fillMaxWidth()
                             .padding(bottom = AppDimensions.Spacing12),
                         shape = RoundedCornerShape(AppDimensions.CardCornerRadius),
-                        color = AppSuccessTint,
-                        border = BorderStroke(1.dp, AppSuccess)
+                        color = AppSurface,
+                        border = BorderStroke(1.dp, AppBorder)
                     ) {
                         Row(
-                            modifier = Modifier.padding(AppDimensions.Spacing12),
+                            modifier = Modifier.padding(horizontal = 14.dp, vertical = 12.dp),
                             verticalAlignment = Alignment.CenterVertically
                         ) {
+                            Surface(
+                                shape = CircleShape,
+                                color = AppSuccessTint,
+                                modifier = Modifier.size(28.dp)
+                            ) {
+                                Box(contentAlignment = Alignment.Center) {
+                                    Icon(
+                                        imageVector = Icons.Outlined.CheckCircle,
+                                        contentDescription = null,
+                                        tint = AppSuccess,
+                                        modifier = Modifier.size(16.dp)
+                                    )
+                                }
+                            }
+                            Spacer(modifier = Modifier.width(12.dp))
                             Text(
                                 text = success,
-                                style = AppTypographyTokens.BodyMedium,
-                                color = AppSuccess,
+                                style = AppTypographyTokens.CaptionMedium,
+                                color = AppPrimaryText,
                                 modifier = Modifier.weight(1f)
                             )
                             IconButton(onClick = viewModel::dismissMessages, modifier = Modifier.size(24.dp)) {
-                                Icon(Icons.Default.Close, contentDescription = "Dismiss", tint = AppSuccess)
+                                Icon(Icons.Default.Close, contentDescription = "Dismiss", tint = AppSecondaryText, modifier = Modifier.size(16.dp))
                             }
                         }
                     }
@@ -323,49 +364,101 @@ private fun SitesMenuView(
     onAddSiteClick: () -> Unit
 ) {
     Column(modifier = Modifier.fillMaxSize()) {
+        // Metric Overview Tiles (Findez StatCard style)
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            horizontalArrangement = Arrangement.spacedBy(AppDimensions.Spacing12)
+        ) {
+            Surface(
+                modifier = Modifier.weight(1f),
+                shape = RoundedCornerShape(AppDimensions.CardCornerRadius),
+                color = AppSurface,
+                border = BorderStroke(AppDimensions.BorderWidth, AppBorder)
+            ) {
+                Column(modifier = Modifier.padding(AppDimensions.Spacing16)) {
+                    Icon(
+                        imageVector = Icons.Default.Business,
+                        contentDescription = null,
+                        tint = AppAccent,
+                        modifier = Modifier.size(20.dp)
+                    )
+                    Spacer(modifier = Modifier.height(AppDimensions.Spacing8))
+                    Text(
+                        text = sites.size.toString(),
+                        style = AppTypographyTokens.HeroTime,
+                        color = AppPrimaryText
+                    )
+                    Text(
+                        text = "Office Sites",
+                        style = AppTypographyTokens.Caption,
+                        color = AppSecondaryText
+                    )
+                }
+            }
+
+            Surface(
+                modifier = Modifier.weight(1f),
+                shape = RoundedCornerShape(AppDimensions.CardCornerRadius),
+                color = AppSurface,
+                border = BorderStroke(AppDimensions.BorderWidth, AppBorder)
+            ) {
+                Column(modifier = Modifier.padding(AppDimensions.Spacing16)) {
+                    Icon(
+                        imageVector = Icons.Default.Person,
+                        contentDescription = null,
+                        tint = AppAccent,
+                        modifier = Modifier.size(20.dp)
+                    )
+                    Spacer(modifier = Modifier.height(AppDimensions.Spacing8))
+                    Text(
+                        text = users.size.toString(),
+                        style = AppTypographyTokens.HeroTime,
+                        color = AppPrimaryText
+                    )
+                    Text(
+                        text = "Enrolled Staff",
+                        style = AppTypographyTokens.Caption,
+                        color = AppSecondaryText
+                    )
+                }
+            }
+        }
+
+        Spacer(modifier = Modifier.height(AppDimensions.Spacing20))
+
         Row(
             modifier = Modifier.fillMaxWidth(),
             horizontalArrangement = Arrangement.SpaceBetween,
             verticalAlignment = Alignment.CenterVertically
         ) {
-            Column {
-                Text(
-                    text = "Sites & Locations (${sites.size})",
-                    style = AppTypographyTokens.SectionHeading,
-                    color = AppPrimaryText
-                )
-                Text(
-                    text = "Total Users: ${users.size}",
-                    style = AppTypographyTokens.CaptionMedium,
-                    color = AppSecondaryText
-                )
-            }
-            Button(
-                onClick = onAddSiteClick,
-                colors = ButtonDefaults.buttonColors(containerColor = AppAccent),
-                contentPadding = PaddingValues(horizontal = 12.dp, vertical = 6.dp),
-                shape = RoundedCornerShape(8.dp)
+            Text(
+                text = "Locations",
+                style = AppTypographyTokens.SectionHeading,
+                color = AppPrimaryText
+            )
+            Surface(
+                modifier = Modifier.clickable(onClick = onAddSiteClick),
+                shape = RoundedCornerShape(AppDimensions.ChipCornerRadius),
+                color = AppSurface,
+                border = BorderStroke(1.dp, AppBorder)
             ) {
-                Icon(
-                    imageVector = Icons.Default.Add,
-                    contentDescription = null,
-                    modifier = Modifier.size(16.dp),
-                    tint = Color.White
-                )
-                Spacer(modifier = Modifier.width(4.dp))
-                Text("Add Site", style = AppTypographyTokens.CaptionMedium, color = Color.White)
+                Row(
+                    modifier = Modifier.padding(horizontal = 12.dp, vertical = 6.dp),
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Icon(
+                        imageVector = Icons.Default.Add,
+                        contentDescription = null,
+                        modifier = Modifier.size(16.dp),
+                        tint = AppPrimaryText
+                    )
+                    Spacer(modifier = Modifier.width(4.dp))
+                    Text("Add Site", style = AppTypographyTokens.CaptionMedium, color = AppPrimaryText)
+                }
             }
         }
 
-        Spacer(modifier = Modifier.height(AppDimensions.Spacing4))
-
-        Text(
-            text = "Click a site to view its employees and assign staff",
-            style = AppTypographyTokens.Caption,
-            color = AppSecondaryText
-        )
-
-        Spacer(modifier = Modifier.height(AppDimensions.Spacing16))
+        Spacer(modifier = Modifier.height(AppDimensions.Spacing12))
 
         if (sites.isEmpty()) {
             Box(
@@ -404,7 +497,7 @@ private fun SitesMenuView(
                     )
                 }
                 item {
-                    Spacer(modifier = Modifier.height(80.dp))
+                    Spacer(modifier = Modifier.height(32.dp))
                 }
             }
         }
@@ -432,14 +525,14 @@ private fun SiteCardItem(
             Surface(
                 shape = CircleShape,
                 color = AppAccentTint,
-                modifier = Modifier.size(46.dp)
+                modifier = Modifier.size(44.dp)
             ) {
                 Box(contentAlignment = Alignment.Center) {
                     Icon(
                         imageVector = Icons.Default.Business,
                         contentDescription = null,
                         tint = AppAccent,
-                        modifier = Modifier.size(24.dp)
+                        modifier = Modifier.size(22.dp)
                     )
                 }
             }
@@ -454,13 +547,7 @@ private fun SiteCardItem(
                 )
                 Spacer(modifier = Modifier.height(2.dp))
                 Text(
-                    text = "${site.officeId} • $employeeCount Employees",
-                    style = AppTypographyTokens.CaptionMedium,
-                    color = AppAccent
-                )
-                Spacer(modifier = Modifier.height(2.dp))
-                Text(
-                    text = "Geofence: ${site.radiusM}m • Threshold: ${site.matchThreshold}",
+                    text = "${employeeCount} active staff • ${site.radiusM}m geofence",
                     style = AppTypographyTokens.Caption,
                     color = AppSecondaryText
                 )
@@ -470,15 +557,12 @@ private fun SiteCardItem(
                 imageVector = Icons.Outlined.ChevronRight,
                 contentDescription = "Open Site",
                 tint = AppSecondaryText,
-                modifier = Modifier.size(24.dp)
+                modifier = Modifier.size(20.dp)
             )
         }
     }
 }
 
-/**
- * Site Employees view: lists users assigned to a specific site.
- */
 @Composable
 private fun SiteEmployeesView(
     site: AdminSiteDto,
@@ -493,10 +577,10 @@ private fun SiteEmployeesView(
         Surface(
             modifier = Modifier.fillMaxWidth(),
             shape = RoundedCornerShape(AppDimensions.CardCornerRadius),
-            color = AppAccentTint,
-            border = BorderStroke(1.dp, AppAccent.copy(alpha = 0.3f))
+            color = AppSurface,
+            border = BorderStroke(1.dp, AppBorder)
         ) {
-            Column(modifier = Modifier.padding(AppDimensions.Spacing12)) {
+            Column(modifier = Modifier.padding(AppDimensions.Spacing16)) {
                 Row(
                     modifier = Modifier.fillMaxWidth(),
                     horizontalArrangement = Arrangement.SpaceBetween,
@@ -505,25 +589,26 @@ private fun SiteEmployeesView(
                     Text(
                         text = site.name,
                         style = AppTypographyTokens.SectionHeading,
-                        color = AppAccent
+                        color = AppPrimaryText
                     )
                     Surface(
                         shape = RoundedCornerShape(AppDimensions.ChipCornerRadius),
-                        color = AppAccent
+                        color = AppBackground,
+                        border = BorderStroke(1.dp, AppBorder)
                     ) {
                         Text(
                             text = site.officeId,
                             style = AppTypographyTokens.CaptionMedium,
-                            color = Color.White,
+                            color = AppSecondaryText,
                             modifier = Modifier.padding(horizontal = 8.dp, vertical = 2.dp)
                         )
                     }
                 }
                 Spacer(modifier = Modifier.height(4.dp))
                 Text(
-                    text = "Geofence: ${site.radiusM}m • Accuracy Threshold: ${site.matchThreshold}",
+                    text = "${site.radiusM}m geofence radius • Timezone: ${site.timezone}",
                     style = AppTypographyTokens.Caption,
-                    color = AppPrimaryText
+                    color = AppSecondaryText
                 )
             }
         }
@@ -589,124 +674,113 @@ private fun UserItemCard(
     onResetPasswordClick: () -> Unit,
     onDeleteUserClick: () -> Unit
 ) {
+    var menuExpanded by remember { mutableStateOf(false) }
+
     Surface(
         modifier = Modifier.fillMaxWidth(),
         shape = RoundedCornerShape(AppDimensions.CardCornerRadius),
         color = AppSurface,
         border = BorderStroke(AppDimensions.BorderWidth, AppBorder)
     ) {
-        Column(modifier = Modifier.padding(AppDimensions.Spacing16)) {
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                verticalAlignment = Alignment.CenterVertically
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(AppDimensions.Spacing16),
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            Surface(
+                shape = CircleShape,
+                color = AppAccentTint,
+                modifier = Modifier.size(42.dp)
             ) {
-                Surface(
-                    shape = CircleShape,
-                    color = AppAccentTint,
-                    modifier = Modifier.size(40.dp)
-                ) {
-                    Box(contentAlignment = Alignment.Center) {
-                        Icon(
-                            imageVector = Icons.Default.Person,
-                            contentDescription = null,
-                            tint = AppAccent,
-                            modifier = Modifier.size(22.dp)
-                        )
-                    }
-                }
-
-                Spacer(modifier = Modifier.width(AppDimensions.Spacing12))
-
-                Column(modifier = Modifier.weight(1f)) {
-                    Row(
-                        verticalAlignment = Alignment.CenterVertically,
-                        horizontalArrangement = Arrangement.spacedBy(AppDimensions.Spacing8)
-                    ) {
-                        Text(
-                            text = user.name,
-                            style = AppTypographyTokens.BodyMedium.copy(fontWeight = FontWeight.SemiBold),
-                            color = AppPrimaryText
-                        )
-
-                        if (user.role.equals("ADMIN", ignoreCase = true)) {
-                            Surface(
-                                shape = RoundedCornerShape(AppDimensions.ChipCornerRadius),
-                                color = AppAccentTint
-                            ) {
-                                Text(
-                                    text = "ADMIN",
-                                    style = AppTypographyTokens.CaptionMedium,
-                                    color = AppAccent,
-                                    modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp)
-                                )
-                            }
-                        }
-                    }
-
-                    Spacer(modifier = Modifier.height(2.dp))
-
+                Box(contentAlignment = Alignment.Center) {
                     Text(
-                        text = "ID: ${user.userId}",
-                        style = AppTypographyTokens.Caption,
-                        color = AppSecondaryText
+                        text = user.name.take(1).uppercase(),
+                        style = AppTypographyTokens.BodyMedium.copy(fontWeight = FontWeight.Bold),
+                        color = AppAccent
                     )
                 }
             }
 
-            Spacer(modifier = Modifier.height(AppDimensions.Spacing12))
+            Spacer(modifier = Modifier.width(AppDimensions.Spacing12))
 
-            Row(
-                verticalAlignment = Alignment.CenterVertically,
-                modifier = Modifier.fillMaxWidth()
-            ) {
-                Icon(
-                    imageVector = Icons.Default.Business,
-                    contentDescription = null,
-                    tint = AppSecondaryText,
-                    modifier = Modifier.size(16.dp)
-                )
-                Spacer(modifier = Modifier.width(AppDimensions.Spacing4))
+            Column(modifier = Modifier.weight(1f)) {
+                Row(
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.spacedBy(AppDimensions.Spacing8)
+                ) {
+                    Text(
+                        text = user.name,
+                        style = AppTypographyTokens.BodyMedium.copy(fontWeight = FontWeight.SemiBold),
+                        color = AppPrimaryText
+                    )
+
+                    if (user.role.equals("ADMIN", ignoreCase = true)) {
+                        Surface(
+                            shape = RoundedCornerShape(AppDimensions.ChipCornerRadius),
+                            color = AppBackground,
+                            border = BorderStroke(1.dp, AppBorder)
+                        ) {
+                            Text(
+                                text = "ADMIN",
+                                style = AppTypographyTokens.CaptionMedium,
+                                color = AppSecondaryText,
+                                modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp)
+                            )
+                        }
+                    }
+                }
+
+                Spacer(modifier = Modifier.height(2.dp))
+
                 Text(
-                    text = "${user.siteName} (${user.siteCode})",
-                    style = AppTypographyTokens.CaptionMedium,
-                    color = AppPrimaryText
+                    text = "${user.userId} • ${user.siteName}",
+                    style = AppTypographyTokens.Caption,
+                    color = AppSecondaryText
                 )
             }
 
-            Spacer(modifier = Modifier.height(AppDimensions.Spacing12))
+            Box {
+                IconButton(
+                    onClick = { menuExpanded = true },
+                    modifier = Modifier.size(36.dp)
+                ) {
+                    Icon(
+                        imageVector = Icons.Default.MoreVert,
+                        contentDescription = "Actions",
+                        tint = AppSecondaryText
+                    )
+                }
 
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.spacedBy(AppDimensions.Spacing8),
-                verticalAlignment = Alignment.CenterVertically
-            ) {
-                SecondaryButton(
-                    text = "Change Site",
-                    onClick = onChangeSiteClick,
-                    modifier = Modifier.weight(1.1f)
-                )
-
-                SecondaryButton(
-                    text = "Password",
-                    onClick = onResetPasswordClick,
-                    modifier = Modifier.weight(0.9f)
-                )
-
-                if (!isSelf) {
-                    Button(
-                        onClick = onDeleteUserClick,
-                        colors = ButtonDefaults.buttonColors(
-                            containerColor = AppErrorTint,
-                            contentColor = AppError
-                        ),
-                        shape = RoundedCornerShape(AppDimensions.ButtonCornerRadius),
-                        modifier = Modifier.weight(0.8f),
-                        contentPadding = PaddingValues(horizontal = 4.dp, vertical = 8.dp)
-                    ) {
-                        Text(
-                            text = "Delete",
-                            style = AppTypographyTokens.CaptionMedium,
-                            fontWeight = FontWeight.SemiBold
+                DropdownMenu(
+                    expanded = menuExpanded,
+                    onDismissRequest = { menuExpanded = false },
+                    modifier = Modifier.background(AppSurface)
+                ) {
+                    DropdownMenuItem(
+                        text = { Text("Change Site", style = AppTypographyTokens.BodyMedium, color = AppPrimaryText) },
+                        leadingIcon = { Icon(Icons.Default.Business, contentDescription = null, tint = AppAccent) },
+                        onClick = {
+                            menuExpanded = false
+                            onChangeSiteClick()
+                        }
+                    )
+                    DropdownMenuItem(
+                        text = { Text("Reset Password", style = AppTypographyTokens.BodyMedium, color = AppPrimaryText) },
+                        leadingIcon = { Icon(Icons.Default.Lock, contentDescription = null, tint = AppAccent) },
+                        onClick = {
+                            menuExpanded = false
+                            onResetPasswordClick()
+                        }
+                    )
+                    if (!isSelf) {
+                        DropdownMenuItem(
+                            text = { Text("Delete User", style = AppTypographyTokens.BodyMedium, color = AppError) },
+                            leadingIcon = { Icon(Icons.Default.Delete, contentDescription = null, tint = AppError) },
+                            onClick = {
+                                menuExpanded = false
+                                onDeleteUserClick()
+                            }
                         )
                     }
                 }
@@ -715,10 +789,6 @@ private fun UserItemCard(
     }
 }
 
-/**
- * Calculates next sequential employee ID for a site based on current users.
- * E.g. EMP1001, EMP1002, EMP1003 -> next is EMP1004.
- */
 fun generateNextEmployeeId(
     siteCode: String,
     allUsers: List<AdminUserDto>,
@@ -838,8 +908,8 @@ private fun CreateUserDialog(
                                     selectedSiteCode = site.officeId
                                 },
                             shape = RoundedCornerShape(AppDimensions.ChipCornerRadius),
-                            color = if (isSelected) AppAccentTint else AppBackground,
-                            border = BorderStroke(1.dp, if (isSelected) AppAccent else AppBorder)
+                            color = if (isSelected) AppSurface else AppBackground,
+                            border = BorderStroke(1.dp, if (isSelected) AppAccent.copy(alpha = 0.8f) else AppBorder)
                         ) {
                             Row(
                                 modifier = Modifier.padding(horizontal = 12.dp, vertical = 8.dp),
@@ -851,7 +921,7 @@ private fun CreateUserDialog(
                                         style = AppTypographyTokens.BodyMedium.copy(
                                             fontWeight = if (isSelected) FontWeight.SemiBold else FontWeight.Normal
                                         ),
-                                        color = if (isSelected) AppAccent else AppPrimaryText
+                                        color = AppPrimaryText
                                     )
                                     Text(
                                         text = "${site.officeId} • ${site.radiusM}m geofence",
@@ -931,8 +1001,8 @@ private fun CreateUserDialog(
                                 .weight(1f)
                                 .clickable { selectedRole = role },
                             shape = RoundedCornerShape(AppDimensions.ChipCornerRadius),
-                            color = if (isSelected) AppAccentTint else AppBackground,
-                            border = BorderStroke(1.dp, if (isSelected) AppAccent else AppBorder)
+                            color = if (isSelected) AppAccent.copy(alpha = 0.12f) else AppBackground,
+                            border = BorderStroke(1.dp, if (isSelected) AppAccent.copy(alpha = 0.8f) else AppBorder)
                         ) {
                             Box(
                                 modifier = Modifier.padding(vertical = 10.dp),
@@ -940,8 +1010,10 @@ private fun CreateUserDialog(
                             ) {
                                 Text(
                                     text = role,
-                                    style = AppTypographyTokens.CaptionMedium,
-                                    color = if (isSelected) AppAccent else AppPrimaryText
+                                    style = AppTypographyTokens.CaptionMedium.copy(
+                                        fontWeight = if (isSelected) FontWeight.SemiBold else FontWeight.Normal
+                                    ),
+                                    color = if (isSelected) AppAccent else AppSecondaryText
                                 )
                             }
                         }
@@ -1215,26 +1287,7 @@ private fun CreateSiteDialog(
 
                 Spacer(modifier = Modifier.height(AppDimensions.Spacing12))
 
-                // Policy Note card
-                Surface(
-                    modifier = Modifier.fillMaxWidth(),
-                    shape = RoundedCornerShape(AppDimensions.ChipCornerRadius),
-                    color = AppBackground,
-                    border = BorderStroke(1.dp, AppBorder)
-                ) {
-                    Column(modifier = Modifier.padding(10.dp)) {
-                        Text(
-                            text = "Config Policy:",
-                            style = AppTypographyTokens.CaptionMedium.copy(fontWeight = FontWeight.SemiBold),
-                            color = AppPrimaryText
-                        )
-                        Text(
-                            text = "• Face match threshold: 0.38 (Locked globally)\n• Timezone: Asia/Kolkata",
-                            style = AppTypographyTokens.Caption,
-                            color = AppSecondaryText
-                        )
-                    }
-                }
+
 
                 Spacer(modifier = Modifier.height(AppDimensions.Spacing20))
 

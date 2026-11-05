@@ -17,23 +17,33 @@ class NavigationRoutesTest {
         assertEquals("model_download", Screen.ModelDownload.route)
         assertEquals("home", Screen.Home.route)
         assertEquals("calendar", Screen.Calendar.route)
+        assertEquals("tracker", Screen.Tracker.route)
         assertEquals("profile_settings", Screen.ProfileSettings.route)
+        assertEquals("admin_panel", Screen.AdminPanel.route)
         assertEquals("component_gallery", Screen.ComponentGallery.route)
 
-        assertEquals("punch_capture/IN", Screen.PunchCapture.createRoute(PunchType.IN))
-        assertEquals("punch_capture/OUT", Screen.PunchCapture.createRoute(PunchType.OUT))
+        assertEquals(
+            "punch_capture/IN?locationType=OFFICE&lat=0.0&lng=0.0&dist=0.0",
+            Screen.PunchCapture.createRoute(PunchType.IN)
+        )
+        assertEquals(
+            "punch_capture/OUT?locationType=OFFICE&lat=0.0&lng=0.0&dist=0.0",
+            Screen.PunchCapture.createRoute(PunchType.OUT)
+        )
     }
 
     @Test
     fun `verify bottom navigation bar routes`() {
         assertTrue(Screen.shouldShowBottomBar(Screen.Home.route))
         assertTrue(Screen.shouldShowBottomBar(Screen.Calendar.route))
+        assertTrue(Screen.shouldShowBottomBar(Screen.Tracker.route))
+        assertTrue(Screen.shouldShowBottomBar(Screen.ProfileSettings.route))
 
+        assertTrue(Screen.shouldShowBottomBar(Screen.AdminPanel.route))
         assertFalse(Screen.shouldShowBottomBar(Screen.Login.route))
         assertFalse(Screen.shouldShowBottomBar(Screen.OnboardingWizard.route))
         assertFalse(Screen.shouldShowBottomBar(Screen.ModelDownload.route))
         assertFalse(Screen.shouldShowBottomBar(Screen.PunchCapture.route))
-        assertFalse(Screen.shouldShowBottomBar(Screen.ProfileSettings.route))
         assertFalse(Screen.shouldShowBottomBar(null))
     }
 
@@ -41,5 +51,7 @@ class NavigationRoutesTest {
     fun `verify BottomNavItem enum matches routes`() {
         assertEquals("home", BottomNavItem.HOME.route)
         assertEquals("calendar", BottomNavItem.CALENDAR.route)
+        assertEquals("tracker", BottomNavItem.TRACKER.route)
+        assertEquals("profile_settings", BottomNavItem.SETTINGS.route)
     }
 }

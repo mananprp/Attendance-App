@@ -4,6 +4,8 @@ import com.company.attendance.core.interfaces.GeofenceResult
 import com.company.attendance.core.model.DaySummary
 import com.company.attendance.core.model.PunchType
 import com.company.attendance.core.model.TrustedTime
+import com.company.attendance.design.components.CenterPunchState
+import com.company.attendance.design.components.WorkRingState
 
 /**
  * UI State for the Home Attendance Screen.
@@ -33,7 +35,12 @@ data class HomeUiState(
     val geofenceDialogState: GeofenceDialogState? = null,
     val locationCardState: LocationCardState = LocationCardState.Locating,
     val profilePhotoBitmap: android.graphics.Bitmap? = null,
-    val snackbarMessage: String? = null
+    val snackbarMessage: String? = null,
+    val workedDurationFormatted: String = "0:00",
+    val ringProgress: Float = 0f,
+    val ringState: WorkRingState = WorkRingState.NotStarted,
+    val totalAttendedDays: Int = 0,
+    val centerPunchState: CenterPunchState = CenterPunchState.PUNCH_IN
 )
 
 /**

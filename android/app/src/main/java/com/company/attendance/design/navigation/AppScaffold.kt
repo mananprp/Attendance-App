@@ -6,6 +6,8 @@ import androidx.compose.material3.Scaffold
 import androidx.compose.material3.SnackbarHost
 import androidx.compose.material3.SnackbarHostState
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.remember
 import androidx.compose.ui.Modifier
@@ -24,12 +26,36 @@ fun AttendanceAppScaffold(
     navController: NavHostController = rememberNavController(),
     startDestination: String = Screen.Home.route,
     isAdmin: Boolean = false,
+    punchCoordinator: PunchCoordinator? = null,
     snackbarHostState: SnackbarHostState = remember { SnackbarHostState() }
 ) {
     AttendanceTheme {
         val navBackStackEntry by navController.currentBackStackEntryAsState()
         val currentRoute = navBackStackEntry?.destination?.route
         val showBottomBar = Screen.shouldShowBottomBar(currentRoute)
+
+        val isCheckingGeofence = punchCoordinator?.isCheckingGeofence?.collectAsState()?.value ?: false
+
+        LaunchedEffect(punchCoordinator) {
+            punchCoordinator?.punchEvents?.collect { event ->
+                when (event) {
+                    is GlobalPunchEvent.NavigateToCapture -> {
+                        navController.navigate(
+                            Screen.PunchCapture.createRoute(
+                                punchType = event.punchType,
+                                locationType = event.locationType,
+                                latitude = event.latitude,
+                                longitude = event.longitude,
+                                distanceMeters = event.distanceMeters
+                            )
+                        )
+                    }
+                    is GlobalPunchEvent.ShowGeofenceError -> {
+                        snackbarHostState.showSnackbar("${event.title}: ${event.message}")
+                    }
+                }
+            }
+        }
 
         Scaffold(
             modifier = Modifier.fillMaxSize(),
@@ -40,6 +66,14 @@ fun AttendanceAppScaffold(
                     AttendanceBottomNavBar(
                         currentRoute = currentRoute,
                         isAdmin = isAdmin,
+                        isCenterPunchLoading = isCheckingGeofence,
+                        onCenterPunchClick = {
+                            if (punchCoordinator != null) {
+                                punchCoordinator.triggerPunch()
+                            } else {
+                                navController.navigate(Screen.Home.route)
+                            }
+                        },
                         onNavigateToRoute = { targetRoute ->
                             navController.navigate(targetRoute) {
                                 popUpTo(Screen.Home.route) {

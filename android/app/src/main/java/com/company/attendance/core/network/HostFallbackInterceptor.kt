@@ -16,6 +16,11 @@ class HostFallbackInterceptor @Inject constructor() : Interceptor {
             val originalUrl = request.url
             val host = originalUrl.host
 
+            // Never perform fallback if connecting to production domain or HTTPS
+            if (host.contains("attendance.pess.co.in") || originalUrl.isHttps) {
+                throw e
+            }
+
             val alternateHost = when (host) {
                 BackendConfig.PHYSICAL_HOST -> BackendConfig.EMULATOR_HOST
                 BackendConfig.EMULATOR_HOST -> BackendConfig.PHYSICAL_HOST

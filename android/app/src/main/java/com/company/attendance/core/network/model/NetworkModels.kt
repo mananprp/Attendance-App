@@ -109,17 +109,17 @@ data class AppConfigResponseDto(
 
 @Serializable
 data class PhotoUploadResponseDto(
-    @SerialName("version") val version: Int,
+    @SerialName("version") val version: Int = 1,
     @SerialName("photo_url") val photoUrl: String,
-    @SerialName("photo_change_used") val photoChangeUsed: Boolean
+    @SerialName("photo_change_used") val photoChangeUsed: Boolean = false
 )
 
 @Serializable
 data class PhotoDetailResponseDto(
-    @SerialName("version") val version: Int,
+    @SerialName("version") val version: Int = 1,
     @SerialName("photo_url") val photoUrl: String,
-    @SerialName("uploaded_at") val uploadedAt: String,
-    @SerialName("hash") val hash: String
+    @SerialName("uploaded_at") val uploadedAt: String? = null,
+    @SerialName("hash") val hash: String? = null
 )
 
 @Serializable

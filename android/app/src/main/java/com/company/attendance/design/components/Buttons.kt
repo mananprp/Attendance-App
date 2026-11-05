@@ -31,6 +31,7 @@ import com.company.attendance.design.theme.AppDimensions
 import com.company.attendance.design.theme.AppDisabled
 import com.company.attendance.design.theme.AppDisabledText
 import com.company.attendance.design.theme.AppError
+import com.company.attendance.design.theme.AppOnAccent
 import com.company.attendance.design.theme.AppPrimaryText
 import com.company.attendance.design.theme.AppSurface
 import com.company.attendance.design.theme.AppTypographyTokens
@@ -58,7 +59,7 @@ fun PrimaryButton(
         shape = RoundedCornerShape(AppDimensions.ButtonCornerRadius),
         colors = ButtonDefaults.buttonColors(
             containerColor = AppAccent,
-            contentColor = Color.White,
+            contentColor = AppOnAccent,
             disabledContainerColor = AppDisabled,
             disabledContentColor = AppDisabledText
         ),
@@ -72,7 +73,7 @@ fun PrimaryButton(
         if (isLoading) {
             CircularProgressIndicator(
                 modifier = Modifier.size(20.dp),
-                color = if (enabled) Color.White else AppDisabledText,
+                color = if (enabled) AppOnAccent else AppDisabledText,
                 strokeWidth = 2.dp
             )
         } else {

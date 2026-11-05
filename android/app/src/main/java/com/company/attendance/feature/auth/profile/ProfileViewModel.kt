@@ -113,6 +113,10 @@ class ProfileViewModel @Inject constructor(
                                     userLocalDao.updateReferenceEmbedding(userId, bytes)
                                 }
                             }
+                        } else {
+                            // Photo file missing on server – reset has_photo locally so user sees enrollment option
+                            tokenStorage.updateHasPhoto(false, null)
+                            userLocalDao.updateHasPhoto(userId, false)
                         }
 
                         _uiState.update {
@@ -120,6 +124,8 @@ class ProfileViewModel @Inject constructor(
                                 photoUrl = photoDetail.photoUrl,
                                 activePhotoVersion = photoDetail.version,
                                 profilePhotoBitmap = photoBmp,
+                                // If photo fetch failed, reflect that so user can re-enroll
+                                hasPhoto = photoBmp != null,
                                 isLoadingProfile = false
                             )
                         }

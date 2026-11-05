@@ -2,13 +2,12 @@ package com.company.attendance.design.theme
 
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.Shapes
-import androidx.compose.ui.unit.dp
 
 /**
- * Shape definitions for Attendance App (12dp corners for cards and buttons, 8dp for chips).
+ * Shape definitions for Attendance App (Findez dark theme: 20dp cards, 12dp chips, 32dp body panel).
  */
 val AttendanceShapes = Shapes(
-    small = RoundedCornerShape(AppDimensions.ChipCornerRadius), // 8dp
-    medium = RoundedCornerShape(AppDimensions.CardCornerRadius), // 12dp
-    large = RoundedCornerShape(AppDimensions.CardCornerRadius)   // 12dp
+    small = RoundedCornerShape(AppDimensions.ChipCornerRadius), // 12dp
+    medium = RoundedCornerShape(AppDimensions.CardCornerRadius), // 20dp
+    large = RoundedCornerShape(AppDimensions.BodyPanelTopCornerRadius) // 32dp
 )

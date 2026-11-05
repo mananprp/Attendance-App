@@ -9,24 +9,24 @@ import androidx.compose.ui.platform.LocalView
 import androidx.core.view.WindowCompat
 
 /**
- * AttendanceTheme: Light-theme only. No dark theme, no dynamic color.
- * Enforces clean, high-contrast, minimalist aesthetics according to Section 8.
+ * AttendanceTheme: Findez Dark Theme.
+ * Enforces high-contrast, clean, mint-accent dark theme across all screens.
  */
 @Composable
 fun AttendanceTheme(
     content: @Composable () -> Unit
 ) {
-    val colorScheme = LightColorScheme
+    val colorScheme = DarkColorScheme
     val view = LocalView.current
 
     if (!view.isInEditMode) {
         SideEffect {
             val window = (view.context as? Activity)?.window ?: return@SideEffect
-            window.statusBarColor = AppBackground.toArgb()
-            window.navigationBarColor = AppSurface.toArgb()
+            window.statusBarColor = AppHeaderBackground.toArgb()
+            window.navigationBarColor = AppBackground.toArgb()
             val insetsController = WindowCompat.getInsetsController(window, view)
-            insetsController.isAppearanceLightStatusBars = true
-            insetsController.isAppearanceLightNavigationBars = true
+            insetsController.isAppearanceLightStatusBars = false
+            insetsController.isAppearanceLightNavigationBars = false
         }
     }
 

@@ -16,10 +16,15 @@ val localProperties = Properties().apply {
     }
 }
 
-val serverBaseUrl: String = (project.findProperty("SERVER_BASE_URL") as? String)
+val rawUrl: String? = (project.findProperty("SERVER_BASE_URL") as? String)
     ?: localProperties.getProperty("SERVER_BASE_URL")
     ?: System.getenv("SERVER_BASE_URL")
-    ?: ""
+
+val serverBaseUrl: String = if (!rawUrl.isNullOrBlank() && !rawUrl.contains("10.0.2.2") && !rawUrl.contains("172.31.122.136")) {
+    rawUrl
+} else {
+    "https://attendance.pess.co.in/"
+}
 
 android {
     namespace = "com.company.attendance"
@@ -46,6 +51,12 @@ android {
         ksp {
             arg("room.schemaLocation", "$projectDir/schemas")
             arg("room.incremental", "true")
+        }
+    }
+
+    testOptions {
+        unitTests {
+            isReturnDefaultValues = true
         }
     }
 

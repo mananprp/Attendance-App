@@ -6,11 +6,7 @@ import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.layout.Box
-import androidx.compose.foundation.layout.Column
-import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.aspectRatio
-import androidx.compose.foundation.layout.height
-import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
@@ -18,28 +14,24 @@ import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
-import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.company.attendance.core.model.DayStatus
 import com.company.attendance.design.theme.AppAccent
-import com.company.attendance.design.theme.AppDimensions
 import com.company.attendance.design.theme.AppDisabledText
+import com.company.attendance.design.theme.AppOnAccent
 import com.company.attendance.design.theme.AppPrimaryText
-import com.company.attendance.design.theme.AppSecondaryText
-import com.company.attendance.design.theme.AppSuccess
 import com.company.attendance.design.theme.AppTypographyTokens
-import com.company.attendance.design.theme.AppWarning
 
 /**
- * CalendarDayCell: Represents a single day cell in the monthly grid.
+ * CalendarDayCell: Minimalist single day cell in the monthly grid matching Findez design.
  *
  * Visual Rules:
- * - Selected: filled circle with accent color (#2563EB), white text.
- * - Today: outlined circle with accent color (1dp #2563EB), primary text.
- * - Status dot: Green (#16A34A) for COMPLETE, Amber (#D97706) for MISSED_PUNCH, None for NO_RECORD.
+ * - Selected: filled circle with mint accent color (#4EFFCA), dark on-accent text (#04120D).
+ * - Today: outlined circle with mint accent color (1dp #4EFFCA), accent text.
  * - Other month: Dimmed gray text, not interactive.
+ * - Clean: no status dots under dates.
  */
 @Composable
 fun CalendarDayCell(
@@ -47,7 +39,7 @@ fun CalendarDayCell(
     isCurrentMonth: Boolean,
     isToday: Boolean,
     isSelected: Boolean,
-    status: DayStatus?,
+    status: DayStatus? = null,
     onClick: () -> Unit,
     modifier: Modifier = Modifier
 ) {
@@ -55,7 +47,7 @@ fun CalendarDayCell(
 
     val textColor = when {
         !isCurrentMonth -> AppDisabledText
-        isSelected -> Color.White
+        isSelected -> AppOnAccent
         isToday -> AppAccent
         else -> AppPrimaryText
     }
@@ -73,7 +65,7 @@ fun CalendarDayCell(
         else -> Modifier
     }
 
-    Column(
+    Box(
         modifier = modifier
             .aspectRatio(1f)
             .clip(CircleShape)
@@ -85,8 +77,7 @@ fun CalendarDayCell(
                 indication = null,
                 onClick = onClick
             ),
-        horizontalAlignment = Alignment.CenterHorizontally,
-        verticalArrangement = androidx.compose.foundation.layout.Arrangement.Center
+        contentAlignment = Alignment.Center
     ) {
         Text(
             text = dayNumber.toString(),
@@ -96,26 +87,5 @@ fun CalendarDayCell(
                 color = textColor
             )
         )
-
-        Spacer(modifier = Modifier.height(2.dp))
-
-        // Status dot indicator
-        if (isCurrentMonth && status != null && status != DayStatus.NO_RECORD) {
-            val dotColor = when {
-                isSelected -> Color.White
-                status == DayStatus.COMPLETE -> AppSuccess
-                status == DayStatus.MISSED_PUNCH -> AppWarning
-                else -> Color.Transparent
-            }
-
-            Box(
-                modifier = Modifier
-                    .size(AppDimensions.CalendarStatusDotSize)
-                    .background(dotColor, CircleShape)
-            )
-        } else {
-            // Placeholder space so day number remains vertically balanced
-            Spacer(modifier = Modifier.size(AppDimensions.CalendarStatusDotSize))
-        }
     }
 }

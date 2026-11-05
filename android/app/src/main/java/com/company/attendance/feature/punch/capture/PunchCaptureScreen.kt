@@ -55,6 +55,10 @@ import com.company.attendance.design.components.SecondaryButton
 import com.company.attendance.design.components.TimeUnverifiedBadge
 import com.company.attendance.design.theme.AppAccent
 import com.company.attendance.design.theme.AppBackground
+import com.company.attendance.design.theme.AppBorder
+import com.company.attendance.design.theme.AppSurface
+import com.company.attendance.design.theme.AppWarning
+import com.company.attendance.design.theme.AppWarningTint
 import com.company.attendance.design.theme.AppDimensions
 import com.company.attendance.design.theme.AppError
 import android.app.Activity
@@ -66,6 +70,10 @@ import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.material.icons.filled.FlashOff
 import androidx.compose.material.icons.filled.FlashOn
+import androidx.compose.foundation.border
+import androidx.compose.foundation.clickable
+import androidx.compose.material.icons.filled.Close
+import androidx.compose.ui.draw.clip
 import androidx.compose.material3.Surface
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.setValue
@@ -267,8 +275,8 @@ fun PunchCaptureScreen(
                     .padding(top = 48.dp, start = 20.dp, end = 20.dp),
                 horizontalAlignment = Alignment.CenterHorizontally
             ) {
-                val titleColor = if (isFlashEnabled) Color(0xFF0F172A) else Color.White
-                val subtitleColor = if (isFlashEnabled) Color(0xFF334155) else Color.White.copy(alpha = 0.85f)
+                val titleColor = if (isFlashEnabled) AppBackground else AppPrimaryText
+                val subtitleColor = if (isFlashEnabled) AppSecondaryText else AppSecondaryText
 
                 Text(
                     text = if (punchType == PunchType.IN) "Punch In Verification" else "Punch Out Verification",
@@ -296,68 +304,88 @@ fun PunchCaptureScreen(
                             .fillMaxWidth(0.75f)
                             .height(6.dp),
                         color = AppAccent,
-                        trackColor = if (isFlashEnabled) Color(0xFFE2E8F0) else Color.White.copy(alpha = 0.3f),
+                        trackColor = AppBorder,
                     )
                 }
             }
         }
 
-        // Bottom Controls: Ergonomic Screen Flash Toggle & Action Buttons
-        if (uiState.step == CaptureStep.READY || uiState.step == CaptureStep.INITIALIZING) {
-            Column(
+        // Bottom Controls: Single-line Native Camera Deck (Flash | Shutter | Cancel)
+        if (uiState.step == CaptureStep.READY || uiState.step == CaptureStep.INITIALIZING || uiState.step == CaptureStep.CAPTURING) {
+            Row(
                 modifier = Modifier
                     .fillMaxWidth()
                     .align(Alignment.BottomCenter)
-                    .padding(start = 24.dp, end = 24.dp, bottom = 48.dp),
-                horizontalAlignment = Alignment.CenterHorizontally
+                    .padding(start = 36.dp, end = 36.dp, bottom = 44.dp),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically
             ) {
-                // Ergonomic Screen Flash Toggle Pill (one-handed thumb reach)
+                // 1. Left: Screen Flash Toggle (52dp circular glass button)
                 Surface(
                     onClick = {
                         userManuallyToggled = true
                         isFlashEnabled = !isFlashEnabled
                     },
                     shape = CircleShape,
-                    color = if (isFlashEnabled) Color(0xFFFEF08A) else Color.Black.copy(alpha = 0.6f),
-                    contentColor = if (isFlashEnabled) Color(0xFF854D0E) else Color.White,
+                    color = if (isFlashEnabled) AppWarningTint else Color.Black.copy(alpha = 0.55f),
+                    contentColor = if (isFlashEnabled) AppWarning else Color.White,
                     border = BorderStroke(
                         1.dp,
-                        if (isFlashEnabled) Color(0xFFFACC15) else Color.White.copy(alpha = 0.4f)
-                    )
+                        if (isFlashEnabled) AppWarning else Color.White.copy(alpha = 0.25f)
+                    ),
+                    modifier = Modifier.size(52.dp)
                 ) {
-                    Row(
-                        verticalAlignment = Alignment.CenterVertically,
-                        modifier = Modifier.padding(horizontal = 14.dp, vertical = 7.dp)
-                    ) {
+                    Box(contentAlignment = Alignment.Center) {
                         Icon(
                             imageVector = if (isFlashEnabled) Icons.Filled.FlashOn else Icons.Filled.FlashOff,
-                            contentDescription = "Screen Flash",
-                            modifier = Modifier.size(16.dp)
-                        )
-                        Spacer(modifier = Modifier.width(6.dp))
-                        Text(
-                            text = if (isFlashEnabled) {
-                                if (isAutoTriggered && !userManuallyToggled) "Screen Flash ON (Auto)" else "Screen Flash ON"
-                            } else "Screen Flash OFF",
-                            style = AppTypographyTokens.Caption.copy(fontWeight = FontWeight.SemiBold)
+                            contentDescription = if (isFlashEnabled) "Screen Flash ON" else "Screen Flash OFF",
+                            modifier = Modifier.size(24.dp),
+                            tint = if (isFlashEnabled) AppWarning else Color.White
                         )
                     }
                 }
 
-                Spacer(modifier = Modifier.height(AppDimensions.Spacing16))
+                // 2. Center: Camera Shutter Trigger (78dp dual-ring circular button)
+                val isReady = uiState.step == CaptureStep.READY
+                val isCapturing = uiState.step == CaptureStep.CAPTURING
+                Box(
+                    modifier = Modifier
+                        .size(78.dp)
+                        .border(3.5.dp, Color.White, CircleShape)
+                        .padding(6.dp)
+                        .clip(CircleShape)
+                        .background(if (isReady || isCapturing) AppAccent else AppAccent.copy(alpha = 0.5f))
+                        .clickable(enabled = isReady) {
+                            viewModel.startCapture()
+                        },
+                    contentAlignment = Alignment.Center
+                ) {
+                    if (isCapturing) {
+                        CircularProgressIndicator(
+                            modifier = Modifier.size(28.dp),
+                            color = Color.Black,
+                            strokeWidth = 3.dp
+                        )
+                    }
+                }
 
-                if (uiState.step == CaptureStep.READY) {
-                    PrimaryButton(
-                        text = "Capture & Verify",
-                        onClick = { viewModel.startCapture() }
-                    )
-
-                    Spacer(modifier = Modifier.height(AppDimensions.Spacing12))
-
-                    SecondaryButton(
-                        text = "Cancel",
-                        onClick = { viewModel.onCancelClicked() }
-                    )
+                // 3. Right: Cancel / Dismiss (52dp circular glass button)
+                Surface(
+                    onClick = { viewModel.onCancelClicked() },
+                    shape = CircleShape,
+                    color = Color.Black.copy(alpha = 0.55f),
+                    contentColor = Color.White,
+                    border = BorderStroke(1.dp, Color.White.copy(alpha = 0.25f)),
+                    modifier = Modifier.size(52.dp)
+                ) {
+                    Box(contentAlignment = Alignment.Center) {
+                        Icon(
+                            imageVector = Icons.Default.Close,
+                            contentDescription = "Cancel",
+                            modifier = Modifier.size(24.dp),
+                            tint = Color.White
+                        )
+                    }
                 }
             }
         }
@@ -580,11 +608,7 @@ private fun FaceOvalGuideOverlay(
         )
 
         // Draw oval guide border
-        val borderColor = if (isScreenFlashActive) {
-            AppAccent
-        } else {
-            Color.White.copy(alpha = 0.85f)
-        }
+        val borderColor = AppAccent
 
         drawOval(
             color = borderColor,

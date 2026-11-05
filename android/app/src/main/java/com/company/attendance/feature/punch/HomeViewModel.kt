@@ -43,6 +43,12 @@ import com.company.attendance.core.interfaces.FaceVerifier
 import com.company.attendance.core.database.dao.UserLocalDao
 import com.company.attendance.core.model.DayStatus
 import com.company.attendance.feature.punch.capture.CameraCaptureUtils
+import com.company.attendance.design.components.CenterPunchState
+import com.company.attendance.design.components.WorkRingState
+import kotlinx.coroutines.flow.combine
+import kotlinx.coroutines.flow.distinctUntilChanged
+import kotlinx.coroutines.flow.flatMapLatest
+import kotlinx.coroutines.ExperimentalCoroutinesApi
 import java.time.YearMonth
 import javax.inject.Inject
 
@@ -194,36 +200,39 @@ class HomeViewModel @Inject constructor(
 
                 // 2. Self-healing photo & face embedding verification
                 val userEntity = userLocalDao.getUserDirect(userId)
-                val needsPhotoDownload = (localPhoto == null && tokenStorage.hasPhoto())
-                val needsEmbeddingExtraction = (userEntity?.referenceEmbedding == null && tokenStorage.hasPhoto())
-
-                if (needsPhotoDownload || needsEmbeddingExtraction) {
-                    try {
-                        var activeBmp = localPhoto
-                        if (activeBmp == null) {
-                            val response = apiService.getActivePhoto()
-                            val result = NetworkHelper.parseResponse(response)
-                            result.onSuccess { photoDetail ->
-                                activeBmp = ImageStorageUtils.fetchAndSaveProfilePhoto(
-                                    context = context,
-                                    userId = userId,
-                                    photoUrl = photoDetail.photoUrl,
-                                    okHttpClient = okHttpClient
-                                )
-                                if (activeBmp != null) {
-                                    _uiState.update { it.copy(profilePhotoBitmap = activeBmp) }
-                                }
+                try {
+                    var activeBmp = localPhoto
+                    if (activeBmp == null) {
+                        val response = apiService.getActivePhoto()
+                        val result = NetworkHelper.parseResponse(response)
+                        result.onSuccess { photoDetail ->
+                            activeBmp = ImageStorageUtils.fetchAndSaveProfilePhoto(
+                                context = context,
+                                userId = userId,
+                                photoUrl = photoDetail.photoUrl,
+                                okHttpClient = okHttpClient
+                            )
+                            if (activeBmp != null) {
+                                tokenStorage.updateHasPhoto(true, photoDetail.version)
+                                _uiState.update { it.copy(profilePhotoBitmap = activeBmp) }
+                            } else {
+                                // Photo file missing on server – reset has_photo locally so user can re-enroll
+                                android.util.Log.w("HomeViewModel", "Photo missing from server for $userId – resetting has_photo locally")
+                                tokenStorage.updateHasPhoto(false, null)
+                                userLocalDao.updateHasPhoto(userId, false)
                             }
                         }
+                    }
 
-                        if (activeBmp != null && userEntity?.referenceEmbedding == null) {
-                            val extractResult = faceVerifier.extractReferenceEmbedding(activeBmp!!)
-                            extractResult.onSuccess { floats ->
-                                val bytes = CameraCaptureUtils.floatArrayToByteArray(floats)
-                                userLocalDao.updateReferenceEmbedding(userId, bytes)
-                            }
+                    if (activeBmp != null && userEntity?.referenceEmbedding == null) {
+                        val extractResult = faceVerifier.extractReferenceEmbedding(activeBmp!!)
+                        extractResult.onSuccess { floats ->
+                            val bytes = CameraCaptureUtils.floatArrayToByteArray(floats)
+                            userLocalDao.updateReferenceEmbedding(userId, bytes)
                         }
-                    } catch (_: Exception) {}
+                    }
+                } catch (e: Exception) {
+                    android.util.Log.e("HomeViewModel", "Photo/embedding sync error", e)
                 }
             }
         }
@@ -231,22 +240,27 @@ class HomeViewModel @Inject constructor(
 
     private suspend fun fetchAndCacheMonthlyHistory(userId: String) {
         runCatching {
-            val currentMonth = YearMonth.now().format(DateTimeFormatter.ofPattern("yyyy-MM"))
-            val response = apiService.getMonthlyAttendance(currentMonth)
-            val parsed = NetworkHelper.parseResponse(response)
-            parsed.onSuccess { attendanceDto ->
-                val summaries = attendanceDto.days.map { dayDto ->
-                    DaySummary(
-                        userId = userId,
-                        dateLocal = dayDto.dateLocal,
-                        inTimeUtcEpochMs = dayDto.inTime?.let { parseIsoToEpochMs(it) },
-                        outTimeUtcEpochMs = dayDto.outTime?.let { parseIsoToEpochMs(it) },
-                        status = runCatching { DayStatus.valueOf(dayDto.status) }.getOrDefault(DayStatus.NO_RECORD),
-                        timeUnverified = dayDto.timeUnverified
-                    )
+            val now = YearMonth.now()
+            (0L..3L).forEach { offset ->
+                val targetMonth = now.minusMonths(offset).format(DateTimeFormatter.ofPattern("yyyy-MM"))
+                val response = apiService.getMonthlyAttendance(targetMonth)
+                val parsed = NetworkHelper.parseResponse(response)
+                parsed.onSuccess { attendanceDto ->
+                    val summaries = attendanceDto.days.map { dayDto ->
+                        DaySummary(
+                            userId = userId,
+                            dateLocal = dayDto.dateLocal,
+                            inTimeUtcEpochMs = dayDto.inTime?.let { parseIsoToEpochMs(it) },
+                            outTimeUtcEpochMs = dayDto.outTime?.let { parseIsoToEpochMs(it) },
+                            status = runCatching { DayStatus.valueOf(dayDto.status) }.getOrDefault(DayStatus.NO_RECORD),
+                            timeUnverified = dayDto.timeUnverified
+                        )
+                    }
+                    punchRepository.upsertDaySummaries(summaries)
                 }
-                punchRepository.upsertDaySummaries(summaries)
             }
+        }.onFailure { e ->
+            android.util.Log.e("HomeViewModel", "fetchAndCacheMonthlyHistory failed", e)
         }
     }
 
@@ -341,6 +355,14 @@ class HomeViewModel @Inject constructor(
                 punchRepository.resolvePastMissedPunches(userId, todayStr)
             }
 
+            val ym = YearMonth.from(localDate).format(DateTimeFormatter.ofPattern("yyyy-MM"))
+            viewModelScope.launch {
+                punchRepository.observeMonthSummaries(userId, ym).collectLatest { summaries ->
+                    val attendedCount = summaries.count { it.inTimeUtcEpochMs != null }
+                    _uiState.update { it.copy(totalAttendedDays = attendedCount) }
+                }
+            }
+
             punchRepository.observeDaySummary(userId, targetDateStr).collectLatest { summary ->
                 updateStateFromDaySummary(summary, zoneId, currentDateTime)
             }
@@ -381,12 +403,26 @@ class HomeViewModel @Inject constructor(
         val punchInButtonText = if (hasIn) "Punched In at $inTimeFormatted" else "Punch In"
 
         val isPunchOutEnabled = hasIn && !hasOut
-        val isPunchOutBlocked = hasOut || !hasIn
+        val isPunchOutBlocked = hasOut
         val punchOutButtonText = if (hasOut) {
             if (isExpired && summary?.outTimeUtcEpochMs == null) "Shift Expired (Missed)" else "Punched Out at $outTimeFormatted"
         } else "Punch Out"
 
         val isNewLocationDay = summary?.locationType == "NEW_LOCATION"
+
+        val durationResult = WorkDurationCalculator.calculate(
+            punchInEpochSeconds = summary?.inTimeUtcEpochMs?.let { it / 1000L },
+            punchOutEpochSeconds = summary?.outTimeUtcEpochMs?.let { it / 1000L },
+            currentEpochSeconds = currentDateTime.atZone(zoneId).toEpochSecond(),
+            isSessionExpired = isExpired
+        )
+
+        val centerState = when {
+            isPunchInEnabled && !isPunchInBlocked -> CenterPunchState.PUNCH_IN
+            isPunchOutEnabled && !isPunchOutBlocked -> CenterPunchState.PUNCH_OUT
+            !isPunchInEnabled && !isPunchOutEnabled && inTimeFormatted != null -> CenterPunchState.COMPLETE
+            else -> CenterPunchState.BLOCKED
+        }
 
         _uiState.update { current ->
             current.copy(
@@ -399,7 +435,11 @@ class HomeViewModel @Inject constructor(
                 isPunchOutBlocked = isPunchOutBlocked,
                 punchOutButtonText = punchOutButtonText,
                 isNewLocationDay = isNewLocationDay,
-                shiftDisplayName = shiftDisplayName
+                shiftDisplayName = shiftDisplayName,
+                workedDurationFormatted = durationResult.formattedDuration,
+                ringProgress = durationResult.progress,
+                ringState = durationResult.ringState,
+                centerPunchState = centerState
             )
         }
     }
@@ -729,6 +769,8 @@ class HomeViewModel @Inject constructor(
     fun clearSnackbar() {
         _uiState.update { it.copy(snackbarMessage = null) }
     }
+
+
 
     fun onProfileClicked() {
         viewModelScope.launch {

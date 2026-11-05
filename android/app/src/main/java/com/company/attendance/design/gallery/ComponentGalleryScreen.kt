@@ -37,7 +37,9 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.font.FontWeight
+import com.company.attendance.R
 import androidx.compose.ui.text.input.PasswordVisualTransformation
 import androidx.compose.ui.text.input.VisualTransformation
 import androidx.compose.ui.tooling.preview.Preview
@@ -62,6 +64,17 @@ import com.company.attendance.design.components.SyncStatusBar
 import com.company.attendance.design.components.SyncStatusChip
 import com.company.attendance.design.components.TimeDisplayCard
 import com.company.attendance.design.components.TimeUnverifiedBadge
+import com.company.attendance.design.components.StatCard
+import com.company.attendance.design.components.WorkRing
+import com.company.attendance.design.components.WorkRingState
+import com.company.attendance.design.components.SwipeToPunch
+import com.company.attendance.design.components.WeekStrip
+import com.company.attendance.design.components.WeekDayItem
+import com.company.attendance.design.components.IconCircleButton
+import com.company.attendance.design.components.SectionHeader
+import java.time.LocalDate
+import java.time.LocalTime
+
 import com.company.attendance.design.theme.AppAccent
 import com.company.attendance.design.theme.AppAccentTint
 import com.company.attendance.design.theme.AppBackground
@@ -111,7 +124,7 @@ fun ComponentGalleryScreen(
 
             // Section 1: Color Palette
             item {
-                GallerySection(title = "1. Color Palette (Light Theme)") {
+                GallerySection(title = "1. Color Palette (Findez Dark Theme)") {
                     Column(verticalArrangement = Arrangement.spacedBy(AppDimensions.Spacing8)) {
                         Row(
                             modifier = Modifier.fillMaxWidth(),
@@ -143,7 +156,7 @@ fun ComponentGalleryScreen(
 
             // Section 2: Typography Tokens
             item {
-                GallerySection(title = "2. Typography Scale (Roboto)") {
+                GallerySection(title = "2. Typography Scale (Poppins)") {
                     Column(verticalArrangement = Arrangement.spacedBy(AppDimensions.Spacing12)) {
                         Text(text = "09:41 AM", style = AppTypographyTokens.ClockTime)
                         Text(text = "Clock Time (40sp Medium)", style = AppTypographyTokens.Caption)
@@ -169,7 +182,7 @@ fun ComponentGalleryScreen(
 
             // Section 3: Buttons
             item {
-                GallerySection(title = "3. Buttons (52dp Height, 12dp Radius)") {
+                GallerySection(title = "3. Buttons (52dp Height, 26dp Pill Radius)") {
                     var isLoadingPrimary by remember { mutableStateOf(false) }
                     var isLoadingSecondary by remember { mutableStateOf(false) }
 
@@ -474,6 +487,127 @@ fun ComponentGalleryScreen(
                             timeUnverified = false,
                             onCloseClick = {}
                         )
+                    }
+                }
+            }
+
+
+            // Section 12: Findez New Components
+            item {
+                GallerySection(title = "12. Findez New Components") {
+                    Column(verticalArrangement = Arrangement.spacedBy(AppDimensions.Spacing16)) {
+                        SectionHeader(
+                            title = "Section Header Sample",
+                            actionText = "See more",
+                            onActionClick = {}
+                        )
+
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            horizontalArrangement = Arrangement.spacedBy(12.dp)
+                        ) {
+                            StatCard(
+                                label = "Checked In",
+                                value = "09:15 AM",
+                                iconPainter = painterResource(R.drawable.ic_findez_check_in),
+                                modifier = Modifier.weight(1f)
+                            )
+                            StatCard(
+                                label = "Total Attended",
+                                value = "21 days",
+                                iconPainter = painterResource(R.drawable.ic_findez_calendar_dots),
+                                modifier = Modifier.weight(1f)
+                            )
+                        }
+
+                        // Work Ring
+                        Box(
+                            modifier = Modifier.fillMaxWidth(),
+                            contentAlignment = Alignment.Center
+                        ) {
+                            WorkRing(
+                                ringState = WorkRingState.InProgress,
+                                workedTimeFormatted = "4:32",
+                                progress = 0.5f,
+                                officeTimeFormatted = "Office time 13:47:20",
+                                shiftDisplayName = "General Shift (09:00 - 18:00)"
+                            )
+                        }
+
+                        // Swipe To Punch
+                        SwipeToPunch(
+                            text = "Swipe to Punch In",
+                            onSwipeTriggered = {}
+                        )
+
+                        // Week Strip
+                        val today = LocalDate.now()
+                        val sampleWeekDays = (0..6).map { idx ->
+                            val d = today.minusDays(today.dayOfWeek.value.toLong()).plusDays(idx.toLong())
+                            WeekDayItem(
+                                date = d,
+                                dayNumber = d.dayOfMonth,
+                                dayOfWeekText = d.dayOfWeek.name.take(1),
+                                isToday = d == today,
+                                isSelected = d == today,
+                                status = if (idx < 3) DayStatus.COMPLETE else DayStatus.NO_RECORD
+                            )
+                        }
+                        WeekStrip(
+                            days = sampleWeekDays,
+                            onDateSelected = {}
+                        )
+                    }
+                }
+            }
+
+            // Section 13: Findez Vector Drawables
+            item {
+                GallerySection(title = "13. Hand-Traced Findez Vector Drawables") {
+                    val icons = listOf(
+                        Pair(R.drawable.ic_findez_check_in, "check_in"),
+                        Pair(R.drawable.ic_findez_check_out, "check_out"),
+                        Pair(R.drawable.ic_findez_checked_box, "checked_box"),
+                        Pair(R.drawable.ic_findez_calendar_dots, "calendar_dots"),
+                        Pair(R.drawable.ic_findez_calendar_8, "calendar_8"),
+                        Pair(R.drawable.ic_findez_menu_four_dots, "menu_four_dots"),
+                        Pair(R.drawable.ic_findez_nav_home, "nav_home"),
+                        Pair(R.drawable.ic_findez_nav_home_active, "nav_home_act"),
+                        Pair(R.drawable.ic_findez_nav_schedule, "nav_schedule"),
+                        Pair(R.drawable.ic_findez_nav_schedule_active, "nav_sched_act"),
+                        Pair(R.drawable.ic_findez_nav_settings, "nav_settings"),
+                        Pair(R.drawable.ic_findez_nav_settings_active, "nav_sett_act"),
+                        Pair(R.drawable.ic_findez_punch_in, "punch_in"),
+                        Pair(R.drawable.ic_findez_punch_out, "punch_out")
+                    )
+
+                    Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                        icons.chunked(4).forEach { rowIcons ->
+                            Row(
+                                modifier = Modifier.fillMaxWidth(),
+                                horizontalArrangement = Arrangement.SpaceEvenly
+                            ) {
+                                rowIcons.forEach { (resId, label) ->
+                                    Column(
+                                        horizontalAlignment = Alignment.CenterHorizontally,
+                                        modifier = Modifier.padding(4.dp)
+                                    ) {
+                                        IconCircleButton(
+                                            onClick = {},
+                                            painter = painterResource(resId),
+                                            contentDescription = label,
+                                            tint = AppAccent
+                                        )
+                                        Spacer(modifier = Modifier.height(4.dp))
+                                        Text(
+                                            text = label,
+                                            style = AppTypographyTokens.Caption,
+                                            color = AppSecondaryText
+                                        )
+                                    }
+                                }
+                            }
+                        }
                     }
                 }
             }

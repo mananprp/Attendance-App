@@ -60,6 +60,7 @@ class LoginViewModelTest {
     @Before
     fun setUp() {
         Dispatchers.setMain(testDispatcher)
+        coEvery { apiService.getActivePhoto() } returns Response.success(mockk(relaxed = true))
         viewModel = LoginViewModel(
             context = context,
             apiService = apiService,
@@ -164,11 +165,12 @@ class LoginViewModelTest {
 
             coVerify { remoteConfigRepository.fetchAndCacheConfig() }
 
-            val summariesSlot = slot<List<DaySummary>>()
-            coVerify { punchRepository.upsertDaySummaries(capture(summariesSlot)) }
-            assertEquals(1, summariesSlot.captured.size)
-            assertEquals("2026-09-29", summariesSlot.captured[0].dateLocal)
-            assertEquals(DayStatus.COMPLETE, summariesSlot.captured[0].status)
+            val summariesList = mutableListOf<List<DaySummary>>()
+            coVerify(atLeast = 1) { punchRepository.upsertDaySummaries(capture(summariesList)) }
+            assertTrue(summariesList.isNotEmpty())
+            assertTrue(summariesList.first().isNotEmpty())
+            assertEquals("2026-09-29", summariesList.first()[0].dateLocal)
+            assertEquals(DayStatus.COMPLETE, summariesList.first()[0].status)
         }
     }
 
