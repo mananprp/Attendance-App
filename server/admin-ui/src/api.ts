@@ -276,4 +276,13 @@ export const api = {
       body: JSON.stringify(data),
     });
   },
+
+  async getTrackingSessions(userId?: string): Promise<import('./types').TrackingSessionSummary[]> {
+    const query = userId ? `?userId=${encodeURIComponent(userId)}` : '';
+    return request<import('./types').TrackingSessionSummary[]>(`/admin/tracking/sessions${query}`);
+  },
+
+  async getTrackingSessionDetails(sessionId: string): Promise<import('./types').TrackingSessionDetails> {
+    return request<import('./types').TrackingSessionDetails>(`/admin/tracking/sessions/${sessionId}`);
+  },
 };

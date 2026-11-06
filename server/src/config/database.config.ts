@@ -6,6 +6,9 @@ import {
   SyncBatchEntity,
   AttendancePunchEntity,
   AttendanceDayEntity,
+  TrackingSessionEntity,
+  TrackingPointEntity,
+  TrackingStopEntity,
 } from '../database/entities';
 
 export const getDatabaseConfig = (): TypeOrmModuleOptions => {
@@ -18,6 +21,9 @@ export const getDatabaseConfig = (): TypeOrmModuleOptions => {
     SyncBatchEntity,
     AttendancePunchEntity,
     AttendanceDayEntity,
+    TrackingSessionEntity,
+    TrackingPointEntity,
+    TrackingStopEntity,
   ];
 
   if (dbType === 'sqlite') {

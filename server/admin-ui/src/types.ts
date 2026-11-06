@@ -67,3 +67,42 @@ export interface AuthSession {
     siteCode?: string;
   };
 }
+
+export interface TrackingPoint {
+  id: string;
+  sessionId: string;
+  latitude: number;
+  longitude: number;
+  accuracyM?: number;
+  recordedAtUtc: string;
+  isPausedGap?: boolean;
+}
+
+export interface TrackingStop {
+  id: string;
+  sessionId: string;
+  latitude: number;
+  longitude: number;
+  stopName?: string;
+  arrivedAtUtc: string;
+}
+
+export interface TrackingSessionSummary {
+  id: string;
+  userId: string;
+  startTimeUtc: string;
+  endTimeUtc?: string;
+  totalDistanceM: number;
+  status: 'ACTIVE' | 'COMPLETED' | 'ABORTED';
+  stopsCount: number;
+  createdAt: string;
+  user?: {
+    userId: string;
+    displayName: string;
+  };
+}
+
+export interface TrackingSessionDetails extends TrackingSessionSummary {
+  points: TrackingPoint[];
+  stops: TrackingStop[];
+}

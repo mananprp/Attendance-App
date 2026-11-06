@@ -1,12 +1,12 @@
 import React from 'react';
 import { AuthSession } from '../types';
 import { clearSession } from '../api';
-import { Building2, Users, Clock, LogOut, Shield } from 'lucide-react';
+import { Building2, Users, Clock, LogOut, Shield, Navigation } from 'lucide-react';
 
 interface NavbarProps {
   session: AuthSession;
-  activeTab: 'punches' | 'users' | 'sites';
-  onSelectTab: (tab: 'punches' | 'users' | 'sites') => void;
+  activeTab: 'punches' | 'users' | 'sites' | 'tracking';
+  onSelectTab: (tab: 'punches' | 'users' | 'sites' | 'tracking') => void;
   onLogout: () => void;
 }
 
@@ -58,6 +58,13 @@ export const Navbar: React.FC<NavbarProps> = ({ session, activeTab, onSelectTab,
           >
             <Building2 size={18} />
             <span>Office Sites</span>
+          </button>
+          <button
+            className={`nav-tab ${activeTab === 'tracking' ? 'active' : ''}`}
+            onClick={() => onSelectTab('tracking')}
+          >
+            <Navigation size={18} />
+            <span>Field Tracking</span>
           </button>
         </nav>
 

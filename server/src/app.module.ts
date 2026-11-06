@@ -8,6 +8,7 @@ import { UsersModule } from './modules/users/users.module';
 import { AttendanceModule } from './modules/attendance/attendance.module';
 import { ModelsModule } from './modules/models/models.module';
 import { AdminModule } from './modules/admin/admin.module';
+import { TrackingModule } from './modules/tracking/tracking.module';
 import { AppController } from './app.controller';
 import { AppService } from './app.service';
 
@@ -23,6 +24,7 @@ import { AppService } from './app.service';
     AttendanceModule,
     ModelsModule,
     AdminModule,
+    TrackingModule,
   ],
   controllers: [AppController],
   providers: [AppService],

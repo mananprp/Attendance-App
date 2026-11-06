@@ -6,6 +6,7 @@ import { Navbar } from './components/Navbar';
 import { PunchesView } from './components/PunchesView';
 import { UsersView } from './components/UsersView';
 import { SitesView } from './components/SitesView';
+import { TrackingView } from './components/TrackingView';
 
 export function App() {
   const [session, setSession] = useState<AuthSession | null>(() => {
@@ -14,7 +15,7 @@ export function App() {
     return token && user ? { token, user } : null;
   });
 
-  const [activeTab, setActiveTab] = useState<'punches' | 'users' | 'sites'>('punches');
+  const [activeTab, setActiveTab] = useState<'punches' | 'users' | 'sites' | 'tracking'>('punches');
   const [sites, setSites] = useState<AdminSite[]>([]);
 
   useEffect(() => {
@@ -55,6 +56,7 @@ export function App() {
         {activeTab === 'punches' && <PunchesView sites={sites} />}
         {activeTab === 'users' && <UsersView sites={sites} />}
         {activeTab === 'sites' && <SitesView sites={sites} onRefreshSites={loadSites} />}
+        {activeTab === 'tracking' && <TrackingView />}
       </main>
     </div>
   );
