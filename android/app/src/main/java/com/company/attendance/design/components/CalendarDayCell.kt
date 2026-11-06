@@ -62,6 +62,7 @@ fun CalendarDayCell(
 
     val circleBackgroundModifier = when {
         !isCurrentMonth -> Modifier
+        isSelected && status == DayStatus.MISSED_PUNCH -> Modifier.background(AppWarning, CircleShape)
         isSelected -> Modifier.background(AppAccent, CircleShape)
         else -> Modifier // No background for any non-selected date!
     }

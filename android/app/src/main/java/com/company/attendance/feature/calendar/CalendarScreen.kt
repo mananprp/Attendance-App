@@ -551,17 +551,22 @@ private fun SelectedDayAttendanceCards(
     val summary = summariesMap[selectedDate.toString()]
     val rawOutEpoch = summary?.outTimeUtcEpochMs
     val rawInEpoch = summary?.inTimeUtcEpochMs
-    val isSummaryMissedPunch = (summary?.status == DayStatus.MISSED_PUNCH) ||
+    val isMissedPunch = (detailState?.status == DayStatus.MISSED_PUNCH) ||
+        (summary?.status == DayStatus.MISSED_PUNCH) ||
         (rawOutEpoch != null && rawOutEpoch == rawInEpoch)
-    val fallbackOutEpoch = if (isSummaryMissedPunch) null else rawOutEpoch
 
     val inTime = detailState?.inTimeFormatted
         ?: rawInEpoch?.let { CalendarDateUtils.formatPunchTime(it, timezone) }
-    val outTime = detailState?.outTimeFormatted
-        ?: fallbackOutEpoch?.let { CalendarDateUtils.formatPunchTime(it, timezone) }
+    // If missed punch, checkout time should show the same time as check in
+    val outTime = if (isMissedPunch) {
+        inTime
+    } else {
+        detailState?.outTimeFormatted
+            ?: rawOutEpoch?.let { CalendarDateUtils.formatPunchTime(it, timezone) }
+    }
 
     val hasIn = inTime != null
-    val hasOut = outTime != null
+    val hasOut = outTime != null && !isMissedPunch
 
     Row(
         modifier = modifier.fillMaxWidth(),
@@ -619,11 +624,11 @@ private fun SelectedDayAttendanceCards(
             modifier = Modifier.weight(1f),
             shape = RoundedCornerShape(AppDimensions.CardCornerRadius),
             colors = CardDefaults.cardColors(
-                containerColor = if (hasOut) AppSurface else AppSurface.copy(alpha = 0.6f)
+                containerColor = if (hasOut || isMissedPunch) AppSurface else AppSurface.copy(alpha = 0.6f)
             ),
             border = BorderStroke(
                 AppDimensions.BorderWidth,
-                if (hasOut) AppBorder else AppBorder.copy(alpha = 0.5f)
+                if (hasOut || isMissedPunch) AppBorder else AppBorder.copy(alpha = 0.5f)
             )
         ) {
             Column(
@@ -638,13 +643,17 @@ private fun SelectedDayAttendanceCards(
                     Icon(
                         painter = painterResource(R.drawable.ic_findez_check_out),
                         contentDescription = null,
-                        tint = if (hasOut) AppAccent else AppSecondaryText,
+                        tint = when {
+                            isMissedPunch -> AppWarning
+                            hasOut -> AppAccent
+                            else -> AppSecondaryText
+                        },
                         modifier = Modifier.size(18.dp)
                     )
                     Text(
                         text = "Check Out",
                         style = AppTypographyTokens.BodyMedium,
-                        color = if (hasOut) AppSecondaryText else AppDisabledText
+                        color = if (hasOut || isMissedPunch) AppSecondaryText else AppDisabledText
                     )
                 }
 
@@ -653,15 +662,23 @@ private fun SelectedDayAttendanceCards(
                 Text(
                     text = outTime ?: "--:--",
                     style = AppTypographyTokens.HeroTime,
-                    color = if (hasOut) AppPrimaryText else AppDisabledText
+                    color = if (hasOut || isMissedPunch) AppPrimaryText else AppDisabledText
                 )
 
                 Spacer(modifier = Modifier.height(6.dp))
 
                 Text(
-                    text = if (hasOut) "Completed" else "Not Yet",
+                    text = when {
+                        isMissedPunch -> "Missed Punch"
+                        hasOut -> "Completed"
+                        else -> "Not Yet"
+                    },
                     style = AppTypographyTokens.Caption,
-                    color = if (hasOut) AppSecondaryText else AppDisabledText
+                    color = when {
+                        isMissedPunch -> AppWarning
+                        hasOut -> AppSecondaryText
+                        else -> AppDisabledText
+                    }
                 )
             }
     }

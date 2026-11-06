@@ -258,19 +258,17 @@ class CalendarViewModel @Inject constructor(
                 val rawOutEpoch = summary?.outTimeUtcEpochMs ?: punches.lastOrNull { it.type == "OUT" }?.punchTimeUtc
 
                 val isMissedOrUnclosed = (summary?.status == DayStatus.MISSED_PUNCH) ||
-                    (rawInEpoch != null && rawOutEpoch == rawInEpoch && !hasRealOutPunch)
-
-                val effectiveOutEpoch = if (isMissedOrUnclosed && !hasRealOutPunch) null else rawOutEpoch
+                    (rawInEpoch != null && rawOutEpoch == rawInEpoch && !hasRealOutPunch) ||
+                    (date < currentOfficeDate && rawInEpoch != null && !hasRealOutPunch)
 
                 val inTime = CalendarDateUtils.formatPunchTime(rawInEpoch, timezone)
-                val outTime = CalendarDateUtils.formatPunchTime(effectiveOutEpoch, timezone)
+                // For missed punch, checkout time should show the same time as check in!
+                val outTime = if (isMissedOrUnclosed) inTime else CalendarDateUtils.formatPunchTime(rawOutEpoch, timezone)
 
                 val status = when {
-                    summary?.status == DayStatus.MISSED_PUNCH -> DayStatus.MISSED_PUNCH
                     isMissedOrUnclosed -> DayStatus.MISSED_PUNCH
                     inTime != null && outTime != null -> DayStatus.COMPLETE
                     date == currentOfficeDate -> DayStatus.NO_RECORD
-                    date < currentOfficeDate && inTime != null -> DayStatus.MISSED_PUNCH
                     else -> summary?.status ?: DayStatus.NO_RECORD
                 }
 

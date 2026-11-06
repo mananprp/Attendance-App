@@ -105,13 +105,14 @@ fun WeekDayCell(
                 fontSize = 11.sp,
                 fontWeight = FontWeight.Medium
             ),
-            color = if (item.isSelected) AppAccent else if (item.isToday) Color.White else AppSecondaryText
+            color = if (item.isSelected && item.status == DayStatus.MISSED_PUNCH) AppWarning else if (item.isSelected) AppAccent else if (item.isToday) Color.White else AppSecondaryText
         )
 
         Spacer(modifier = Modifier.height(AppDimensions.Spacing6))
 
         // Day Number Circle (36dp) - Rings Only (No BG)
         val circleBackgroundModifier = when {
+            item.isSelected && item.status == DayStatus.MISSED_PUNCH -> Modifier.background(AppWarning, CircleShape)
             item.isSelected -> Modifier.background(AppAccent, CircleShape)
             else -> Modifier // No background for non-selected dates
         }
