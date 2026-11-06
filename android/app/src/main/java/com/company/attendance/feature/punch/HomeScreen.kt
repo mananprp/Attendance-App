@@ -1,5 +1,7 @@
 package com.company.attendance.feature.punch
 
+import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
@@ -36,13 +38,16 @@ import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.asImageBitmap
 import androidx.compose.ui.layout.ContentScale
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalLifecycleOwner
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.font.FontWeight
@@ -54,7 +59,9 @@ import androidx.lifecycle.LifecycleEventObserver
 import androidx.hilt.navigation.compose.hiltViewModel
 import com.company.attendance.R
 import com.company.attendance.core.model.PunchType
+import com.company.attendance.core.util.PermissionManager
 import com.company.attendance.design.components.AttendanceTextButton
+import com.company.attendance.design.components.PermissionGuardDialog
 import com.company.attendance.design.components.PrimaryButton
 import com.company.attendance.design.components.SecondaryButton
 import com.company.attendance.design.components.StatCard
@@ -145,11 +152,32 @@ fun HomeScreen(
     val uiState by viewModel.uiState.collectAsState()
     val snackbarHostState = remember { SnackbarHostState() }
     val lifecycleOwner = LocalLifecycleOwner.current
+    val context = LocalContext.current
+
+    var hasCameraPermission by remember { mutableStateOf(PermissionManager.hasCameraPermission(context)) }
+    var hasLocationPermission by remember { mutableStateOf(PermissionManager.hasLocationPermission(context)) }
+
+    val permissionLauncher = rememberLauncherForActivityResult(
+        contract = ActivityResultContracts.RequestMultiplePermissions()
+    ) { _ ->
+        hasCameraPermission = PermissionManager.hasCameraPermission(context)
+        hasLocationPermission = PermissionManager.hasLocationPermission(context)
+        if (hasLocationPermission) {
+            viewModel.onScreenStarted()
+            viewModel.onRefreshLocation()
+        }
+    }
 
     DisposableEffect(lifecycleOwner) {
         val observer = LifecycleEventObserver { _, event ->
             when (event) {
-                Lifecycle.Event.ON_START -> viewModel.onScreenStarted()
+                Lifecycle.Event.ON_START, Lifecycle.Event.ON_RESUME -> {
+                    hasCameraPermission = PermissionManager.hasCameraPermission(context)
+                    hasLocationPermission = PermissionManager.hasLocationPermission(context)
+                    if (hasLocationPermission) {
+                        viewModel.onScreenStarted()
+                    }
+                }
                 Lifecycle.Event.ON_STOP -> viewModel.onScreenStopped()
                 else -> {}
             }
@@ -157,6 +185,16 @@ fun HomeScreen(
         lifecycleOwner.lifecycle.addObserver(observer)
         onDispose {
             lifecycleOwner.lifecycle.removeObserver(observer)
+        }
+    }
+
+    // Proactively request missing permissions on first landing
+    LaunchedEffect(Unit) {
+        if (!PermissionManager.hasMandatoryPermissions(context)) {
+            val missing = PermissionManager.getMissingPermissions(context)
+            if (missing.isNotEmpty()) {
+                permissionLauncher.launch(missing)
+            }
         }
     }
 
@@ -311,7 +349,16 @@ fun HomeScreen(
                                 iconVector = Icons.Outlined.LocationOn,
                                 iconTint = locData.tint,
                                 isLoading = locData.isLoading,
-                                onClick = { viewModel.onRefreshLocation() },
+                                onClick = {
+                                    if (uiState.locationCardState is LocationCardState.PermissionNeeded || !hasLocationPermission) {
+                                        val missing = PermissionManager.getMissingPermissions(context)
+                                        if (missing.isNotEmpty()) {
+                                            permissionLauncher.launch(missing)
+                                        }
+                                    } else {
+                                        viewModel.onRefreshLocation()
+                                    }
+                                },
                                 modifier = Modifier.weight(1f)
                             )
                             // Tile 4: Total Attended
@@ -446,9 +493,15 @@ fun HomeScreen(
                 },
                 confirmButton = {
                     PrimaryButton(
-                        text = "OK",
-                        onClick = { viewModel.dismissGeofenceDialog() },
-                        modifier = Modifier.width(100.dp)
+                        text = "Grant Permission",
+                        onClick = {
+                            viewModel.dismissGeofenceDialog()
+                            val missing = PermissionManager.getMissingPermissions(context)
+                            if (missing.isNotEmpty()) {
+                                permissionLauncher.launch(missing)
+                            }
+                        },
+                        modifier = Modifier.width(160.dp)
                     )
                 },
                 containerColor = AppSurface
@@ -536,5 +589,22 @@ fun HomeScreen(
             )
         }
         null -> {}
+    }
+
+    // Mandatory Permission Guard Dialog (Blocks all actions until Camera and Location are granted)
+    if (!hasCameraPermission || !hasLocationPermission) {
+        PermissionGuardDialog(
+            hasCameraPermission = hasCameraPermission,
+            hasLocationPermission = hasLocationPermission,
+            onRequestPermissions = {
+                val missing = PermissionManager.getMissingPermissions(context)
+                if (missing.isNotEmpty()) {
+                    permissionLauncher.launch(missing)
+                }
+            },
+            onOpenSettings = {
+                PermissionManager.openAppSettings(context)
+            }
+        )
     }
 }
