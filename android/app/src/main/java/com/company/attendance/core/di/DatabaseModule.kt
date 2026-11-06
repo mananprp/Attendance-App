@@ -6,6 +6,7 @@ import com.company.attendance.core.database.AppDatabase
 import com.company.attendance.core.database.dao.AppConfigDao
 import com.company.attendance.core.database.dao.DaySummaryDao
 import com.company.attendance.core.database.dao.PunchDao
+import com.company.attendance.core.database.dao.TrackingDao
 import com.company.attendance.core.database.dao.UserLocalDao
 import dagger.Module
 import dagger.Provides
@@ -28,7 +29,11 @@ object DatabaseModule {
             AppDatabase::class.java,
             AppDatabase.DATABASE_NAME
         )
-            .addMigrations(AppDatabase.MIGRATION_1_2, AppDatabase.MIGRATION_2_3)
+            .addMigrations(
+                AppDatabase.MIGRATION_1_2,
+                AppDatabase.MIGRATION_2_3,
+                AppDatabase.MIGRATION_3_4
+            )
             .fallbackToDestructiveMigration()
             .build()
     }
@@ -55,5 +60,11 @@ object DatabaseModule {
     @Singleton
     fun provideAppConfigDao(database: AppDatabase): AppConfigDao {
         return database.appConfigDao()
+    }
+
+    @Provides
+    @Singleton
+    fun provideTrackingDao(database: AppDatabase): TrackingDao {
+        return database.trackingDao()
     }
 }

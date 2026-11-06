@@ -108,4 +108,16 @@ interface AttendanceApiService {
     suspend fun deleteAdminUser(
         @Path("userId") userId: String
     ): Response<AdminActionResponseDto>
+
+    // Field Tracking endpoints
+    @POST("tracking/sessions/start")
+    suspend fun startTrackingSession(
+        @Body request: com.company.attendance.core.network.model.StartTrackingRequestDto
+    ): Response<com.company.attendance.core.network.model.StartTrackingResponseDto>
+
+    @POST("tracking/sessions/{id}/finish")
+    suspend fun finishTrackingSession(
+        @Path("id") sessionId: String,
+        @Body request: com.company.attendance.core.network.model.FinishTrackingRequestDto
+    ): Response<com.company.attendance.core.network.model.FinishTrackingResponseDto>
 }

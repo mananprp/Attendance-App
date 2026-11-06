@@ -65,6 +65,11 @@ import com.company.attendance.design.components.PermissionGuardDialog
 import com.company.attendance.design.components.PrimaryButton
 import com.company.attendance.design.components.SecondaryButton
 import com.company.attendance.design.components.StatCard
+import com.company.attendance.feature.tracking.TrackingViewModel
+import com.company.attendance.feature.tracking.dialogs.AddStopDialog
+import com.company.attendance.feature.tracking.ui.FieldTrackerCard
+import com.company.attendance.feature.tracking.ui.TripSummaryScreen
+import com.company.attendance.feature.tracking.util.TrackingActionActivity
 import com.company.attendance.design.components.SwipeToPunch
 import com.company.attendance.design.components.SyncStatusBar
 import com.company.attendance.design.components.WorkRing
@@ -145,6 +150,7 @@ fun mapLocationCardState(state: LocationCardState): LocationTileData {
 @Composable
 fun HomeScreen(
     viewModel: HomeViewModel = hiltViewModel(),
+    trackingViewModel: TrackingViewModel = hiltViewModel(),
     onNavigateToPunchCapture: (PunchType, String, Double, Double, Float) -> Unit,
     onNavigateToProfile: () -> Unit,
     modifier: Modifier = Modifier
@@ -153,6 +159,10 @@ fun HomeScreen(
     val snackbarHostState = remember { SnackbarHostState() }
     val lifecycleOwner = LocalLifecycleOwner.current
     val context = LocalContext.current
+    val activeTrackingSession by trackingViewModel.activeSession.collectAsState()
+    val completedTripSummary by trackingViewModel.completedTripSummary.collectAsState()
+    val showAddStopDialog by trackingViewModel.showAddStopDialog.collectAsState()
+    val isStoppingTracking by trackingViewModel.isStopping.collectAsState()
 
     var hasCameraPermission by remember { mutableStateOf(PermissionManager.hasCameraPermission(context)) }
     var hasLocationPermission by remember { mutableStateOf(PermissionManager.hasLocationPermission(context)) }
@@ -381,6 +391,28 @@ fun HomeScreen(
                             isTimeUnverified = uiState.isTimeUnverified
                         )
 
+                        // Field & Site Tracking Card
+                        FieldTrackerCard(
+                            session = activeTrackingSession,
+                            isStopping = isStoppingTracking,
+                            onStartClick = {
+                                if (!hasLocationPermission) {
+                                    val missing = PermissionManager.getMissingPermissions(context)
+                                    if (missing.isNotEmpty()) {
+                                        permissionLauncher.launch(missing)
+                                    }
+                                } else {
+                                    trackingViewModel.startTracking()
+                                }
+                            },
+                            onAddStopClick = { trackingViewModel.openAddStopDialog() },
+                            onStopClick = { trackingViewModel.stopTracking() },
+                            onResumeClick = {
+                                val resumeIntent = TrackingActionActivity.createResumeIntent(context)
+                                context.startActivity(resumeIntent)
+                            }
+                        )
+
                         // Field visit warning text
                         if (uiState.isNewLocationDay && uiState.isPunchOutEnabled) {
                             Text(
@@ -592,6 +624,22 @@ fun HomeScreen(
     }
 
     // Mandatory Permission Guard Dialog (Blocks all actions until Camera and Location are granted)
+    // Add Stop Dialog
+    if (showAddStopDialog) {
+        AddStopDialog(
+            onDismiss = { trackingViewModel.dismissAddStopDialog() },
+            onConfirm = { stopName -> trackingViewModel.confirmAddStop(stopName) }
+        )
+    }
+
+    // Trip Summary Screen Overlay
+    completedTripSummary?.let { summary ->
+        TripSummaryScreen(
+            summary = summary,
+            onDoneClick = { trackingViewModel.clearCompletedTrip() }
+        )
+    }
+
     if (!hasCameraPermission || !hasLocationPermission) {
         PermissionGuardDialog(
             hasCameraPermission = hasCameraPermission,
