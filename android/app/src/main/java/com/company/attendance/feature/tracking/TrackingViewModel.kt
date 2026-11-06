@@ -3,12 +3,18 @@ package com.company.attendance.feature.tracking
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.company.attendance.core.database.entity.TrackingSessionEntity
+import com.company.attendance.core.database.entity.TrackingStopEntity
 import com.company.attendance.feature.tracking.repository.TrackingRepository
 import com.company.attendance.feature.tracking.repository.TrackingTripSummary
 import dagger.hilt.android.lifecycle.HiltViewModel
+import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.flow.flatMapLatest
+import kotlinx.coroutines.flow.flowOf
+import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
 import javax.inject.Inject
 
@@ -19,6 +25,17 @@ class TrackingViewModel @Inject constructor(
 
     private val _activeSession = MutableStateFlow<TrackingSessionEntity?>(null)
     val activeSession: StateFlow<TrackingSessionEntity?> = _activeSession.asStateFlow()
+
+    @OptIn(ExperimentalCoroutinesApi::class)
+    val activeStops: StateFlow<List<TrackingStopEntity>> = _activeSession
+        .flatMapLatest { session ->
+            if (session != null) {
+                trackingRepository.observeStopsForSession(session.sessionId)
+            } else {
+                flowOf(emptyList())
+            }
+        }
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
 
     private val _completedTripSummary = MutableStateFlow<TrackingTripSummary?>(null)
     val completedTripSummary: StateFlow<TrackingTripSummary?> = _completedTripSummary.asStateFlow()

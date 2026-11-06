@@ -41,6 +41,10 @@ class TrackingRepository @Inject constructor(
         return trackingDao.observeActiveSession()
     }
 
+    fun observeStopsForSession(sessionId: String): Flow<List<TrackingStopEntity>> {
+        return trackingDao.observeStopsForSession(sessionId)
+    }
+
     suspend fun getActiveSession(): TrackingSessionEntity? {
         return withContext(Dispatchers.IO) {
             trackingDao.getActiveSession()
