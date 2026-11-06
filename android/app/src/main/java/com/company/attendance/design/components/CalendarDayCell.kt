@@ -23,15 +23,17 @@ import com.company.attendance.design.theme.AppDisabledText
 import com.company.attendance.design.theme.AppOnAccent
 import com.company.attendance.design.theme.AppPrimaryText
 import com.company.attendance.design.theme.AppTypographyTokens
+import com.company.attendance.design.theme.AppWarning
 
 /**
- * CalendarDayCell: Minimalist single day cell in the monthly grid matching Findez design.
+ * CalendarDayCell: Minimalist single day cell in the monthly grid.
  *
- * Visual Rules:
- * - Selected: filled circle with mint accent color (#4EFFCA), dark on-accent text (#04120D).
- * - Today: outlined circle with mint accent color (1dp #4EFFCA), accent text.
+ * Visual Rules (No Dots - Soft-Tinted Attendance Discs):
+ * - Selected: Solid filled mint circle (#00E5A3), dark on-accent text (#04120D).
+ * - Present (COMPLETE): Soft mint tinted background (16% alpha) with subtle mint border and mint text.
+ * - Missed Punch (MISSED_PUNCH): Soft amber tinted background (18% alpha) with subtle amber border and amber text.
+ * - Today: 1.5dp distinct border ring.
  * - Other month: Dimmed gray text, not interactive.
- * - Clean: no status dots under dates.
  */
 @Composable
 fun CalendarDayCell(
@@ -48,18 +50,33 @@ fun CalendarDayCell(
     val textColor = when {
         !isCurrentMonth -> AppDisabledText
         isSelected -> AppOnAccent
+        status == DayStatus.COMPLETE -> AppAccent
+        status == DayStatus.MISSED_PUNCH -> AppWarning
         isToday -> AppAccent
         else -> AppPrimaryText
     }
 
     val cellBackgroundModifier = when {
+        !isCurrentMonth -> Modifier
         isSelected -> Modifier.background(AppAccent, CircleShape)
+        status == DayStatus.COMPLETE -> Modifier.background(AppAccent.copy(alpha = 0.16f), CircleShape)
+        status == DayStatus.MISSED_PUNCH -> Modifier.background(AppWarning.copy(alpha = 0.18f), CircleShape)
         else -> Modifier
     }
 
     val cellBorderModifier = when {
-        isToday && !isSelected -> Modifier.border(
-            BorderStroke(1.dp, AppAccent),
+        !isCurrentMonth -> Modifier
+        isSelected -> Modifier
+        isToday -> Modifier.border(
+            BorderStroke(1.5.dp, if (status == DayStatus.MISSED_PUNCH) AppWarning else AppAccent),
+            CircleShape
+        )
+        status == DayStatus.COMPLETE -> Modifier.border(
+            BorderStroke(1.dp, AppAccent.copy(alpha = 0.45f)),
+            CircleShape
+        )
+        status == DayStatus.MISSED_PUNCH -> Modifier.border(
+            BorderStroke(1.dp, AppWarning.copy(alpha = 0.50f)),
             CircleShape
         )
         else -> Modifier
@@ -83,7 +100,7 @@ fun CalendarDayCell(
             text = dayNumber.toString(),
             style = AppTypographyTokens.BodyMedium.copy(
                 fontSize = 13.sp,
-                fontWeight = if (isSelected || isToday) FontWeight.SemiBold else FontWeight.Normal,
+                fontWeight = if (isSelected || isToday || (status != null && status != DayStatus.NO_RECORD)) FontWeight.SemiBold else FontWeight.Normal,
                 color = textColor
             )
         )

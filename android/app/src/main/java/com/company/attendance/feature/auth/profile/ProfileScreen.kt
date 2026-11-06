@@ -68,6 +68,7 @@ import androidx.compose.ui.platform.LocalLifecycleOwner
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
 import androidx.compose.ui.viewinterop.AndroidView
 import androidx.compose.ui.window.Dialog
 import androidx.compose.ui.window.DialogProperties
@@ -202,99 +203,127 @@ fun ProfileScreenContent(
                 }
             }
 
-            // 1. Profile Header Card (Clean, minimal, Findez style)
+            // 1. Corporate ID Card Formation
             Surface(
                 modifier = Modifier.fillMaxWidth(),
-                shape = RoundedCornerShape(AppDimensions.CardCornerRadius),
+                shape = RoundedCornerShape(18.dp),
                 color = AppSurface,
                 border = BorderStroke(1.dp, AppBorder)
             ) {
-                Column(
-                    modifier = Modifier.padding(vertical = 24.dp, horizontal = 20.dp),
-                    horizontalAlignment = Alignment.CenterHorizontally
-                ) {
-                    // Profile Avatar (Photo or initials fallback)
+                Column(modifier = Modifier.fillMaxWidth()) {
+                    // Top Accent Stripe (Micro indicator like an ID card smartchip band)
                     Box(
-                        contentAlignment = Alignment.BottomEnd,
-                        modifier = Modifier.clickable(enabled = uiState.canChangePhoto) { onChangePhotoClick() }
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .height(3.dp)
+                            .background(AppAccent.copy(alpha = 0.70f))
+                    )
+
+                    Row(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(18.dp),
+                        verticalAlignment = Alignment.CenterVertically
                     ) {
-                        if (uiState.profilePhotoBitmap != null) {
-                            Image(
-                                bitmap = uiState.profilePhotoBitmap.asImageBitmap(),
-                                contentDescription = "Profile Photo",
-                                modifier = Modifier
-                                    .size(88.dp)
-                                    .clip(CircleShape)
-                                    .border(2.dp, AppAccent, CircleShape),
-                                contentScale = ContentScale.Crop
-                            )
-                        } else {
-                            Surface(
-                                shape = CircleShape,
-                                color = AppAccentTint,
-                                modifier = Modifier
-                                    .size(88.dp)
-                                    .border(2.dp, AppAccent, CircleShape)
-                            ) {
-                                Box(contentAlignment = Alignment.Center) {
-                                    Text(
-                                        text = uiState.displayName.take(2).uppercase().ifBlank { "EM" },
-                                        style = AppTypographyTokens.Title.copy(fontWeight = FontWeight.Bold),
-                                        color = AppAccent
-                                    )
-                                }
-                            }
-                        }
-
-                        if (uiState.canChangePhoto) {
-                            Surface(
-                                shape = CircleShape,
-                                color = AppAccent,
-                                modifier = Modifier
-                                    .size(28.dp)
-                                    .border(2.dp, AppSurface, CircleShape)
-                            ) {
-                                Box(contentAlignment = Alignment.Center) {
-                                    Icon(
-                                        imageVector = Icons.Default.PhotoCamera,
-                                        contentDescription = "Take Photo",
-                                        tint = AppBackground,
-                                        modifier = Modifier.size(15.dp)
-                                    )
-                                }
-                            }
-                        }
-                    }
-
-                    Spacer(modifier = Modifier.height(14.dp))
-
-                    Text(
-                        text = uiState.displayName.ifBlank { "Employee" },
-                        style = AppTypographyTokens.Title.copy(fontWeight = FontWeight.SemiBold),
-                        color = AppPrimaryText
-                    )
-
-                    Spacer(modifier = Modifier.height(4.dp))
-
-                    val siteLabel = uiState.siteCode.ifBlank { "Headquarters" }
-                    Text(
-                        text = "${uiState.userId} • $siteLabel",
-                        style = AppTypographyTokens.BodyMedium,
-                        color = AppSecondaryText
-                    )
-
-                    if (uiState.isAdmin) {
-                        Spacer(modifier = Modifier.height(10.dp))
-                        Surface(
-                            shape = RoundedCornerShape(AppDimensions.ChipCornerRadius),
-                            color = AppBackground,
-                            border = BorderStroke(1.dp, AppBorder)
+                        // Left: Badge Photo (Squircle 76x76dp)
+                        Box(
+                            contentAlignment = Alignment.BottomEnd,
+                            modifier = Modifier.clickable(enabled = uiState.canChangePhoto) { onChangePhotoClick() }
                         ) {
+                            if (uiState.profilePhotoBitmap != null) {
+                                Image(
+                                    bitmap = uiState.profilePhotoBitmap.asImageBitmap(),
+                                    contentDescription = "Profile Photo",
+                                    modifier = Modifier
+                                        .size(76.dp)
+                                        .clip(RoundedCornerShape(14.dp))
+                                        .border(1.5.dp, AppAccent, RoundedCornerShape(14.dp)),
+                                    contentScale = ContentScale.Crop
+                                )
+                            } else {
+                                Surface(
+                                    shape = RoundedCornerShape(14.dp),
+                                    color = AppAccentTint,
+                                    modifier = Modifier
+                                        .size(76.dp)
+                                        .border(1.5.dp, AppAccent, RoundedCornerShape(14.dp))
+                                ) {
+                                    Box(contentAlignment = Alignment.Center) {
+                                        Text(
+                                            text = uiState.displayName.take(2).uppercase().ifBlank { "EM" },
+                                            style = AppTypographyTokens.Title.copy(fontWeight = FontWeight.Bold),
+                                            color = AppAccent
+                                        )
+                                    }
+                                }
+                            }
+
+                            if (uiState.canChangePhoto) {
+                                Surface(
+                                    shape = CircleShape,
+                                    color = AppAccent,
+                                    modifier = Modifier
+                                        .size(24.dp)
+                                        .border(1.5.dp, AppSurface, CircleShape)
+                                ) {
+                                    Box(contentAlignment = Alignment.Center) {
+                                        Icon(
+                                            imageVector = Icons.Default.PhotoCamera,
+                                            contentDescription = "Take Photo",
+                                            tint = AppBackground,
+                                            modifier = Modifier.size(13.dp)
+                                        )
+                                    }
+                                }
+                            }
+                        }
+
+                        Spacer(modifier = Modifier.width(16.dp))
+
+                        // Right: ID Card Details (Name, ID, plain text Role - no location, no pills)
+                        Column(modifier = Modifier.weight(1f)) {
                             Text(
-                                text = "ADMIN",
-                                style = AppTypographyTokens.CaptionMedium.copy(fontWeight = FontWeight.Bold),
-                                color = AppSecondaryText,
-                                modifier = Modifier.padding(horizontal = 8.dp, vertical = 2.dp)
+                                text = "EMPLOYEE IDENTITY CARD",
+                                style = AppTypographyTokens.Caption.copy(
+                                    fontSize = 10.sp,
+                                    fontWeight = FontWeight.Bold,
+                                    letterSpacing = 1.sp,
+                                    color = AppAccent
+                                )
+                            )
+
+                            Spacer(modifier = Modifier.height(4.dp))
+
+                            Text(
+                                text = uiState.displayName.ifBlank { "Employee" },
+                                style = AppTypographyTokens.Title.copy(
+                                    fontSize = 18.sp,
+                                    fontWeight = FontWeight.Bold
+                                ),
+                                color = AppPrimaryText
+                            )
+
+                            Spacer(modifier = Modifier.height(3.dp))
+
+                            Text(
+                                text = "ID: " + uiState.userId,
+                                style = AppTypographyTokens.BodyMedium.copy(
+                                    fontSize = 13.sp,
+                                    fontWeight = FontWeight.Normal
+                                ),
+                                color = AppSecondaryText
+                            )
+
+                            Spacer(modifier = Modifier.height(2.dp))
+
+                            val roleText = if (uiState.isAdmin) "Role: Administrator" else "Role: Employee"
+                            Text(
+                                text = roleText,
+                                style = AppTypographyTokens.BodyMedium.copy(
+                                    fontSize = 13.sp,
+                                    fontWeight = FontWeight.Normal
+                                ),
+                                color = if (uiState.isAdmin) AppAccent else AppSecondaryText
                             )
                         }
                     }

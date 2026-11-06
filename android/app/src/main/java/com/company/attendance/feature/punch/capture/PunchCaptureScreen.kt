@@ -131,8 +131,6 @@ fun PunchCaptureScreen(
 
     val context = LocalContext.current
     var isFlashEnabled by remember { mutableStateOf(false) }
-    var isAutoTriggered by remember { mutableStateOf(false) }
-    var userManuallyToggled by remember { mutableStateOf(false) }
 
     // Screen brightness override: sets 100% full brightness when flash is enabled to light up face
     DisposableEffect(isFlashEnabled) {
@@ -195,39 +193,6 @@ fun PunchCaptureScreen(
 
                         imageAnalysis.setAnalyzer(cameraExecutor) { imageProxy ->
                             try {
-                                // Auto low-light detection: sample Y-plane luminance if user hasn't manually toggled
-                                if (!userManuallyToggled && !isAutoTriggered) {
-                                    val yPlane = imageProxy.planes.getOrNull(0)
-                                    if (yPlane != null) {
-                                        val buffer = yPlane.buffer
-                                        val rowStride = yPlane.rowStride
-                                        val pixelStride = yPlane.pixelStride
-                                        val w = imageProxy.width
-                                        val h = imageProxy.height
-                                        var sum = 0L
-                                        var count = 0
-                                        val step = 16
-                                        for (y in 0 until h step step) {
-                                            val rowOffset = y * rowStride
-                                            for (x in 0 until w step step) {
-                                                val idx = rowOffset + x * pixelStride
-                                                if (idx < buffer.limit()) {
-                                                    sum += (buffer.get(idx).toInt() and 0xFF)
-                                                    count++
-                                                }
-                                            }
-                                        }
-                                        if (count > 0 && (sum.toDouble() / count) < 45.0) {
-                                            ContextCompat.getMainExecutor(ctx).execute {
-                                                if (!userManuallyToggled) {
-                                                    isFlashEnabled = true
-                                                    isAutoTriggered = true
-                                                }
-                                            }
-                                        }
-                                    }
-                                }
-
                                 if (viewModel.shouldSampleNow()) {
                                     val bitmap = CameraCaptureUtils.imageProxyToRotatedBitmap(imageProxy)
                                     viewModel.onFrameSampled(bitmap)
@@ -340,15 +305,14 @@ fun PunchCaptureScreen(
                 // 1. Left: Screen Flash Toggle (48dp circular glass button)
                 Surface(
                     onClick = {
-                        userManuallyToggled = true
                         isFlashEnabled = !isFlashEnabled
                     },
                     shape = CircleShape,
-                    color = if (isFlashEnabled) AppWarningTint else Color.Black.copy(alpha = 0.60f),
-                    contentColor = if (isFlashEnabled) AppWarning else Color.White,
+                    color = Color.Black.copy(alpha = 0.60f),
+                    contentColor = Color.White,
                     border = BorderStroke(
                         1.dp,
-                        if (isFlashEnabled) AppWarning else Color.White.copy(alpha = 0.20f)
+                        Color.White.copy(alpha = 0.20f)
                     ),
                     modifier = Modifier.size(48.dp)
                 ) {
@@ -357,7 +321,7 @@ fun PunchCaptureScreen(
                             imageVector = if (isFlashEnabled) Icons.Filled.FlashOn else Icons.Filled.FlashOff,
                             contentDescription = if (isFlashEnabled) "Screen Flash ON" else "Screen Flash OFF",
                             modifier = Modifier.size(22.dp),
-                            tint = if (isFlashEnabled) AppWarning else Color.White
+                            tint = if (isFlashEnabled) Color.White else Color.White.copy(alpha = 0.65f)
                         )
                     }
                 }

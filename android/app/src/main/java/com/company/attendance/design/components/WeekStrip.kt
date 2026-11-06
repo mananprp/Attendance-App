@@ -110,15 +110,26 @@ fun WeekDayCell(
 
         Spacer(modifier = Modifier.height(AppDimensions.Spacing6))
 
-        // Day Number Circle (36dp)
+        // Day Number Circle (36dp) - Soft-Tinted Attendance Disc
         val circleBackgroundModifier = when {
             item.isSelected -> Modifier.background(AppAccent, CircleShape)
+            item.status == DayStatus.COMPLETE -> Modifier.background(AppAccent.copy(alpha = 0.16f), CircleShape)
+            item.status == DayStatus.MISSED_PUNCH -> Modifier.background(AppWarning.copy(alpha = 0.18f), CircleShape)
             else -> Modifier
         }
 
         val circleBorderModifier = when {
-            item.isToday && !item.isSelected -> Modifier.border(
-                BorderStroke(1.5.dp, AppAccent),
+            item.isSelected -> Modifier
+            item.isToday -> Modifier.border(
+                BorderStroke(1.5.dp, if (item.status == DayStatus.MISSED_PUNCH) AppWarning else AppAccent),
+                CircleShape
+            )
+            item.status == DayStatus.COMPLETE -> Modifier.border(
+                BorderStroke(1.dp, AppAccent.copy(alpha = 0.45f)),
+                CircleShape
+            )
+            item.status == DayStatus.MISSED_PUNCH -> Modifier.border(
+                BorderStroke(1.dp, AppWarning.copy(alpha = 0.50f)),
                 CircleShape
             )
             else -> Modifier
@@ -134,17 +145,17 @@ fun WeekDayCell(
             Text(
                 text = item.dayNumber.toString(),
                 style = AppTypographyTokens.BodyMedium.copy(
-                    fontWeight = if (item.isSelected || item.isToday) FontWeight.SemiBold else FontWeight.Normal,
+                    fontWeight = if (item.isSelected || item.isToday || item.status != DayStatus.NO_RECORD) FontWeight.SemiBold else FontWeight.Normal,
                     color = when {
                         item.isSelected -> AppOnAccent
+                        item.status == DayStatus.COMPLETE -> AppAccent
+                        item.status == DayStatus.MISSED_PUNCH -> AppWarning
                         item.isToday -> AppAccent
                         else -> AppPrimaryText
                     }
                 )
             )
         }
-
-
     }
 }
 

@@ -43,6 +43,7 @@ import androidx.compose.ui.focus.FocusDirection
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalFocusManager
 import androidx.compose.ui.res.painterResource
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.text.input.KeyboardType
@@ -122,7 +123,7 @@ fun LoginScreenContent(
         ) {
             Spacer(modifier = Modifier.height(AppDimensions.Spacing16))
 
-            // Findez Iconic Brand Emblem (Clean, bold, modern)
+            // Brand Emblem (Clean, bold, modern)
             Surface(
                 shape = CircleShape,
                 color = AppAccent,
@@ -131,7 +132,7 @@ fun LoginScreenContent(
                 Box(contentAlignment = Alignment.Center) {
                     Icon(
                         painter = painterResource(id = R.drawable.ic_findez_punch_in),
-                        contentDescription = "Findez Logo",
+                        contentDescription = stringResource(id = R.string.app_name),
                         tint = AppBackground,
                         modifier = Modifier.size(32.dp)
                     )
@@ -140,11 +141,11 @@ fun LoginScreenContent(
 
             Spacer(modifier = Modifier.height(AppDimensions.Spacing24))
 
-            // Findez Bold Hero Headline
+            // Hero Headline
             Text(
-                text = "Welcome to Findez",
+                text = "Welcome to ${stringResource(id = R.string.app_name)}",
                 style = AppTypographyTokens.HeroTitle.copy(
-                    fontSize = 26.sp,
+                    fontSize = 24.sp,
                     fontWeight = FontWeight.Bold
                 ),
                 color = AppPrimaryText,

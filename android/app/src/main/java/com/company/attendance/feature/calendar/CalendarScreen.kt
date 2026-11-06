@@ -41,7 +41,9 @@ import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.tooling.preview.Preview
+import androidx.compose.ui.draw.clip
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
 import androidx.hilt.navigation.compose.hiltViewModel
 import com.company.attendance.R
 import com.company.attendance.core.model.DayStatus
@@ -168,7 +170,15 @@ fun CalendarScreenContent(
                 )
             }
 
-            Spacer(modifier = Modifier.height(AppDimensions.Spacing20))
+            Spacer(modifier = Modifier.height(AppDimensions.Spacing12))
+
+            // Attendance Legend Guide (Present vs Missed Punch)
+            CalendarLegendRow(
+                completeCount = uiState.summaryStats.completeDays,
+                missedCount = uiState.summaryStats.missedPunchDays
+            )
+
+            Spacer(modifier = Modifier.height(AppDimensions.Spacing16))
 
             // 3. Your Attendance Section (Header with "See more" + Check In & Check Out Cards)
             SectionHeader(
@@ -420,7 +430,86 @@ private fun MonthGridCard(
 }
 
 /**
- * Your Attendance section: Check In & Check Out cards side by side.
+ * Visual guide row explaining Present and Missed Punch soft-tinted discs.
+ */
+@Composable
+private fun CalendarLegendRow(
+    completeCount: Int,
+    missedCount: Int,
+    modifier: Modifier = Modifier
+) {
+    Row(
+        modifier = modifier
+            .fillMaxWidth()
+            .padding(horizontal = 4.dp, vertical = 2.dp),
+        horizontalArrangement = Arrangement.SpaceBetween,
+        verticalAlignment = Alignment.CenterVertically
+    ) {
+        Row(
+            horizontalArrangement = Arrangement.spacedBy(14.dp),
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            // Present Guide
+            Row(
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.spacedBy(6.dp)
+            ) {
+                Box(
+                    modifier = Modifier
+                        .size(11.dp)
+                        .clip(CircleShape)
+                        .background(AppAccent.copy(alpha = 0.20f))
+                        .border(1.dp, AppAccent, CircleShape)
+                )
+                Text(
+                    text = "Present",
+                    style = AppTypographyTokens.Caption.copy(
+                        fontSize = 11.sp,
+                        fontWeight = FontWeight.Medium,
+                        color = AppSecondaryText
+                    )
+                )
+            }
+
+            // Missed Punch Guide
+            Row(
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.spacedBy(6.dp)
+            ) {
+                Box(
+                    modifier = Modifier
+                        .size(11.dp)
+                        .clip(CircleShape)
+                        .background(AppWarning.copy(alpha = 0.20f))
+                        .border(1.dp, AppWarning, CircleShape)
+                )
+                Text(
+                    text = "Missed Punch",
+                    style = AppTypographyTokens.Caption.copy(
+                        fontSize = 11.sp,
+                        fontWeight = FontWeight.Medium,
+                        color = AppSecondaryText
+                    )
+                )
+            }
+        }
+
+        // Monthly Summary Badge
+        if (completeCount > 0 || missedCount > 0) {
+            Text(
+                text = "$completeCount Present • $missedCount Missed",
+                style = AppTypographyTokens.Caption.copy(
+                    fontSize = 11.sp,
+                    fontWeight = FontWeight.SemiBold,
+                    color = AppAccent
+                )
+            )
+        }
+    }
+}
+
+/**
+ * Your Attendance section: Status indicator banner and Check In & Check Out cards.
  */
 @Composable
 private fun SelectedDayAttendanceCards(
@@ -431,6 +520,9 @@ private fun SelectedDayAttendanceCards(
     modifier: Modifier = Modifier
 ) {
     val summary = summariesMap[selectedDate.toString()]
+    val rawStatus = summary?.status ?: DayStatus.NO_RECORD
+    val status = detailState?.status ?: rawStatus
+
     val inTime = detailState?.inTimeFormatted
         ?: summary?.inTimeUtcEpochMs?.let { CalendarDateUtils.formatPunchTime(it, timezone) }
     val outTime = detailState?.outTimeFormatted
@@ -439,10 +531,76 @@ private fun SelectedDayAttendanceCards(
     val hasIn = inTime != null
     val hasOut = outTime != null
 
-    Row(
+    Column(
         modifier = modifier.fillMaxWidth(),
-        horizontalArrangement = Arrangement.spacedBy(AppDimensions.Spacing12)
+        verticalArrangement = Arrangement.spacedBy(10.dp)
     ) {
+        // Attendance Status Banner for Selected Day
+        Card(
+            modifier = Modifier.fillMaxWidth(),
+            shape = RoundedCornerShape(12.dp),
+            colors = CardDefaults.cardColors(
+                containerColor = when (status) {
+                    DayStatus.COMPLETE -> AppAccent.copy(alpha = 0.12f)
+                    DayStatus.MISSED_PUNCH -> AppWarning.copy(alpha = 0.14f)
+                    else -> AppSurface
+                }
+            ),
+            border = BorderStroke(
+                1.dp,
+                when (status) {
+                    DayStatus.COMPLETE -> AppAccent.copy(alpha = 0.40f)
+                    DayStatus.MISSED_PUNCH -> AppWarning.copy(alpha = 0.45f)
+                    else -> AppBorder
+                }
+            )
+        ) {
+            Row(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(horizontal = 14.dp, vertical = 10.dp),
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.SpaceBetween
+            ) {
+                Text(
+                    text = when (status) {
+                        DayStatus.COMPLETE -> "Full Shift Present"
+                        DayStatus.MISSED_PUNCH -> "Missed Punch Recorded"
+                        else -> "No Punch Activity"
+                    },
+                    style = AppTypographyTokens.BodyMedium.copy(
+                        fontWeight = FontWeight.SemiBold,
+                        color = when (status) {
+                            DayStatus.COMPLETE -> AppAccent
+                            DayStatus.MISSED_PUNCH -> AppWarning
+                            else -> AppSecondaryText
+                        }
+                    )
+                )
+
+                Text(
+                    text = when (status) {
+                        DayStatus.COMPLETE -> "Complete"
+                        DayStatus.MISSED_PUNCH -> if (hasIn && !hasOut) "Missing Check-out" else if (!hasIn && hasOut) "Missing Check-in" else "Incomplete"
+                        else -> "Off"
+                    },
+                    style = AppTypographyTokens.Caption.copy(
+                        fontSize = 11.sp,
+                        fontWeight = FontWeight.Medium,
+                        color = when (status) {
+                            DayStatus.COMPLETE -> AppAccent
+                            DayStatus.MISSED_PUNCH -> AppWarning
+                            else -> AppDisabledText
+                        }
+                    )
+                )
+            }
+        }
+
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            horizontalArrangement = Arrangement.spacedBy(AppDimensions.Spacing12)
+        ) {
         // Check In Card (Findez reference: Icon + Title side-by-side, bold time, subtle caption)
         Card(
             modifier = Modifier.weight(1f),
@@ -541,6 +699,7 @@ private fun SelectedDayAttendanceCards(
                 )
             }
         }
+    }
     }
 }
 
