@@ -47,6 +47,8 @@ import androidx.compose.ui.platform.LocalLifecycleOwner
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.ui.viewinterop.AndroidView
 import androidx.core.content.ContextCompat
 import com.company.attendance.core.model.PunchType
@@ -262,50 +264,65 @@ fun PunchCaptureScreen(
             // Oval Guide Overlay with Screen Flash Softbox
             FaceOvalGuideOverlay(
                 isScreenFlashActive = isFlashEnabled,
+                isCapturing = uiState.step == CaptureStep.CAPTURING,
                 modifier = Modifier.fillMaxSize()
             )
         }
 
-        // Top Controls: Guidance Banner
+        // Top Controls: Premium Frosted Capsule
         if (uiState.step == CaptureStep.READY || uiState.step == CaptureStep.CAPTURING || uiState.step == CaptureStep.INITIALIZING) {
             Column(
                 modifier = Modifier
                     .fillMaxWidth()
                     .align(Alignment.TopCenter)
-                    .padding(top = 48.dp, start = 20.dp, end = 20.dp),
+                    .padding(top = 52.dp, start = 24.dp, end = 24.dp),
                 horizontalAlignment = Alignment.CenterHorizontally
             ) {
-                val titleColor = if (isFlashEnabled) AppBackground else AppPrimaryText
-                val subtitleColor = if (isFlashEnabled) AppSecondaryText else AppSecondaryText
+                Surface(
+                    shape = RoundedCornerShape(24.dp),
+                    color = Color.Black.copy(alpha = 0.65f),
+                    border = BorderStroke(1.dp, Color.White.copy(alpha = 0.15f)),
+                    modifier = Modifier.padding(horizontal = 8.dp)
+                ) {
+                    Column(
+                        modifier = Modifier.padding(horizontal = 22.dp, vertical = 14.dp),
+                        horizontalAlignment = Alignment.CenterHorizontally
+                    ) {
+                        Text(
+                            text = (if (punchType == PunchType.IN) "PUNCH IN" else "PUNCH OUT") + " VERIFICATION",
+                            style = AppTypographyTokens.Caption.copy(
+                                fontWeight = FontWeight.Bold,
+                                letterSpacing = 1.2.sp,
+                                color = AppAccent
+                            )
+                        )
+                        Spacer(modifier = Modifier.height(4.dp))
+                        Text(
+                            text = if (uiState.step == CaptureStep.CAPTURING) {
+                                "Hold still • Verifying facial embedding"
+                            } else {
+                                "Center your face in the oval frame"
+                            },
+                            style = AppTypographyTokens.BodyMedium.copy(
+                                fontWeight = FontWeight.Medium,
+                                color = Color.White
+                            ),
+                            textAlign = TextAlign.Center
+                        )
 
-                Text(
-                    text = if (punchType == PunchType.IN) "Punch In Verification" else "Punch Out Verification",
-                    style = AppTypographyTokens.Title.copy(color = titleColor),
-                    fontWeight = FontWeight.SemiBold
-                )
-                Spacer(modifier = Modifier.height(AppDimensions.Spacing8))
-                Text(
-                    text = if (uiState.step == CaptureStep.CAPTURING) {
-                        "Recording face... Keep looking at the camera"
-                    } else {
-                        "Align your face inside the oval and tap Capture"
-                    },
-                    style = AppTypographyTokens.BodyMedium.copy(color = subtitleColor),
-                    textAlign = TextAlign.Center
-                )
-
-                if (uiState.step == CaptureStep.CAPTURING) {
-                    Spacer(modifier = Modifier.height(AppDimensions.Spacing16))
-
-                    // Capture Progress Bar
-                    LinearProgressIndicator(
-                        progress = { uiState.captureProgress },
-                        modifier = Modifier
-                            .fillMaxWidth(0.75f)
-                            .height(6.dp),
-                        color = AppAccent,
-                        trackColor = AppBorder,
-                    )
+                        if (uiState.step == CaptureStep.CAPTURING) {
+                            Spacer(modifier = Modifier.height(10.dp))
+                            LinearProgressIndicator(
+                                progress = { uiState.captureProgress },
+                                modifier = Modifier
+                                    .fillMaxWidth(0.9f)
+                                    .height(4.dp)
+                                    .clip(RoundedCornerShape(2.dp)),
+                                color = AppAccent,
+                                trackColor = Color.White.copy(alpha = 0.20f)
+                            )
+                        }
+                    }
                 }
             }
         }
@@ -320,69 +337,88 @@ fun PunchCaptureScreen(
                 horizontalArrangement = Arrangement.SpaceBetween,
                 verticalAlignment = Alignment.CenterVertically
             ) {
-                // 1. Left: Screen Flash Toggle (52dp circular glass button)
+                // 1. Left: Screen Flash Toggle (48dp circular glass button)
                 Surface(
                     onClick = {
                         userManuallyToggled = true
                         isFlashEnabled = !isFlashEnabled
                     },
                     shape = CircleShape,
-                    color = if (isFlashEnabled) AppWarningTint else Color.Black.copy(alpha = 0.55f),
+                    color = if (isFlashEnabled) AppWarningTint else Color.Black.copy(alpha = 0.60f),
                     contentColor = if (isFlashEnabled) AppWarning else Color.White,
                     border = BorderStroke(
                         1.dp,
-                        if (isFlashEnabled) AppWarning else Color.White.copy(alpha = 0.25f)
+                        if (isFlashEnabled) AppWarning else Color.White.copy(alpha = 0.20f)
                     ),
-                    modifier = Modifier.size(52.dp)
+                    modifier = Modifier.size(48.dp)
                 ) {
                     Box(contentAlignment = Alignment.Center) {
                         Icon(
                             imageVector = if (isFlashEnabled) Icons.Filled.FlashOn else Icons.Filled.FlashOff,
                             contentDescription = if (isFlashEnabled) "Screen Flash ON" else "Screen Flash OFF",
-                            modifier = Modifier.size(24.dp),
+                            modifier = Modifier.size(22.dp),
                             tint = if (isFlashEnabled) AppWarning else Color.White
                         )
                     }
                 }
 
-                // 2. Center: Camera Shutter Trigger (78dp dual-ring circular button)
+                // 2. Center: Professional Biometric Shutter Trigger (80dp)
                 val isReady = uiState.step == CaptureStep.READY
                 val isCapturing = uiState.step == CaptureStep.CAPTURING
                 Box(
                     modifier = Modifier
-                        .size(78.dp)
-                        .border(3.5.dp, Color.White, CircleShape)
-                        .padding(6.dp)
-                        .clip(CircleShape)
-                        .background(if (isReady || isCapturing) AppAccent else AppAccent.copy(alpha = 0.5f))
+                        .size(80.dp)
                         .clickable(enabled = isReady) {
                             viewModel.startCapture()
                         },
                     contentAlignment = Alignment.Center
                 ) {
-                    if (isCapturing) {
-                        CircularProgressIndicator(
-                            modifier = Modifier.size(28.dp),
-                            color = Color.Black,
-                            strokeWidth = 3.dp
+                    // Outer Ring / Circular Progress Track
+                    Canvas(modifier = Modifier.fillMaxSize()) {
+                        val strokeWidthPx = 3.5.dp.toPx()
+                        // Base ring
+                        drawCircle(
+                            color = Color.White.copy(alpha = 0.45f),
+                            radius = (size.minDimension - strokeWidthPx) / 2f,
+                            style = Stroke(width = strokeWidthPx)
                         )
+                        // Progress arc when capturing
+                        if (isCapturing) {
+                            val sweepAngle = uiState.captureProgress * 360f
+                            drawArc(
+                                color = AppAccent,
+                                startAngle = -90f,
+                                sweepAngle = sweepAngle,
+                                useCenter = false,
+                                style = Stroke(width = strokeWidthPx, cap = androidx.compose.ui.graphics.StrokeCap.Round)
+                            )
+                        }
                     }
+
+                    // Inner Core
+                    val innerSize = if (isCapturing) 32.dp else 60.dp
+                    val cornerRadius = if (isCapturing) 10.dp else 30.dp
+                    Surface(
+                        shape = RoundedCornerShape(cornerRadius),
+                        color = if (isCapturing) AppAccent else Color.White,
+                        modifier = Modifier.size(innerSize)
+                    ) {}
                 }
 
-                // 3. Right: Cancel / Dismiss (52dp circular glass button)
+                // 3. Right: Cancel / Dismiss (48dp circular glass button)
                 Surface(
                     onClick = { viewModel.onCancelClicked() },
                     shape = CircleShape,
-                    color = Color.Black.copy(alpha = 0.55f),
+                    color = Color.Black.copy(alpha = 0.60f),
                     contentColor = Color.White,
-                    border = BorderStroke(1.dp, Color.White.copy(alpha = 0.25f)),
-                    modifier = Modifier.size(52.dp)
+                    border = BorderStroke(1.dp, Color.White.copy(alpha = 0.20f)),
+                    modifier = Modifier.size(48.dp)
                 ) {
                     Box(contentAlignment = Alignment.Center) {
                         Icon(
                             imageVector = Icons.Default.Close,
                             contentDescription = "Cancel",
-                            modifier = Modifier.size(24.dp),
+                            modifier = Modifier.size(22.dp),
                             tint = Color.White
                         )
                     }
@@ -576,13 +612,14 @@ fun PunchCaptureScreen(
 @Composable
 private fun FaceOvalGuideOverlay(
     isScreenFlashActive: Boolean = false,
+    isCapturing: Boolean = false,
     modifier: Modifier = Modifier
 ) {
     Canvas(modifier = modifier) {
-        val ovalWidth = size.width * 0.72f
-        val ovalHeight = ovalWidth * 1.35f
+        val ovalWidth = size.width * 0.70f
+        val ovalHeight = ovalWidth * 1.30f
         val left = (size.width - ovalWidth) / 2f
-        val top = size.height * 0.22f
+        val top = size.height * 0.20f
 
         val ovalRect = Rect(
             offset = Offset(left, top),
@@ -594,7 +631,7 @@ private fun FaceOvalGuideOverlay(
         val backdropColor = if (isScreenFlashActive) {
             Color.White.copy(alpha = 0.94f)
         } else {
-            Color.Black.copy(alpha = 0.55f)
+            Color.Black.copy(alpha = 0.60f)
         }
 
         drawPath(
@@ -607,14 +644,31 @@ private fun FaceOvalGuideOverlay(
             color = backdropColor
         )
 
-        // Draw oval guide border
-        val borderColor = AppAccent
+        // Draw refined biometric guide stroke
+        val strokeColor = if (isCapturing) AppAccent else Color.White.copy(alpha = 0.45f)
+        val strokeWidth = if (isCapturing) 2.5.dp.toPx() else 1.5.dp.toPx()
 
         drawOval(
-            color = borderColor,
+            color = strokeColor,
             topLeft = Offset(left, top),
             size = Size(ovalWidth, ovalHeight),
-            style = Stroke(width = 3.dp.toPx())
+            style = Stroke(width = strokeWidth)
         )
+
+        // Draw precision corner/cardinal alignment ticks
+        val tickLen = 14.dp.toPx()
+        val tickWidth = 2.dp.toPx()
+        val tickColor = if (isCapturing) AppAccent else Color.White.copy(alpha = 0.75f)
+        val centerX = left + ovalWidth / 2f
+        val centerY = top + ovalHeight / 2f
+
+        // Top tick
+        drawLine(tickColor, Offset(centerX, top - tickLen), Offset(centerX, top), tickWidth)
+        // Bottom tick
+        drawLine(tickColor, Offset(centerX, top + ovalHeight), Offset(centerX, top + ovalHeight + tickLen), tickWidth)
+        // Left tick
+        drawLine(tickColor, Offset(left - tickLen, centerY), Offset(left, centerY), tickWidth)
+        // Right tick
+        drawLine(tickColor, Offset(left + ovalWidth, centerY), Offset(left + ovalWidth + tickLen, centerY), tickWidth)
     }
 }
