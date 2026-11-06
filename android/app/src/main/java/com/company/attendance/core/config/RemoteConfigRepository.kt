@@ -41,6 +41,13 @@ class RemoteConfigRepositoryImpl @Inject constructor(
         return try {
             val response = apiService.getConfig()
             val parsedResult = NetworkHelper.parseResponse(response)
+
+            if (parsedResult.isFailure) {
+                val cached = appConfigDao.getConfigDirect()?.toDomain()
+                if (cached != null) {
+                    return Result.success(cached)
+                }
+            }
             
             parsedResult.mapCatching { dto ->
                 val entity = AppConfigEntity(

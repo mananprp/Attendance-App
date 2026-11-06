@@ -30,9 +30,6 @@ interface UserLocalDao {
     @Query("UPDATE user_local SET reference_embedding = :embedding, has_photo = 1, updated_at = :updatedAt WHERE user_id = :userId")
     suspend fun updateReferenceEmbedding(userId: String, embedding: ByteArray, updatedAt: Long = System.currentTimeMillis())
 
-    @Query("UPDATE user_local SET has_photo = :hasPhoto, updated_at = :updatedAt WHERE user_id = :userId")
-    suspend fun updateHasPhoto(userId: String, hasPhoto: Boolean, updatedAt: Long = System.currentTimeMillis())
-
     @Query("DELETE FROM user_local")
     suspend fun clearAll()
 }

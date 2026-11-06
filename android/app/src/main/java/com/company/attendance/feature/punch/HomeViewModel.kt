@@ -216,10 +216,10 @@ class HomeViewModel @Inject constructor(
                                 tokenStorage.updateHasPhoto(true, photoDetail.version)
                                 _uiState.update { it.copy(profilePhotoBitmap = activeBmp) }
                             } else {
-                                // Photo file missing on server – reset has_photo locally so user can re-enroll
-                                android.util.Log.w("HomeViewModel", "Photo missing from server for $userId – resetting has_photo locally")
-                                tokenStorage.updateHasPhoto(false, null)
-                                userLocalDao.updateHasPhoto(userId, false)
+                                // Rule: The source of truth for has_photo is the server's login response.
+                                // A failed download only means showing the placeholder avatar; Home will retry next session.
+                                // Do NOT clear has_photo locally.
+                                android.util.Log.w("HomeViewModel", "Profile photo download failed for $userId – keeping has_photo as set by server")
                             }
                         }
                     }

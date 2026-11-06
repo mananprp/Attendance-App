@@ -14,6 +14,7 @@ import com.company.attendance.core.network.model.DaySummaryDto
 import com.company.attendance.core.network.model.LoginRequestDto
 import com.company.attendance.core.network.model.LoginResponseDto
 import com.company.attendance.core.network.model.MonthlyAttendanceResponseDto
+import com.company.attendance.core.network.model.PhotoDetailResponseDto
 import com.company.attendance.core.network.model.UserProfileDto
 import com.company.attendance.core.storage.TokenStorage
 import com.company.attendance.feature.auth.model.LoginNavigationEvent
@@ -205,6 +206,43 @@ class LoginViewModelTest {
 
             coVerify(exactly = 0) { punchRepository.upsertDaySummaries(any()) }
         }
+    }
+
+    @Test
+    fun `failed or timed-out photo download leaves hasPhoto unchanged in tokenStorage and Room`() = runTest {
+        val userDto = UserProfileDto(
+            userId = "EMP1001",
+            displayName = "Alice Smith",
+            photoChangeUsed = false,
+            hasPhoto = true,
+            activePhotoVersion = 1
+        )
+        val loginResponse = LoginResponseDto(token = "jwt-test-token", user = userDto)
+
+        coEvery { apiService.login(any()) } returns Response.success(loginResponse)
+        coEvery { apiService.getMonthlyAttendance(any()) } returns Response.success(
+            MonthlyAttendanceResponseDto(month = "2026-09", days = emptyList(), punches = emptyList())
+        )
+        // Simulate failed getActivePhoto download
+        coEvery { apiService.getActivePhoto() } returns Response.error(404, "{\"code\":\"PHOTO_NOT_FOUND\"}".toResponseBody())
+        coEvery { remoteConfigRepository.fetchAndCacheConfig() } returns Result.success(mockk(relaxed = true))
+
+        viewModel.onUserIdChanged("EMP1001")
+        viewModel.onPasswordChanged("secret")
+
+        viewModel.login()
+        advanceUntilIdle()
+
+        // Rule verification: hasPhoto must NOT be cleared on failed download
+        val sessionSlot = slot<UserSession>()
+        verify { tokenStorage.saveSession(capture(sessionSlot)) }
+        assertTrue(sessionSlot.captured.hasPhoto)
+
+        val userEntitySlot = slot<UserLocalEntity>()
+        coVerify { userLocalDao.insertOrUpdate(capture(userEntitySlot)) }
+        assertTrue(userEntitySlot.captured.hasPhoto)
+
+        verify(exactly = 0) { tokenStorage.updateHasPhoto(false, any()) }
     }
 
     @Test

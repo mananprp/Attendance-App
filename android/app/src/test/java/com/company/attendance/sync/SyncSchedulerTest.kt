@@ -92,6 +92,13 @@ class SyncSchedulerTest {
 
         scheduler.scheduleConfiguredWindows(listOf("16:00", "00:00"), jitterMinutes = 30)
 
+        // Allow background launch to complete
+        var waited = 0
+        while (workNameSlot.size < 2 && waited < 2000) {
+            Thread.sleep(50)
+            waited += 50
+        }
+
         assertEquals(2, workNameSlot.size)
         assertTrue(workNameSlot.contains("attendance_sync_window_16_00"))
         assertTrue(workNameSlot.contains("attendance_sync_window_00_00"))

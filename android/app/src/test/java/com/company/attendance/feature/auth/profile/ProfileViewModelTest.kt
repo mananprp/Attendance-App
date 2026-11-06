@@ -6,6 +6,7 @@ import com.company.attendance.core.database.dao.UserLocalDao
 import com.company.attendance.core.database.entity.UserLocalEntity
 import com.company.attendance.core.interfaces.FaceVerifier
 import com.company.attendance.core.model.UserSession
+import com.company.attendance.core.util.ImageStorageUtils
 import com.company.attendance.core.network.AttendanceApiService
 import com.company.attendance.core.network.model.PhotoDetailResponseDto
 import com.company.attendance.core.network.model.PhotoUploadResponseDto
@@ -61,12 +62,31 @@ class ProfileViewModelTest {
     @Before
     fun setUp() {
         Dispatchers.setMain(testDispatcher)
+        ImageStorageUtils.defaultDispatcher = testDispatcher
         every { tokenStorage.getUserSession() } returns initialSession
         every { tokenStorage.getUserId() } returns initialSession.userId
         every { tokenStorage.getDisplayName() } returns initialSession.displayName
         every { tokenStorage.isPhotoChangeUsed() } returns initialSession.photoChangeUsed
         every { tokenStorage.hasPhoto() } returns initialSession.hasPhoto
         every { tokenStorage.getActivePhotoVersion() } returns initialSession.activePhotoVersion
+
+        val mockUserLocal = UserLocalEntity(
+            userId = "EMP1001",
+            displayName = "Alice Smith",
+            photoChangeUsed = false,
+            hasPhoto = true,
+            referenceEmbedding = null,
+            updatedAt = System.currentTimeMillis()
+        )
+        coEvery { userLocalDao.getUserDirect(any()) } returns mockUserLocal
+
+        val mockCall = mockk<okhttp3.Call>()
+        every { okHttpClient.newCall(any()) } returns mockCall
+        val mockOkHttpResponse = mockk<okhttp3.Response>(relaxed = true) {
+            every { isSuccessful } returns false
+            every { code } returns 404
+        }
+        every { mockCall.execute() } returns mockOkHttpResponse
 
         val photoDetail = PhotoDetailResponseDto(
             version = 1,
@@ -79,6 +99,7 @@ class ProfileViewModelTest {
 
     @After
     fun tearDown() {
+        ImageStorageUtils.defaultDispatcher = Dispatchers.IO
         Dispatchers.resetMain()
     }
 
@@ -107,11 +128,39 @@ class ProfileViewModelTest {
         assertTrue(viewModel.uiState.value.canChangePhoto)
     }
 
+
+    @Test
+    fun `when hasPhoto is false canChangePhoto is false even if photoChangeUsed is false`() = runTest {
+        val noPhotoSession = initialSession.copy(hasPhoto = false, activePhotoVersion = null)
+        every { tokenStorage.getUserSession() } returns noPhotoSession
+        every { tokenStorage.hasPhoto() } returns false
+        coEvery { userLocalDao.getUserDirect(any()) } returns UserLocalEntity("EMP1001", "Alice Smith", false, false, null, System.currentTimeMillis())
+
+        viewModel = createViewModel()
+        advanceUntilIdle()
+
+        assertFalse(viewModel.uiState.value.hasPhoto)
+        assertFalse(viewModel.uiState.value.canChangePhoto)
+    }
+
+    @Test
+    fun `failed photo download leaves hasPhoto unchanged and does not reset session`() = runTest {
+        coEvery { apiService.getActivePhoto() } returns Response.error(404, "{\"code\":\"PHOTO_NOT_FOUND\"}".toResponseBody())
+
+        viewModel = createViewModel()
+        advanceUntilIdle()
+
+        // Rule: hasPhoto should keep coming from stored session / server data
+        assertTrue(viewModel.uiState.value.hasPhoto)
+        verify(exactly = 0) { tokenStorage.updateHasPhoto(false, any()) }
+    }
+
     @Test
     fun `when photoChangeUsed is true canChangePhoto is false and openPhotoCapture is blocked`() = runTest {
         val usedSession = initialSession.copy(photoChangeUsed = true, activePhotoVersion = 2)
         every { tokenStorage.getUserSession() } returns usedSession
         every { tokenStorage.isPhotoChangeUsed() } returns true
+        coEvery { userLocalDao.getUserDirect(any()) } returns UserLocalEntity("EMP1001", "Alice Smith", true, true, null, System.currentTimeMillis())
 
         viewModel = createViewModel()
         advanceUntilIdle()

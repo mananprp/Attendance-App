@@ -29,7 +29,7 @@ class PunchRepositoryTest {
     private lateinit var repository: PunchRepositoryImpl
 
     private val testUserId = "EMP1001"
-    private val testDate = LocalDate.of(2026, 9, 30)
+    private val testDate = LocalDate.of(2024, 9, 30)
     private val testTrustedTime = TrustedTime(
         epochMillis = 1727670000000L,
         source = TimeSource.NTP,
@@ -45,8 +45,8 @@ class PunchRepositoryTest {
 
     @Test
     fun `recordPunch IN creates pending punch and day summary record`() = runTest {
-        coEvery { daySummaryDao.getDaySummaryDirect(testUserId, "2026-09-30") } returns null
-        coEvery { daySummaryDao.getUnclosedSummariesBeforeDate(testUserId, "2026-09-30") } returns emptyList()
+        coEvery { daySummaryDao.getDaySummaryDirect(testUserId, "2024-09-30") } returns null
+        coEvery { daySummaryDao.getUnclosedSummariesBeforeDate(testUserId, "2024-09-30") } returns emptyList()
 
         val punchSlot = slot<PunchEntity>()
         val summarySlot = slot<DaySummaryEntity>()
@@ -77,7 +77,7 @@ class PunchRepositoryTest {
 
         // Verify captured DaySummaryEntity
         assertEquals(testUserId, summarySlot.captured.userId)
-        assertEquals("2026-09-30", summarySlot.captured.dateLocal)
+        assertEquals("2024-09-30", summarySlot.captured.dateLocal)
         assertEquals(1727670000000L, summarySlot.captured.inTimeUtc)
         assertEquals(null, summarySlot.captured.outTimeUtc)
         assertEquals(DayStatus.NO_RECORD.name, summarySlot.captured.status)
@@ -87,14 +87,14 @@ class PunchRepositoryTest {
     fun `recordPunch OUT updates day summary to COMPLETE with outTime`() = runTest {
         val existingSummary = DaySummaryEntity(
             userId = testUserId,
-            dateLocal = "2026-09-30",
+            dateLocal = "2024-09-30",
             inTimeUtc = 1727670000000L,
             outTimeUtc = null,
             status = DayStatus.NO_RECORD.name,
             timeUnverified = false
         )
-        coEvery { daySummaryDao.getDaySummaryDirect(testUserId, "2026-09-30") } returns existingSummary
-        coEvery { daySummaryDao.getUnclosedSummariesBeforeDate(testUserId, "2026-09-30") } returns emptyList()
+        coEvery { daySummaryDao.getDaySummaryDirect(testUserId, "2024-09-30") } returns existingSummary
+        coEvery { daySummaryDao.getUnclosedSummariesBeforeDate(testUserId, "2024-09-30") } returns emptyList()
 
         val summarySlot = slot<DaySummaryEntity>()
         coEvery { daySummaryDao.insertOrUpdate(capture(summarySlot)) } returns Unit
@@ -121,24 +121,24 @@ class PunchRepositoryTest {
     fun `resolvePastMissedPunches marks earlier unclosed days as MISSED_PUNCH with outTime equal to inTime`() = runTest {
         val pastUnclosedDay = DaySummaryEntity(
             userId = testUserId,
-            dateLocal = "2026-09-29",
-            inTimeUtc = 1727583600000L, // 2026-09-29 in_time
+            dateLocal = "2024-09-29",
+            inTimeUtc = 1727583600000L, // 2024-09-29 in_time
             outTimeUtc = null,
             status = DayStatus.NO_RECORD.name,
             timeUnverified = false
         )
 
         coEvery {
-            daySummaryDao.getUnclosedSummariesBeforeDate(testUserId, "2026-09-30")
+            daySummaryDao.getUnclosedSummariesBeforeDate(testUserId, "2024-09-30")
         } returns listOf(pastUnclosedDay)
 
         val updatedSlot = slot<DaySummaryEntity>()
         coEvery { daySummaryDao.insertOrUpdate(capture(updatedSlot)) } returns Unit
 
-        repository.resolvePastMissedPunches(testUserId, "2026-09-30")
+        repository.resolvePastMissedPunches(testUserId, "2024-09-30")
 
         coVerify(exactly = 1) { daySummaryDao.insertOrUpdate(any()) }
-        assertEquals("2026-09-29", updatedSlot.captured.dateLocal)
+        assertEquals("2024-09-29", updatedSlot.captured.dateLocal)
         assertEquals(1727583600000L, updatedSlot.captured.inTimeUtc)
         assertEquals(1727583600000L, updatedSlot.captured.outTimeUtc) // out_time = in_time rule
         assertEquals(DayStatus.MISSED_PUNCH.name, updatedSlot.captured.status)

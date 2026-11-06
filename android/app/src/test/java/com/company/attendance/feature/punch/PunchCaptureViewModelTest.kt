@@ -99,6 +99,11 @@ class PunchCaptureViewModelTest {
         coEvery { userLocalDao.getUserDirect("EMP1001") } returns testUser
         coEvery { remoteConfigRepository.getConfig() } returns testConfig
         coEvery { faceVerifier.areModelsReady() } returns true
+        val mockSession = mockk<com.company.attendance.face.verifier.StreamingPunchSession>(relaxed = true)
+        every { faceVerifier.startStreamingSession(any()) } returns mockSession
+        coEvery { mockSession.finish(any(), any()) } coAnswers {
+            faceVerifier.verifyPunchFrames(emptyList(), firstArg(), secondArg())
+        }
         coEvery { trustedTimeProvider.getTrustedTime() } returns testTrustedTime
     }
 

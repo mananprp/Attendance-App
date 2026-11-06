@@ -247,10 +247,10 @@ class LoginViewModel @Inject constructor(
                     android.util.Log.e("LoginViewModel", "extractReferenceEmbedding error: " + err.message)
                 }
             } else {
-                // Photo file missing on server – mark has_photo=false locally so user can re-enroll
-                android.util.Log.w("LoginViewModel", "Photo missing from server for $userId – resetting has_photo locally")
-                tokenStorage.updateHasPhoto(false, null)
-                userLocalDao.updateHasPhoto(userId, false)
+                // Rule: The source of truth for has_photo is the server's login response.
+                // A failed download only means show the placeholder avatar and retry next time (e.g. on Home screen).
+                // Do NOT clear has_photo locally.
+                android.util.Log.w("LoginViewModel", "Profile photo download failed or missing for $userId – keeping has_photo as set by server")
             }
         }.onFailure { e ->
             android.util.Log.e("LoginViewModel", "fetchAndCacheProfilePhotoAndEmbedding failed", e)

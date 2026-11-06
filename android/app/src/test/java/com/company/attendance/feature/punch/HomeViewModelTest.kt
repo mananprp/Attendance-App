@@ -23,6 +23,9 @@ import io.mockk.coEvery
 import io.mockk.coVerify
 import io.mockk.every
 import io.mockk.mockk
+import io.mockk.verify
+import okhttp3.ResponseBody.Companion.toResponseBody
+import retrofit2.Response
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -441,4 +444,14 @@ class HomeViewModelTest {
 
         assertEquals(2, viewModel.uiState.value.totalAttendedDays)
     }
+    @Test
+    fun `failed photo download in loadUserSession does NOT reset hasPhoto`() = runTest {
+        coEvery { apiService.getActivePhoto() } returns Response.error(404, "{\"code\":\"PHOTO_NOT_FOUND\"}".toResponseBody())
+
+        val viewModel = createViewModel()
+        advanceUntilIdle()
+
+        verify(exactly = 0) { tokenStorage.updateHasPhoto(false, any()) }
+    }
+
 }

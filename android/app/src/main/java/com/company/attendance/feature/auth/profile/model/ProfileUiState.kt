@@ -27,7 +27,7 @@ data class ProfileUiState(
     val successMessage: String? = null
 ) {
     val canChangePhoto: Boolean
-        get() = !photoChangeUsed
+        get() = !photoChangeUsed && hasPhoto
 
     override fun equals(other: Any?): Boolean {
         if (this === other) return true

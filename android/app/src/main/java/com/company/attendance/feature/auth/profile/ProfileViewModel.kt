@@ -114,9 +114,10 @@ class ProfileViewModel @Inject constructor(
                                 }
                             }
                         } else {
-                            // Photo file missing on server – reset has_photo locally so user sees enrollment option
-                            tokenStorage.updateHasPhoto(false, null)
-                            userLocalDao.updateHasPhoto(userId, false)
+                            // Rule: The source of truth for has_photo is the server's login response.
+                            // A failed download only means showing the placeholder avatar.
+                            // Do NOT clear has_photo locally.
+                            android.util.Log.w("ProfileViewModel", "Profile photo download failed for $userId – keeping has_photo as set by server")
                         }
 
                         _uiState.update {
@@ -124,8 +125,6 @@ class ProfileViewModel @Inject constructor(
                                 photoUrl = photoDetail.photoUrl,
                                 activePhotoVersion = photoDetail.version,
                                 profilePhotoBitmap = photoBmp,
-                                // If photo fetch failed, reflect that so user can re-enroll
-                                hasPhoto = photoBmp != null,
                                 isLoadingProfile = false
                             )
                         }
