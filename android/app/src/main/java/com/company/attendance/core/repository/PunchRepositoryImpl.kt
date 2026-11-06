@@ -209,23 +209,34 @@ class PunchRepositoryImpl @Inject constructor(
             val serverEntity = summary.toEntity()
 
             val hasLocalOutPunch = localPunches.any { it.type == "OUT" }
-            val localOutTime = existing?.outTimeUtc ?: localPunches.lastOrNull { it.type == "OUT" }?.punchTimeUtc
+            val localOutTime = if (hasLocalOutPunch) {
+                localPunches.lastOrNull { it.type == "OUT" }?.punchTimeUtc ?: existing?.outTimeUtc
+            } else null
 
             if (existing != null || hasLocalOutPunch) {
-                val resolvedOutTime = if (localOutTime != null && serverEntity.outTimeUtc == null) {
-                    localOutTime
-                } else {
-                    serverEntity.outTimeUtc ?: localOutTime
-                }
+                var resolvedOutTime = serverEntity.outTimeUtc ?: localOutTime
 
                 val resolvedInTime = existing?.inTimeUtc
                     ?: localPunches.firstOrNull { it.type == "IN" }?.punchTimeUtc
                     ?: serverEntity.inTimeUtc
 
-                val resolvedStatus = if (resolvedInTime != null && resolvedOutTime != null) {
+                // If outTime equals inTime and there is no genuine OUT punch, it is NOT a valid checkout!
+                if (resolvedOutTime != null && resolvedOutTime == resolvedInTime && !hasLocalOutPunch) {
+                    resolvedOutTime = null
+                }
+
+                val resolvedStatus = if (serverEntity.status == DayStatus.MISSED_PUNCH.name && resolvedOutTime == null) {
+                    DayStatus.MISSED_PUNCH.name
+                } else if (resolvedInTime != null && resolvedOutTime != null && resolvedOutTime != resolvedInTime) {
                     DayStatus.COMPLETE.name
-                } else if (serverEntity.status == DayStatus.MISSED_PUNCH.name && resolvedOutTime != null) {
-                    DayStatus.COMPLETE.name
+                } else if (resolvedInTime != null && resolvedOutTime == null) {
+                    val shift = summary.shiftType
+                    val workDate = try { LocalDate.parse(summary.dateLocal) } catch (_: Exception) { LocalDate.now() }
+                    if (ShiftEvaluator.isSessionExpired(shift, workDate, LocalDateTime.now())) {
+                        DayStatus.MISSED_PUNCH.name
+                    } else {
+                        DayStatus.NO_RECORD.name
+                    }
                 } else {
                     serverEntity.status
                 }

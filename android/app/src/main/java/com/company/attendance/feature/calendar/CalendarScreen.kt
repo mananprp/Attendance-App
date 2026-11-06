@@ -34,6 +34,7 @@ import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.snapshotFlow
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
@@ -101,6 +102,7 @@ fun CalendarScreen(
         onToggleMonthView = viewModel::toggleMonthView,
         onDateSelected = { date -> viewModel.selectDate(date, openSheet = false) },
         onSeeMoreClick = viewModel::openDetailSheet,
+        onVisibleMonthChanged = viewModel::onVisibleMonthChanged,
         modifier = modifier
     )
 }
@@ -120,7 +122,8 @@ fun CalendarScreenContent(
     modifier: Modifier = Modifier,
     onToggleMonthView: () -> Unit = {},
     onDateSelected: (LocalDate) -> Unit = {},
-    onSeeMoreClick: () -> Unit = {}
+    onSeeMoreClick: () -> Unit = {},
+    onVisibleMonthChanged: (YearMonth) -> Unit = {}
 ) {
     val scrollState = rememberScrollState()
     val today = remember(uiState.calendarDays) {
@@ -166,7 +169,8 @@ fun CalendarScreenContent(
                     today = today,
                     selectedDate = activeSelectedDate,
                     summariesMap = uiState.summariesMap,
-                    onDateSelected = onDateSelected
+                    onDateSelected = onDateSelected,
+                    onVisibleMonthChanged = onVisibleMonthChanged
                 )
             }
 
@@ -261,6 +265,7 @@ private fun HorizontallyScrollableWeekStrip(
     selectedDate: LocalDate,
     summariesMap: Map<String, DaySummary>,
     onDateSelected: (LocalDate) -> Unit,
+    onVisibleMonthChanged: (YearMonth) -> Unit,
     modifier: Modifier = Modifier
 ) {
     val initialPage = 5000
@@ -272,6 +277,14 @@ private fun HorizontallyScrollableWeekStrip(
     LaunchedEffect(selectedDate) {
         if (selectedDate == today && pagerState.currentPage != initialPage) {
             pagerState.animateScrollToPage(initialPage)
+        }
+    }
+
+    LaunchedEffect(pagerState) {
+        snapshotFlow { pagerState.settledPage }.collect { page ->
+            val weekOffset = page - initialPage
+            val midWeekDate = baseSunday.plusWeeks(weekOffset.toLong()).plusDays(3)
+            onVisibleMonthChanged(YearMonth.from(midWeekDate))
         }
     }
 
@@ -449,17 +462,15 @@ private fun CalendarLegendRow(
             horizontalArrangement = Arrangement.spacedBy(14.dp),
             verticalAlignment = Alignment.CenterVertically
         ) {
-            // Present Guide
+            // Present Guide (Green ring, no bg)
             Row(
                 verticalAlignment = Alignment.CenterVertically,
                 horizontalArrangement = Arrangement.spacedBy(6.dp)
             ) {
                 Box(
                     modifier = Modifier
-                        .size(11.dp)
-                        .clip(CircleShape)
-                        .background(AppAccent.copy(alpha = 0.20f))
-                        .border(1.dp, AppAccent, CircleShape)
+                        .size(12.dp)
+                        .border(1.5.dp, AppAccent, CircleShape)
                 )
                 Text(
                     text = "Present",
@@ -471,20 +482,38 @@ private fun CalendarLegendRow(
                 )
             }
 
-            // Missed Punch Guide
+            // Missed Punch Guide (Amber ring, no bg)
             Row(
                 verticalAlignment = Alignment.CenterVertically,
-                horizontalArrangement = Arrangement.spacedBy(6.dp)
+                horizontalArrangement = Arrangement.spacedBy(5.dp)
             ) {
                 Box(
                     modifier = Modifier
                         .size(11.dp)
-                        .clip(CircleShape)
-                        .background(AppWarning.copy(alpha = 0.20f))
-                        .border(1.dp, AppWarning, CircleShape)
+                        .border(1.5.dp, AppWarning, CircleShape)
                 )
                 Text(
                     text = "Missed Punch",
+                    style = AppTypographyTokens.Caption.copy(
+                        fontSize = 11.sp,
+                        fontWeight = FontWeight.Medium,
+                        color = AppSecondaryText
+                    )
+                )
+            }
+
+            // Today Guide (White ring, no bg)
+            Row(
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.spacedBy(5.dp)
+            ) {
+                Box(
+                    modifier = Modifier
+                        .size(11.dp)
+                        .border(1.5.dp, Color.White, CircleShape)
+                )
+                Text(
+                    text = "Today",
                     style = AppTypographyTokens.Caption.copy(
                         fontSize = 11.sp,
                         fontWeight = FontWeight.Medium,
@@ -520,87 +549,24 @@ private fun SelectedDayAttendanceCards(
     modifier: Modifier = Modifier
 ) {
     val summary = summariesMap[selectedDate.toString()]
-    val rawStatus = summary?.status ?: DayStatus.NO_RECORD
-    val status = detailState?.status ?: rawStatus
+    val rawOutEpoch = summary?.outTimeUtcEpochMs
+    val rawInEpoch = summary?.inTimeUtcEpochMs
+    val isSummaryMissedPunch = (summary?.status == DayStatus.MISSED_PUNCH) ||
+        (rawOutEpoch != null && rawOutEpoch == rawInEpoch)
+    val fallbackOutEpoch = if (isSummaryMissedPunch) null else rawOutEpoch
 
     val inTime = detailState?.inTimeFormatted
-        ?: summary?.inTimeUtcEpochMs?.let { CalendarDateUtils.formatPunchTime(it, timezone) }
+        ?: rawInEpoch?.let { CalendarDateUtils.formatPunchTime(it, timezone) }
     val outTime = detailState?.outTimeFormatted
-        ?: summary?.outTimeUtcEpochMs?.let { CalendarDateUtils.formatPunchTime(it, timezone) }
+        ?: fallbackOutEpoch?.let { CalendarDateUtils.formatPunchTime(it, timezone) }
 
     val hasIn = inTime != null
     val hasOut = outTime != null
 
-    Column(
+    Row(
         modifier = modifier.fillMaxWidth(),
-        verticalArrangement = Arrangement.spacedBy(10.dp)
+        horizontalArrangement = Arrangement.spacedBy(AppDimensions.Spacing12)
     ) {
-        // Attendance Status Banner for Selected Day
-        Card(
-            modifier = Modifier.fillMaxWidth(),
-            shape = RoundedCornerShape(12.dp),
-            colors = CardDefaults.cardColors(
-                containerColor = when (status) {
-                    DayStatus.COMPLETE -> AppAccent.copy(alpha = 0.12f)
-                    DayStatus.MISSED_PUNCH -> AppWarning.copy(alpha = 0.14f)
-                    else -> AppSurface
-                }
-            ),
-            border = BorderStroke(
-                1.dp,
-                when (status) {
-                    DayStatus.COMPLETE -> AppAccent.copy(alpha = 0.40f)
-                    DayStatus.MISSED_PUNCH -> AppWarning.copy(alpha = 0.45f)
-                    else -> AppBorder
-                }
-            )
-        ) {
-            Row(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .padding(horizontal = 14.dp, vertical = 10.dp),
-                verticalAlignment = Alignment.CenterVertically,
-                horizontalArrangement = Arrangement.SpaceBetween
-            ) {
-                Text(
-                    text = when (status) {
-                        DayStatus.COMPLETE -> "Full Shift Present"
-                        DayStatus.MISSED_PUNCH -> "Missed Punch Recorded"
-                        else -> "No Punch Activity"
-                    },
-                    style = AppTypographyTokens.BodyMedium.copy(
-                        fontWeight = FontWeight.SemiBold,
-                        color = when (status) {
-                            DayStatus.COMPLETE -> AppAccent
-                            DayStatus.MISSED_PUNCH -> AppWarning
-                            else -> AppSecondaryText
-                        }
-                    )
-                )
-
-                Text(
-                    text = when (status) {
-                        DayStatus.COMPLETE -> "Complete"
-                        DayStatus.MISSED_PUNCH -> if (hasIn && !hasOut) "Missing Check-out" else if (!hasIn && hasOut) "Missing Check-in" else "Incomplete"
-                        else -> "Off"
-                    },
-                    style = AppTypographyTokens.Caption.copy(
-                        fontSize = 11.sp,
-                        fontWeight = FontWeight.Medium,
-                        color = when (status) {
-                            DayStatus.COMPLETE -> AppAccent
-                            DayStatus.MISSED_PUNCH -> AppWarning
-                            else -> AppDisabledText
-                        }
-                    )
-                )
-            }
-        }
-
-        Row(
-            modifier = Modifier.fillMaxWidth(),
-            horizontalArrangement = Arrangement.spacedBy(AppDimensions.Spacing12)
-        ) {
         // Check In Card (Findez reference: Icon + Title side-by-side, bold time, subtle caption)
         Card(
             modifier = Modifier.weight(1f),
@@ -698,7 +664,6 @@ private fun SelectedDayAttendanceCards(
                     color = if (hasOut) AppSecondaryText else AppDisabledText
                 )
             }
-        }
     }
     }
 }

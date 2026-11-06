@@ -20,8 +20,6 @@ import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.outlined.BatteryChargingFull
-import androidx.compose.material.icons.outlined.CloudDone
 import androidx.compose.material.icons.outlined.LocationOn
 import androidx.compose.material.icons.outlined.Place
 import androidx.compose.material.icons.outlined.Schedule
@@ -215,34 +213,6 @@ fun TrackerScreen(
                     }
                 }
 
-                // Guidelines & Technology Cards
-                Text(
-                    text = "Tracking Telemetry & Policies",
-                    style = AppTypographyTokens.BodyMedium.copy(
-                        fontWeight = FontWeight.SemiBold,
-                        color = AppPrimaryText
-                    ),
-                    modifier = Modifier.padding(top = AppDimensions.Spacing8, start = 4.dp)
-                )
-
-                TrackingInfoCard(
-                    icon = Icons.Outlined.Schedule,
-                    title = "60-Second Cadence",
-                    description = "GPS coordinates are polled and buffered locally every minute to ensure accurate navigation without battery drain."
-                )
-
-                TrackingInfoCard(
-                    icon = Icons.Outlined.CloudDone,
-                    title = "Offline Resilient & 1-Tap Sync",
-                    description = "All points and stops are preserved in your encrypted local database and seamlessly submitted upon trip completion."
-                )
-
-                TrackingInfoCard(
-                    icon = Icons.Outlined.BatteryChargingFull,
-                    title = "Foreground Service Protection",
-                    description = "Runs as an official Android Foreground Service. If GPS is turned off, an audible high-priority alert lets you resume instantly."
-                )
-
                 Spacer(modifier = Modifier.height(AppDimensions.Spacing32))
             }
         }
@@ -321,63 +291,6 @@ private fun StopItemCard(
                     style = AppTypographyTokens.Caption.copy(
                         color = AppSecondaryText,
                         fontSize = 11.sp
-                    )
-                )
-            }
-        }
-    }
-}
-
-@Composable
-private fun TrackingInfoCard(
-    icon: ImageVector,
-    title: String,
-    description: String,
-    modifier: Modifier = Modifier
-) {
-    Card(
-        modifier = modifier.fillMaxWidth(),
-        shape = RoundedCornerShape(16.dp),
-        colors = CardDefaults.cardColors(containerColor = AppSurface),
-        border = androidx.compose.foundation.BorderStroke(1.dp, AppBorder)
-    ) {
-        Row(
-            modifier = Modifier
-                .fillMaxWidth()
-                .padding(AppDimensions.Spacing16),
-            verticalAlignment = Alignment.CenterVertically
-        ) {
-            Box(
-                modifier = Modifier
-                    .size(38.dp)
-                    .clip(CircleShape)
-                    .background(AppBackground),
-                contentAlignment = Alignment.Center
-            ) {
-                Icon(
-                    imageVector = icon,
-                    contentDescription = null,
-                    tint = AppAccent,
-                    modifier = Modifier.size(20.dp)
-                )
-            }
-
-            Spacer(modifier = Modifier.width(AppDimensions.Spacing14))
-
-            Column(modifier = Modifier.weight(1f)) {
-                Text(
-                    text = title,
-                    style = AppTypographyTokens.BodyMedium.copy(
-                        fontWeight = FontWeight.SemiBold,
-                        color = AppPrimaryText
-                    )
-                )
-                Spacer(modifier = Modifier.height(2.dp))
-                Text(
-                    text = description,
-                    style = AppTypographyTokens.Caption.copy(
-                        color = AppSecondaryText,
-                        lineHeight = 16.sp
                     )
                 )
             }

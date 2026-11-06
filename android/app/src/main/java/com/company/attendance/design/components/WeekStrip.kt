@@ -105,33 +105,22 @@ fun WeekDayCell(
                 fontSize = 11.sp,
                 fontWeight = FontWeight.Medium
             ),
-            color = if (item.isSelected) AppAccent else AppSecondaryText
+            color = if (item.isSelected) AppAccent else if (item.isToday) Color.White else AppSecondaryText
         )
 
         Spacer(modifier = Modifier.height(AppDimensions.Spacing6))
 
-        // Day Number Circle (36dp) - Soft-Tinted Attendance Disc
+        // Day Number Circle (36dp) - Rings Only (No BG)
         val circleBackgroundModifier = when {
             item.isSelected -> Modifier.background(AppAccent, CircleShape)
-            item.status == DayStatus.COMPLETE -> Modifier.background(AppAccent.copy(alpha = 0.16f), CircleShape)
-            item.status == DayStatus.MISSED_PUNCH -> Modifier.background(AppWarning.copy(alpha = 0.18f), CircleShape)
-            else -> Modifier
+            else -> Modifier // No background for non-selected dates
         }
 
         val circleBorderModifier = when {
-            item.isSelected -> Modifier
-            item.isToday -> Modifier.border(
-                BorderStroke(1.5.dp, if (item.status == DayStatus.MISSED_PUNCH) AppWarning else AppAccent),
-                CircleShape
-            )
-            item.status == DayStatus.COMPLETE -> Modifier.border(
-                BorderStroke(1.dp, AppAccent.copy(alpha = 0.45f)),
-                CircleShape
-            )
-            item.status == DayStatus.MISSED_PUNCH -> Modifier.border(
-                BorderStroke(1.dp, AppWarning.copy(alpha = 0.50f)),
-                CircleShape
-            )
+            item.isSelected -> Modifier // Selected is solid filled, no border
+            item.isToday -> Modifier.border(BorderStroke(1.5.dp, Color.White), CircleShape)
+            item.status == DayStatus.COMPLETE -> Modifier.border(BorderStroke(1.5.dp, AppAccent), CircleShape)
+            item.status == DayStatus.MISSED_PUNCH -> Modifier.border(BorderStroke(1.5.dp, AppWarning), CircleShape)
             else -> Modifier
         }
 
@@ -148,9 +137,9 @@ fun WeekDayCell(
                     fontWeight = if (item.isSelected || item.isToday || item.status != DayStatus.NO_RECORD) FontWeight.SemiBold else FontWeight.Normal,
                     color = when {
                         item.isSelected -> AppOnAccent
+                        item.isToday -> Color.White
                         item.status == DayStatus.COMPLETE -> AppAccent
                         item.status == DayStatus.MISSED_PUNCH -> AppWarning
-                        item.isToday -> AppAccent
                         else -> AppPrimaryText
                     }
                 )

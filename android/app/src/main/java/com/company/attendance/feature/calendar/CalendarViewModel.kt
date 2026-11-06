@@ -162,6 +162,13 @@ class CalendarViewModel @Inject constructor(
         _isMonthViewExpanded.value = expanded
     }
 
+    fun onVisibleMonthChanged(yearMonth: YearMonth) {
+        if (_currentYearMonth.value != yearMonth) {
+            _currentYearMonth.value = yearMonth
+            refreshMonthFromApi(yearMonth)
+        }
+    }
+
     fun onPreviousMonth() {
         val newYm = _currentYearMonth.value.minusMonths(1)
         _currentYearMonth.value = newYm
@@ -246,20 +253,25 @@ class CalendarViewModel @Inject constructor(
 
                 val summary = cachedSummariesMap[dateString]
 
-                val inTime = CalendarDateUtils.formatPunchTime(
-                    epochMs = summary?.inTimeUtcEpochMs ?: punches.firstOrNull { it.type == "IN" }?.punchTimeUtc,
-                    timezoneId = timezone
-                )
+                val hasRealOutPunch = punches.any { it.type == "OUT" }
+                val rawInEpoch = summary?.inTimeUtcEpochMs ?: punches.firstOrNull { it.type == "IN" }?.punchTimeUtc
+                val rawOutEpoch = summary?.outTimeUtcEpochMs ?: punches.lastOrNull { it.type == "OUT" }?.punchTimeUtc
 
-                val outTime = CalendarDateUtils.formatPunchTime(
-                    epochMs = summary?.outTimeUtcEpochMs ?: punches.lastOrNull { it.type == "OUT" }?.punchTimeUtc,
-                    timezoneId = timezone
-                )
+                val isMissedOrUnclosed = (summary?.status == DayStatus.MISSED_PUNCH) ||
+                    (rawInEpoch != null && rawOutEpoch == rawInEpoch && !hasRealOutPunch)
 
-                val status = summary?.status ?: when {
+                val effectiveOutEpoch = if (isMissedOrUnclosed && !hasRealOutPunch) null else rawOutEpoch
+
+                val inTime = CalendarDateUtils.formatPunchTime(rawInEpoch, timezone)
+                val outTime = CalendarDateUtils.formatPunchTime(effectiveOutEpoch, timezone)
+
+                val status = when {
+                    summary?.status == DayStatus.MISSED_PUNCH -> DayStatus.MISSED_PUNCH
+                    isMissedOrUnclosed -> DayStatus.MISSED_PUNCH
                     inTime != null && outTime != null -> DayStatus.COMPLETE
-                    inTime != null -> DayStatus.MISSED_PUNCH
-                    else -> DayStatus.NO_RECORD
+                    date == currentOfficeDate -> DayStatus.NO_RECORD
+                    date < currentOfficeDate && inTime != null -> DayStatus.MISSED_PUNCH
+                    else -> summary?.status ?: DayStatus.NO_RECORD
                 }
 
                 val syncStatus = CalendarDateUtils.deriveSyncStatus(punches)
