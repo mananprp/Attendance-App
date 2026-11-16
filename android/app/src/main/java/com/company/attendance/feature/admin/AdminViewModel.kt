@@ -307,6 +307,45 @@ class AdminViewModel @Inject constructor(
         }
     }
 
+    fun openResetPhotoDialog(user: AdminUserDto) {
+        _uiState.update { it.copy(selectedUserForPhotoReset = user, errorMessage = null, successMessage = null) }
+    }
+
+    fun closeResetPhotoDialog() {
+        _uiState.update { it.copy(selectedUserForPhotoReset = null) }
+    }
+
+    fun resetUserPhoto(userId: String) {
+        viewModelScope.launch {
+            _uiState.update { it.copy(isActionLoading = true, errorMessage = null) }
+            try {
+                val response = apiService.resetAdminUserPhoto(userId = userId)
+                val result = NetworkHelper.parseResponse(response)
+
+                result.onSuccess { actionResp ->
+                    _uiState.update { current ->
+                        current.copy(
+                            isActionLoading = false,
+                            selectedUserForPhotoReset = null,
+                            users = current.users.map { u ->
+                                if (u.userId == userId) u.copy(photoChangeUsed = false) else u
+                            },
+                            successMessage = actionResp.message.ifBlank { "Profile photo for user '$userId' reset successfully." }
+                        )
+                    }
+                }.onFailure { err ->
+                    _uiState.update {
+                        it.copy(isActionLoading = false, errorMessage = err.message ?: "Failed to reset photo.")
+                    }
+                }
+            } catch (e: Exception) {
+                _uiState.update {
+                    it.copy(isActionLoading = false, errorMessage = e.message ?: "Failed to reset photo.")
+                }
+            }
+        }
+    }
+
     fun openDeleteUserDialog(user: AdminUserDto) {
         _uiState.update { it.copy(selectedUserForDelete = user, errorMessage = null, successMessage = null) }
     }

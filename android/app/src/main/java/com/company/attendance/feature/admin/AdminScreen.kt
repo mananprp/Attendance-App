@@ -280,6 +280,7 @@ fun AdminScreen(
                         currentUserId = viewModel.getCurrentUserId(),
                         onChangeSiteClick = { user -> viewModel.openSiteChangeDialog(user) },
                         onResetPasswordClick = { user -> viewModel.openResetPasswordDialog(user) },
+                        onResetPhotoClick = { user -> viewModel.openResetPhotoDialog(user) },
                         onDeleteUserClick = { user -> viewModel.openDeleteUserDialog(user) }
                     )
                 }
@@ -336,6 +337,18 @@ fun AdminScreen(
             onDismiss = viewModel::closeResetPasswordDialog,
             onConfirm = { newPassword ->
                 viewModel.resetUserPassword(targetUser.userId, newPassword)
+            }
+        )
+    }
+
+    // Reset Photo Confirmation Dialog
+    uiState.selectedUserForPhotoReset?.let { targetUser ->
+        AdminResetPhotoDialog(
+            user = targetUser,
+            isLoading = uiState.isActionLoading,
+            onDismiss = viewModel::closeResetPhotoDialog,
+            onConfirm = {
+                viewModel.resetUserPhoto(targetUser.userId)
             }
         )
     }
@@ -570,6 +583,7 @@ private fun SiteEmployeesView(
     currentUserId: String?,
     onChangeSiteClick: (AdminUserDto) -> Unit,
     onResetPasswordClick: (AdminUserDto) -> Unit,
+    onResetPhotoClick: (AdminUserDto) -> Unit,
     onDeleteUserClick: (AdminUserDto) -> Unit
 ) {
     Column(modifier = Modifier.fillMaxSize()) {
@@ -655,6 +669,7 @@ private fun SiteEmployeesView(
                         isSelf = currentUserId?.equals(user.userId, ignoreCase = true) == true,
                         onChangeSiteClick = { onChangeSiteClick(user) },
                         onResetPasswordClick = { onResetPasswordClick(user) },
+                        onResetPhotoClick = { onResetPhotoClick(user) },
                         onDeleteUserClick = { onDeleteUserClick(user) }
                     )
                 }
@@ -672,6 +687,7 @@ private fun UserItemCard(
     isSelf: Boolean,
     onChangeSiteClick: () -> Unit,
     onResetPasswordClick: () -> Unit,
+    onResetPhotoClick: () -> Unit,
     onDeleteUserClick: () -> Unit
 ) {
     var menuExpanded by remember { mutableStateOf(false) }
@@ -771,6 +787,14 @@ private fun UserItemCard(
                         onClick = {
                             menuExpanded = false
                             onResetPasswordClick()
+                        }
+                    )
+                    DropdownMenuItem(
+                        text = { Text("Reset Photo", style = AppTypographyTokens.BodyMedium, color = AppPrimaryText) },
+                        leadingIcon = { Icon(Icons.Default.Refresh, contentDescription = null, tint = AppAccent) },
+                        onClick = {
+                            menuExpanded = false
+                            onResetPhotoClick()
                         }
                     )
                     if (!isSelf) {
@@ -1483,6 +1507,86 @@ private fun AdminDeleteUserDialog(
                             fontWeight = FontWeight.SemiBold
                         )
                     }
+                }
+            }
+        }
+    }
+}
+
+
+@Composable
+private fun AdminResetPhotoDialog(
+    user: AdminUserDto,
+    isLoading: Boolean,
+    onDismiss: () -> Unit,
+    onConfirm: () -> Unit
+) {
+    androidx.compose.ui.window.Dialog(onDismissRequest = onDismiss) {
+        Surface(
+            shape = RoundedCornerShape(AppDimensions.CardCornerRadius),
+            color = AppSurface,
+            border = BorderStroke(AppDimensions.BorderWidth, AppBorder),
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(AppDimensions.ScreenPadding)
+        ) {
+            Column(modifier = Modifier.padding(AppDimensions.Spacing20)) {
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Text(
+                        text = "Reset Profile Photo",
+                        style = AppTypographyTokens.SectionHeading,
+                        color = AppPrimaryText
+                    )
+                    IconButton(onClick = onDismiss, modifier = Modifier.size(24.dp)) {
+                        Icon(Icons.Default.Close, contentDescription = "Close", tint = AppSecondaryText)
+                    }
+                }
+
+                Spacer(modifier = Modifier.height(AppDimensions.Spacing12))
+
+                Text(
+                    text = "Are you sure you want to reset the profile photo for ${user.name} (${user.userId})?",
+                    style = AppTypographyTokens.BodyMedium,
+                    color = AppPrimaryText
+                )
+
+                Spacer(modifier = Modifier.height(AppDimensions.Spacing8))
+
+                Surface(
+                    shape = RoundedCornerShape(AppDimensions.CardCornerRadius),
+                    color = AppAccentTint,
+                    border = BorderStroke(1.dp, AppAccent.copy(alpha = 0.3f)),
+                    modifier = Modifier.fillMaxWidth()
+                ) {
+                    Text(
+                        text = "The user will be able to re-enrol their profile photo from their profile screen. Attendance and punch records are not affected.",
+                        style = AppTypographyTokens.Caption,
+                        color = AppAccent,
+                        modifier = Modifier.padding(AppDimensions.Spacing12)
+                    )
+                }
+
+                Spacer(modifier = Modifier.height(AppDimensions.Spacing24))
+
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.spacedBy(AppDimensions.Spacing12)
+                ) {
+                    SecondaryButton(
+                        text = "Cancel",
+                        onClick = onDismiss,
+                        modifier = Modifier.weight(1f)
+                    )
+                    PrimaryButton(
+                        text = if (isLoading) "Resetting..." else "Reset Photo",
+                        onClick = onConfirm,
+                        enabled = !isLoading,
+                        modifier = Modifier.weight(1f)
+                    )
                 }
             }
         }

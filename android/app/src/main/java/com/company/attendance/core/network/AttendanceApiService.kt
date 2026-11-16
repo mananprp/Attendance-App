@@ -109,6 +109,11 @@ interface AttendanceApiService {
         @Path("userId") userId: String
     ): Response<AdminActionResponseDto>
 
+    @POST("admin/users/{userId}/photo/reset")
+    suspend fun resetAdminUserPhoto(
+        @Path("userId") userId: String
+    ): Response<AdminActionResponseDto>
+
     // Field Tracking endpoints
     @POST("tracking/sessions/start")
     suspend fun startTrackingSession(

@@ -153,4 +153,38 @@ class AdminViewModelTest {
         assertEquals(28.535516, fetchedLat ?: 0.0, 0.0001)
         assertEquals(77.391026, fetchedLng ?: 0.0, 0.0001)
     }
+
+    @Test
+    fun resetUserPhoto_success_updatesUserPhotoChangeUsed() = runTest {
+        val user = AdminUserDto(
+            userId = "EMP1001",
+            name = "Alice",
+            role = "EMPLOYEE",
+            siteCode = "DEFAULT_OFFICE",
+            siteName = "Headquarters",
+            status = "ACTIVE",
+            photoChangeUsed = true
+        )
+        viewModel.openResetPhotoDialog(user)
+        assertEquals(user, viewModel.uiState.value.selectedUserForPhotoReset)
+
+        coEvery {
+            apiService.resetAdminUserPhoto("EMP1001")
+        } returns Response.success(
+            com.company.attendance.core.network.model.AdminActionResponseDto(
+                success = true,
+                message = "Photo reset successfully."
+            )
+        )
+
+        viewModel.resetUserPhoto("EMP1001")
+        advanceUntilIdle()
+
+        val state = viewModel.uiState.value
+        assertEquals(null, state.selectedUserForPhotoReset)
+        assertFalse(state.isActionLoading)
+        val updatedUser = state.users.find { it.userId == "EMP1001" }
+        assertEquals(false, updatedUser?.photoChangeUsed)
+        assertTrue(state.successMessage?.contains("Photo reset successfully") == true)
+    }
 }

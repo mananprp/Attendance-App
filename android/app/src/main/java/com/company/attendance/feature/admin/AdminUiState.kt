@@ -15,5 +15,6 @@ data class AdminUiState(
     val targetSiteForNewUser: String? = null,
     val selectedUserForSiteChange: AdminUserDto? = null,
     val selectedUserForPasswordReset: AdminUserDto? = null,
+    val selectedUserForPhotoReset: AdminUserDto? = null,
     val selectedUserForDelete: AdminUserDto? = null
 )
