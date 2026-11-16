@@ -2,7 +2,7 @@ import { AdminUser, AdminSite, AdminPunch, AdminDailyAttendance, AuthSession } f
 
 const API_BASE =
   import.meta.env.VITE_API_BASE ||
-  (typeof window !== 'undefined' && !window.location.hostname.endsWith('vercel.app') && !window.location.hostname.endsWith('netlify.app')
+  (typeof window !== 'undefined' && window.location.hostname === 'attendance.pess.co.in'
     ? '/v1'
     : 'https://attendance.pess.co.in/v1');
 

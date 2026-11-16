@@ -273,9 +273,19 @@ export const UsersView: React.FC<UsersViewProps> = ({ sites }) => {
                     <span style={{ fontSize: '0.8rem', color: 'var(--success)', fontWeight: 600 }}>Active</span>
                   </td>
                   <td>
-                    <span style={{ fontSize: '0.8rem', color: u.photo_change_used ? 'var(--text-secondary)' : 'var(--primary)' }}>
-                      {u.photo_change_used ? 'Enrolled (v2 used)' : 'Enrolled'}
-                    </span>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                      <span style={{ fontSize: '0.8rem', color: u.photo_change_used ? 'var(--text-secondary)' : 'var(--primary)', fontWeight: 500 }}>
+                        {u.photo_change_used ? 'Enrolled (v2 used)' : 'Enrolled'}
+                      </span>
+                      <button
+                        onClick={() => handleOpenResetPhotoModal(u)}
+                        className="btn btn-secondary btn-sm"
+                        style={{ padding: '2px 8px', fontSize: '0.72rem', display: 'inline-flex', alignItems: 'center', gap: 4 }}
+                        title="Reset employee profile photo count to allow re-enrolment"
+                      >
+                        <Camera size={11} /> Reset
+                      </button>
+                    </div>
                   </td>
                   <td style={{ textAlign: 'right' }}>
                     <div style={{ display: 'inline-flex', gap: 6, flexWrap: 'wrap', justifyContent: 'flex-end' }}>
@@ -300,6 +310,14 @@ export const UsersView: React.FC<UsersViewProps> = ({ sites }) => {
                         style={{ display: 'inline-flex', alignItems: 'center', gap: 4 }}
                       >
                         <Key size={13} /> Password
+                      </button>
+                      <button
+                        onClick={() => handleOpenResetPhotoModal(u)}
+                        className="btn btn-secondary btn-sm"
+                        title="Reset employee profile photo count"
+                        style={{ display: 'inline-flex', alignItems: 'center', gap: 4 }}
+                      >
+                        <Camera size={13} /> Reset Photo
                       </button>
                       <button
                         onClick={() => handleOpenDeleteModal(u)}

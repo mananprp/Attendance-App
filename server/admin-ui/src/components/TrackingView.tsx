@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { api } from '../api';
 import { TrackingSessionSummary, TrackingSessionDetails } from '../types';
-import { Navigation, MapPin, Calendar, Clock, AlertTriangle, X } from 'lucide-react';
+import { Navigation, MapPin, Calendar, Clock, AlertTriangle, X, RefreshCw, CheckCircle } from 'lucide-react';
 import L from 'leaflet';
 import 'leaflet/dist/leaflet.css';
 
@@ -93,50 +93,53 @@ export const TrackingView: React.FC = () => {
       const startPoint = points[0];
       const startIcon = L.divIcon({
         className: 'custom-map-pin start',
-        html: `<div style="background:#10B981;width:24px;height:24px;border-radius:50%;border:2px solid #fff;display:flex;align-items:center;justify-content:center;color:#fff;font-size:11px;font-weight:bold;">S</div>`,
+        html: `<div style="background:#10B981;width:24px;height:24px;border-radius:50%;border:2px solid #fff;display:flex;align-items:center;justify-content:center;color:#fff;font-size:11px;font-weight:bold;box-shadow:0 2px 4px rgba(0,0,0,0.2);">S</div>`,
         iconSize: [24, 24],
         iconAnchor: [12, 12],
       });
       L.marker([startPoint.latitude, startPoint.longitude], { icon: startIcon })
-        .addTo(map)
-        .bindPopup(`<b>Trip Start</b><br>${new Date(startPoint.recordedAtUtc).toLocaleTimeString()}`);
+        .bindPopup(
+          `<strong>Trip Start</strong><br/>Time: ${new Date(startPoint.recordedAtUtc).toLocaleTimeString()}<br/>Accuracy: ${Math.round(startPoint.accuracyM || 0)}m`
+        )
+        .addTo(map);
 
-      // End Marker (Red)
-      const endPoint = points[points.length - 1];
-      const endIcon = L.divIcon({
-        className: 'custom-map-pin end',
-        html: `<div style="background:#EF4444;width:24px;height:24px;border-radius:50%;border:2px solid #fff;display:flex;align-items:center;justify-content:center;color:#fff;font-size:11px;font-weight:bold;">E</div>`,
-        iconSize: [24, 24],
-        iconAnchor: [12, 12],
-      });
-      L.marker([endPoint.latitude, endPoint.longitude], { icon: endIcon })
-        .addTo(map)
-        .bindPopup(`<b>Trip Finish</b><br>${new Date(endPoint.recordedAtUtc).toLocaleTimeString()}`);
-
-      // Stops Markers (Orange)
-      stops.forEach((stop, idx) => {
-        const stopIcon = L.divIcon({
-          className: 'custom-map-pin stop',
-          html: `<div style="background:#F59E0B;width:26px;height:26px;border-radius:50%;border:2px solid #fff;display:flex;align-items:center;justify-content:center;color:#fff;font-size:11px;font-weight:bold;">${idx + 1}</div>`,
-          iconSize: [26, 26],
-          iconAnchor: [13, 13],
+      // End Marker (Red if finished)
+      if (selectedSession.endTimeUtc && points.length > 1) {
+        const endPoint = points[points.length - 1];
+        const endIcon = L.divIcon({
+          className: 'custom-map-pin end',
+          html: `<div style="background:#EF4444;width:24px;height:24px;border-radius:50%;border:2px solid #fff;display:flex;align-items:center;justify-content:center;color:#fff;font-size:11px;font-weight:bold;box-shadow:0 2px 4px rgba(0,0,0,0.2);">F</div>`,
+          iconSize: [24, 24],
+          iconAnchor: [12, 12],
         });
-        L.marker([stop.latitude, stop.longitude], { icon: stopIcon })
-          .addTo(map)
+        L.marker([endPoint.latitude, endPoint.longitude], { icon: endIcon })
           .bindPopup(
-            `<b>Stop ${idx + 1}: ${stop.stopName || 'Site Inspection'}</b><br>Arrived: ${new Date(stop.arrivedAtUtc).toLocaleTimeString()}`,
-          );
-      });
+            `<strong>Trip Finish</strong><br/>Time: ${new Date(endPoint.recordedAtUtc).toLocaleTimeString()}<br/>Total Distance: ${formatDistance(selectedSession.totalDistanceM)}`
+          )
+          .addTo(map);
+      }
 
+      // Fit map bounds to polyline
       map.fitBounds(polyline.getBounds(), { padding: [40, 40] });
     }
 
-    return () => {
-      if (mapInstanceRef.current) {
-        mapInstanceRef.current.remove();
-        mapInstanceRef.current = null;
-      }
-    };
+    // Render Stops (Amber Pins)
+    stops.forEach((stop, idx) => {
+      const stopIcon = L.divIcon({
+        className: 'custom-map-pin stop',
+        html: `<div style="background:#F59E0B;width:22px;height:22px;border-radius:50%;border:2px solid #fff;display:flex;align-items:center;justify-content:center;color:#fff;font-size:10px;font-weight:bold;box-shadow:0 2px 4px rgba(0,0,0,0.2);">${idx + 1}</div>`,
+        iconSize: [22, 22],
+        iconAnchor: [11, 11],
+      });
+
+      const arrivalTime = new Date(stop.arrivedAtUtc).toLocaleTimeString();
+
+      L.marker([stop.latitude, stop.longitude], { icon: stopIcon })
+        .bindPopup(
+          `<strong>Stop #${idx + 1}: ${stop.stopName || 'Site Stop'}</strong><br/>Arrived: ${arrivalTime}`
+        )
+        .addTo(map);
+    });
   }, [selectedSession]);
 
   const formatDistance = (meters: number) => {
@@ -155,149 +158,243 @@ export const TrackingView: React.FC = () => {
     return `${mins}m`;
   };
 
+  const renderStatusBadge = (status: string) => {
+    switch (status) {
+      case 'COMPLETED':
+        return (
+          <span className="badge badge-complete">
+            <CheckCircle size={12} /> Completed
+          </span>
+        );
+      case 'ACTIVE':
+        return (
+          <span className="badge badge-in-progress">
+            <Clock size={12} /> In Progress
+          </span>
+        );
+      case 'CANCELLED':
+        return (
+          <span className="badge badge-missed">
+            <AlertTriangle size={12} /> Cancelled
+          </span>
+        );
+      default:
+        return <span className="badge badge-employee">{status}</span>;
+    }
+  };
+
+  const activeCount = sessions.filter((s) => s.status === 'ACTIVE').length;
+  const completedCount = sessions.filter((s) => s.status === 'COMPLETED').length;
+  const totalStops = sessions.reduce((acc, s) => acc + (s.stopsCount || 0), 0);
+
   return (
-    <div className="view-container">
-      <div className="view-header">
-        <div>
-          <h2>Field & Supervisor Tracking</h2>
-          <p>Review real-time and completed site visit routes, distances, and inspection stops.</p>
+    <div style={{ display: 'flex', flexDirection: 'column', gap: 24 }}>
+      {/* Overview Metric Stat Cards */}
+      <div className="stats-grid">
+        <div className="stat-card">
+          <div className="stat-icon" style={{ background: 'var(--primary-light)', color: 'var(--primary)' }}>
+            <Navigation size={24} />
+          </div>
+          <div>
+            <div className="stat-value">{sessions.length}</div>
+            <div className="stat-label">Total Tracking Sessions</div>
+          </div>
         </div>
-        <div style={{ display: 'flex', gap: 10 }}>
-          <input
-            type="text"
-            placeholder="Filter by Employee ID..."
-            value={userIdFilter}
-            onChange={(e) => setUserIdFilter(e.target.value)}
-            className="input"
-            style={{ width: 220 }}
-          />
-          <button className="btn btn-secondary" onClick={loadSessions}>
-            Refresh
-          </button>
+
+        <div className="stat-card">
+          <div className="stat-icon" style={{ background: 'rgba(59, 130, 246, 0.1)', color: '#3B82F6' }}>
+            <Clock size={24} />
+          </div>
+          <div>
+            <div className="stat-value">{activeCount}</div>
+            <div className="stat-label">Active In Progress</div>
+          </div>
+        </div>
+
+        <div className="stat-card">
+          <div className="stat-icon" style={{ background: 'rgba(16, 185, 129, 0.1)', color: '#10B981' }}>
+            <CheckCircle size={24} />
+          </div>
+          <div>
+            <div className="stat-value">{completedCount}</div>
+            <div className="stat-label">Completed Sessions</div>
+          </div>
+        </div>
+
+        <div className="stat-card">
+          <div className="stat-icon" style={{ background: 'rgba(245, 158, 11, 0.1)', color: '#F59E0B' }}>
+            <MapPin size={24} />
+          </div>
+          <div>
+            <div className="stat-value">{totalStops}</div>
+            <div className="stat-label">Inspection Stops Logged</div>
+          </div>
         </div>
       </div>
 
-      <div className="table-container">
-        <table className="table">
-          <thead>
-            <tr>
-              <th>Employee</th>
-              <th>Date & Start Time</th>
-              <th>End Time</th>
-              <th>Duration</th>
-              <th>Distance</th>
-              <th>Stops</th>
-              <th>Status</th>
-              <th>Actions</th>
-            </tr>
-          </thead>
-          <tbody>
-            {loading ? (
+      {/* Main Card with Header, Filter Bar, and Table */}
+      <div className="card">
+        <div className="card-header">
+          <div>
+            <h2 className="card-title">Field & Supervisor Tracking</h2>
+            <p className="card-subtitle">
+              Review real-time and completed site visit routes, distances, and inspection stops
+            </p>
+          </div>
+          <div style={{ display: 'flex', gap: 12 }}>
+            <button
+              onClick={loadSessions}
+              disabled={loading}
+              className="btn btn-secondary"
+              title="Refresh sessions list"
+            >
+              <RefreshCw size={16} className={loading ? 'spin' : ''} /> Refresh
+            </button>
+          </div>
+        </div>
+
+        {/* Filter Controls Bar */}
+        <div className="filter-bar">
+          <div className="filter-group">
+            <label className="filter-label">Filter by Employee ID</label>
+            <input
+              type="text"
+              placeholder="Enter Employee ID (e.g. EMP2001)..."
+              value={userIdFilter}
+              onChange={(e) => setUserIdFilter(e.target.value)}
+              className="input"
+              style={{ minWidth: 260 }}
+            />
+          </div>
+          {userIdFilter && (
+            <div className="filter-group" style={{ alignSelf: 'flex-end' }}>
+              <button
+                className="btn btn-secondary btn-sm"
+                onClick={() => setUserIdFilter('')}
+                title="Clear employee filter"
+              >
+                Clear
+              </button>
+            </div>
+          )}
+        </div>
+
+        {/* Standard Data Table */}
+        <div className="table-responsive">
+          <table className="data-table">
+            <thead>
               <tr>
-                <td colSpan={8} style={{ textAlign: 'center', padding: '32px' }}>
-                  Loading tracking sessions...
-                </td>
+                <th>Employee</th>
+                <th>Date & Start Time</th>
+                <th>End Time</th>
+                <th>Duration</th>
+                <th>Distance</th>
+                <th>Stops</th>
+                <th>Status</th>
+                <th style={{ textAlign: 'right' }}>Actions</th>
               </tr>
-            ) : sessions.length === 0 ? (
-              <tr>
-                <td colSpan={8} style={{ textAlign: 'center', padding: '32px', color: 'var(--text-muted)' }}>
-                  No tracking sessions found.
-                </td>
-              </tr>
-            ) : (
-              sessions.map((session) => (
-                <tr key={session.id}>
-                  <td>
-                    <div style={{ fontWeight: 600 }}>{session.user?.displayName || session.userId}</div>
-                    <div style={{ fontSize: 12, color: 'var(--text-muted)' }}>ID: {session.userId}</div>
-                  </td>
-                  <td>
-                    <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
-                      <Calendar size={14} color="var(--text-muted)" />
-                      <span>{new Date(session.startTimeUtc).toLocaleDateString()}</span>
-                    </div>
-                    <div style={{ fontSize: 12, color: 'var(--text-muted)' }}>
-                      {new Date(session.startTimeUtc).toLocaleTimeString()}
-                    </div>
-                  </td>
-                  <td>
-                    {session.endTimeUtc ? (
-                      <div>
-                        <div>{new Date(session.endTimeUtc).toLocaleDateString()}</div>
-                        <div style={{ fontSize: 12, color: 'var(--text-muted)' }}>
-                          {new Date(session.endTimeUtc).toLocaleTimeString()}
-                        </div>
-                      </div>
-                    ) : (
-                      <span style={{ color: 'var(--success)', fontWeight: 600 }}>In Progress</span>
-                    )}
-                  </td>
-                  <td>
-                    <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
-                      <Clock size={14} color="var(--text-muted)" />
-                      <span>{formatDuration(session.startTimeUtc, session.endTimeUtc)}</span>
-                    </div>
-                  </td>
-                  <td style={{ fontWeight: 600 }}>{formatDistance(session.totalDistanceM)}</td>
-                  <td>
-                    <span className="badge" style={{ background: 'var(--surface-hover)' }}>
-                      {session.stopsCount} stops
-                    </span>
-                  </td>
-                  <td>
-                    <span
-                      className="badge"
-                      style={{
-                        background:
-                          session.status === 'COMPLETED'
-                            ? 'rgba(16, 185, 129, 0.15)'
-                            : session.status === 'ACTIVE'
-                            ? 'rgba(59, 130, 246, 0.15)'
-                            : 'rgba(239, 68, 68, 0.15)',
-                        color:
-                          session.status === 'COMPLETED'
-                            ? '#10B981'
-                            : session.status === 'ACTIVE'
-                            ? '#3B82F6'
-                            : '#EF4444',
-                      }}
-                    >
-                      {session.status}
-                    </span>
-                  </td>
-                  <td>
-                    <button
-                      className="btn btn-sm btn-primary"
-                      onClick={() => handleOpenMap(session.id)}
-                      disabled={loadingDetails}
-                      style={{ display: 'flex', alignItems: 'center', gap: 4 }}
-                    >
-                      <Navigation size={14} />
-                      <span>View Route</span>
-                    </button>
+            </thead>
+            <tbody>
+              {loading ? (
+                <tr>
+                  <td colSpan={8} style={{ textAlign: 'center', padding: '36px', color: 'var(--text-secondary)' }}>
+                    <RefreshCw size={20} className="spin" style={{ margin: '0 auto 8px auto', display: 'block' }} />
+                    Loading tracking sessions...
                   </td>
                 </tr>
-              ))
-            )}
-          </tbody>
-        </table>
+              ) : sessions.length === 0 ? (
+                <tr>
+                  <td colSpan={8} style={{ textAlign: 'center', padding: '36px', color: 'var(--text-secondary)' }}>
+                    No tracking sessions found.
+                  </td>
+                </tr>
+              ) : (
+                sessions.map((session) => (
+                  <tr key={session.id}>
+                    <td>
+                      <div style={{ fontWeight: 600 }}>{session.user?.displayName || session.userId}</div>
+                      <span style={{ fontSize: '0.75rem', fontFamily: 'monospace', color: 'var(--text-secondary)' }}>
+                        {session.userId}
+                      </span>
+                    </td>
+                    <td>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: 6, fontWeight: 500 }}>
+                        <Calendar size={14} color="var(--primary)" />
+                        <span>{new Date(session.startTimeUtc).toLocaleDateString()}</span>
+                      </div>
+                      <div style={{ fontSize: '0.78rem', color: 'var(--text-secondary)', marginLeft: 20 }}>
+                        {new Date(session.startTimeUtc).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+                      </div>
+                    </td>
+                    <td>
+                      {session.endTimeUtc ? (
+                        <div>
+                          <div style={{ fontWeight: 500 }}>{new Date(session.endTimeUtc).toLocaleDateString()}</div>
+                          <div style={{ fontSize: '0.78rem', color: 'var(--text-secondary)' }}>
+                            {new Date(session.endTimeUtc).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+                          </div>
+                        </div>
+                      ) : (
+                        <span className="badge badge-in-progress" style={{ fontSize: '0.75rem' }}>Active Now</span>
+                      )}
+                    </td>
+                    <td>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+                        <Clock size={14} color="var(--text-secondary)" />
+                        <span>{formatDuration(session.startTimeUtc, session.endTimeUtc)}</span>
+                      </div>
+                    </td>
+                    <td>
+                      <span style={{ fontWeight: 600 }}>{formatDistance(session.totalDistanceM)}</span>
+                    </td>
+                    <td>
+                      <span className="badge badge-employee" style={{ display: 'inline-flex', alignItems: 'center', gap: 4 }}>
+                        <MapPin size={11} color="var(--primary)" />
+                        {session.stopsCount} stops
+                      </span>
+                    </td>
+                    <td>
+                      {renderStatusBadge(session.status)}
+                    </td>
+                    <td style={{ textAlign: 'right' }}>
+                      <button
+                        className="btn btn-secondary btn-sm"
+                        onClick={() => handleOpenMap(session.id)}
+                        disabled={loadingDetails}
+                        style={{ display: 'inline-flex', alignItems: 'center', gap: 6 }}
+                        title="View GPS route and inspection stops on map"
+                      >
+                        <Navigation size={13} color="var(--primary)" />
+                        <span>View Route</span>
+                      </button>
+                    </td>
+                  </tr>
+                ))
+              )}
+            </tbody>
+          </table>
+        </div>
       </div>
 
       {/* Map Modal */}
       {selectedSession && (
-        <div className="modal-backdrop">
-          <div className="modal-dialog" style={{ maxWidth: 900, width: '95%', maxHeight: '90vh' }}>
+        <div className="modal-overlay">
+          <div className="modal-content" style={{ maxWidth: 900, width: '95%' }}>
             <div className="modal-header">
               <div>
-                <h3 style={{ margin: 0 }}>
+                <h3 style={{ margin: 0, fontSize: '1.15rem', fontWeight: 700 }}>
                   Route Map: {selectedSession.user?.displayName || selectedSession.userId}
                 </h3>
-                <div style={{ fontSize: 13, color: 'var(--text-muted)', marginTop: 4 }}>
+                <div style={{ fontSize: '0.82rem', color: 'var(--text-secondary)', marginTop: 4 }}>
                   {new Date(selectedSession.startTimeUtc).toLocaleString()} • Distance:{' '}
                   {formatDistance(selectedSession.totalDistanceM)} • Stops: {selectedSession.stopsCount}
                 </div>
               </div>
-              <button className="btn-close" onClick={handleCloseMap}>
+              <button
+                onClick={handleCloseMap}
+                style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--text-secondary)' }}
+                title="Close map"
+              >
                 <X size={20} />
               </button>
             </div>
@@ -308,13 +405,13 @@ export const TrackingView: React.FC = () => {
                 style={{
                   width: '100%',
                   height: 480,
-                  background: '#f3f4f6',
+                  background: '#f8fafc',
                 }}
               />
             </div>
 
             <div className="modal-footer" style={{ justifyContent: 'space-between' }}>
-              <div style={{ display: 'flex', gap: 16, fontSize: 13, alignItems: 'center' }}>
+              <div style={{ display: 'flex', gap: 16, fontSize: '0.82rem', alignItems: 'center', flexWrap: 'wrap' }}>
                 <span style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
                   <span style={{ width: 10, height: 10, borderRadius: '50%', background: '#10B981' }}></span>
                   Start
