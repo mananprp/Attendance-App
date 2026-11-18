@@ -23,6 +23,7 @@ data class ProfileUiState(
     val extractedNewEmbedding: FloatArray? = null,
     val profilePhotoBitmap: Bitmap? = null,
     val isAdmin: Boolean = false,
+    val isSupervisor: Boolean = false,
     val siteCode: String = "",
     val successMessage: String? = null
 ) {

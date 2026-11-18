@@ -279,6 +279,7 @@ fun AdminScreen(
                         users = uiState.users.filter { it.siteCode == selectedSite!!.officeId },
                         currentUserId = viewModel.getCurrentUserId(),
                         onChangeSiteClick = { user -> viewModel.openSiteChangeDialog(user) },
+                        onChangeRoleClick = { user -> viewModel.openRoleChangeDialog(user) },
                         onResetPasswordClick = { user -> viewModel.openResetPasswordDialog(user) },
                         onResetPhotoClick = { user -> viewModel.openResetPhotoDialog(user) },
                         onDeleteUserClick = { user -> viewModel.openDeleteUserDialog(user) }
@@ -325,6 +326,18 @@ fun AdminScreen(
             onDismiss = viewModel::closeSiteChangeDialog,
             onConfirm = { newSiteCode ->
                 viewModel.updateUserSite(targetUser.userId, newSiteCode)
+            }
+        )
+    }
+
+    // Change Role Dialog
+    uiState.selectedUserForRoleChange?.let { targetUser ->
+        ChangeRoleDialog(
+            user = targetUser,
+            isLoading = uiState.isActionLoading,
+            onDismiss = viewModel::closeRoleChangeDialog,
+            onConfirm = { newRole ->
+                viewModel.updateUserRole(targetUser.userId, newRole)
             }
         )
     }
@@ -582,6 +595,7 @@ private fun SiteEmployeesView(
     users: List<AdminUserDto>,
     currentUserId: String?,
     onChangeSiteClick: (AdminUserDto) -> Unit,
+    onChangeRoleClick: (AdminUserDto) -> Unit,
     onResetPasswordClick: (AdminUserDto) -> Unit,
     onResetPhotoClick: (AdminUserDto) -> Unit,
     onDeleteUserClick: (AdminUserDto) -> Unit
@@ -668,6 +682,7 @@ private fun SiteEmployeesView(
                         user = user,
                         isSelf = currentUserId?.equals(user.userId, ignoreCase = true) == true,
                         onChangeSiteClick = { onChangeSiteClick(user) },
+                        onChangeRoleClick = { onChangeRoleClick(user) },
                         onResetPasswordClick = { onResetPasswordClick(user) },
                         onResetPhotoClick = { onResetPhotoClick(user) },
                         onDeleteUserClick = { onDeleteUserClick(user) }
@@ -686,6 +701,7 @@ private fun UserItemCard(
     user: AdminUserDto,
     isSelf: Boolean,
     onChangeSiteClick: () -> Unit,
+    onChangeRoleClick: () -> Unit,
     onResetPasswordClick: () -> Unit,
     onResetPhotoClick: () -> Unit,
     onDeleteUserClick: () -> Unit
@@ -744,6 +760,19 @@ private fun UserItemCard(
                                 modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp)
                             )
                         }
+                    } else if (user.role.equals("SUPERVISOR", ignoreCase = true)) {
+                        Surface(
+                            shape = RoundedCornerShape(AppDimensions.ChipCornerRadius),
+                            color = AppAccentTint,
+                            border = BorderStroke(1.dp, AppAccent)
+                        ) {
+                            Text(
+                                text = "SUPERVISOR",
+                                style = AppTypographyTokens.CaptionMedium,
+                                color = AppAccent,
+                                modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp)
+                            )
+                        }
                     }
                 }
 
@@ -779,6 +808,14 @@ private fun UserItemCard(
                         onClick = {
                             menuExpanded = false
                             onChangeSiteClick()
+                        }
+                    )
+                    DropdownMenuItem(
+                        text = { Text("Change Role", style = AppTypographyTokens.BodyMedium, color = AppPrimaryText) },
+                        leadingIcon = { Icon(Icons.Default.Person, contentDescription = null, tint = AppAccent) },
+                        onClick = {
+                            menuExpanded = false
+                            onChangeRoleClick()
                         }
                     )
                     DropdownMenuItem(
@@ -1018,7 +1055,7 @@ private fun CreateUserDialog(
                     modifier = Modifier.fillMaxWidth(),
                     horizontalArrangement = Arrangement.spacedBy(AppDimensions.Spacing8)
                 ) {
-                    listOf("EMPLOYEE", "ADMIN").forEach { role ->
+                    listOf("EMPLOYEE", "SUPERVISOR", "ADMIN").forEach { role ->
                         val isSelected = selectedRole == role
                         Surface(
                             modifier = Modifier
@@ -1140,6 +1177,107 @@ private fun ChangeSiteDialog(
                     text = if (isLoading) "Updating..." else "Confirm Change",
                     onClick = { onConfirm(selectedSiteCode) },
                     enabled = !isLoading && selectedSiteCode != user.siteCode
+                )
+            }
+        }
+    }
+}
+
+@Composable
+private fun ChangeRoleDialog(
+    user: AdminUserDto,
+    isLoading: Boolean,
+    onDismiss: () -> Unit,
+    onConfirm: (newRole: String) -> Unit
+) {
+    var selectedRole by remember { mutableStateOf(user.role.uppercase()) }
+
+    val roles = listOf(
+        Triple("EMPLOYEE", "Regular Staff", "Attendance check-in/out and field tracking"),
+        Triple("SUPERVISOR", "Site Supervisor", "Staff oversight, view attendance, manage site ops"),
+        Triple("ADMIN", "System Administrator", "Full system access, manage all users and sites")
+    )
+
+    Dialog(onDismissRequest = onDismiss) {
+        Surface(
+            shape = RoundedCornerShape(AppDimensions.CardCornerRadius),
+            color = AppSurface,
+            border = BorderStroke(1.dp, AppBorder),
+            modifier = Modifier.fillMaxWidth()
+        ) {
+            Column(modifier = Modifier.padding(AppDimensions.Spacing20)) {
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Text(
+                        text = "Change User Role",
+                        style = AppTypographyTokens.Title,
+                        color = AppPrimaryText
+                    )
+                    IconButton(onClick = onDismiss, modifier = Modifier.size(24.dp)) {
+                        Icon(Icons.Default.Close, contentDescription = "Close", tint = AppSecondaryText)
+                    }
+                }
+
+                Spacer(modifier = Modifier.height(AppDimensions.Spacing8))
+
+                Text(
+                    text = "Select access role for ${user.name} (${user.userId}):",
+                    style = AppTypographyTokens.BodyMedium,
+                    color = AppSecondaryText
+                )
+
+                Spacer(modifier = Modifier.height(AppDimensions.Spacing16))
+
+                Column(verticalArrangement = Arrangement.spacedBy(AppDimensions.Spacing8)) {
+                    roles.forEach { (roleKey, roleTitle, roleDesc) ->
+                        val isSelected = selectedRole.equals(roleKey, ignoreCase = true)
+                        Surface(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .clickable { selectedRole = roleKey },
+                            shape = RoundedCornerShape(AppDimensions.ChipCornerRadius),
+                            color = if (isSelected) AppAccentTint else AppBackground,
+                            border = BorderStroke(1.dp, if (isSelected) AppAccent else AppBorder)
+                        ) {
+                            Row(
+                                modifier = Modifier.padding(horizontal = 12.dp, vertical = 10.dp),
+                                verticalAlignment = Alignment.CenterVertically
+                            ) {
+                                Column(modifier = Modifier.weight(1f)) {
+                                    Text(
+                                        text = "$roleKey • $roleTitle",
+                                        style = AppTypographyTokens.BodyMedium.copy(fontWeight = androidx.compose.ui.text.font.FontWeight.SemiBold),
+                                        color = if (isSelected) AppAccent else AppPrimaryText
+                                    )
+                                    Spacer(modifier = Modifier.height(2.dp))
+                                    Text(
+                                        text = roleDesc,
+                                        style = AppTypographyTokens.Caption,
+                                        color = AppSecondaryText
+                                    )
+                                }
+                                if (isSelected) {
+                                    Icon(
+                                        Icons.Default.Check,
+                                        contentDescription = null,
+                                        tint = AppAccent,
+                                        modifier = Modifier.size(18.dp)
+                                    )
+                                }
+                            }
+                        }
+                    }
+                }
+
+                Spacer(modifier = Modifier.height(AppDimensions.Spacing20))
+
+                PrimaryButton(
+                    text = if (isLoading) "Updating..." else "Confirm Role Change",
+                    onClick = { onConfirm(selectedRole) },
+                    enabled = !isLoading && !selectedRole.equals(user.role, ignoreCase = true)
                 )
             }
         }

@@ -8,6 +8,7 @@ import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
 import * as bcrypt from 'bcryptjs';
 import { UserEntity, UserRole, UserStatus } from '../../database/entities/user.entity';
+import { UserSiteEntity } from '../../database/entities/user-site.entity';
 import { OfficeConfigEntity } from '../../database/entities/office-config.entity';
 import { AttendancePunchEntity, LocationType, PunchType } from '../../database/entities/attendance-punch.entity';
 import { UserPhotoEntity } from '../../database/entities/user-photo.entity';
@@ -18,12 +19,15 @@ import { CreateSiteDto } from './dto/create-site.dto';
 import { AdminPunchDto } from './dto/admin-punch.dto';
 import { AdminPunchFilterDto } from './dto/admin-punch-filter.dto';
 import { AdminDailyAttendanceDto } from './dto/admin-daily-attendance.dto';
+import { AuthenticatedUser } from '../../common/decorators/current-user.decorator';
 
 @Injectable()
 export class AdminService {
   constructor(
     @InjectRepository(UserEntity)
     private readonly userRepository: Repository<UserEntity>,
+    @InjectRepository(UserSiteEntity)
+    private readonly userSiteRepository: Repository<UserSiteEntity>,
     @InjectRepository(OfficeConfigEntity)
     private readonly officeConfigRepository: Repository<OfficeConfigEntity>,
     @InjectRepository(AttendancePunchEntity)
@@ -32,8 +36,33 @@ export class AdminService {
     private readonly photoRepository: Repository<UserPhotoEntity>,
   ) {}
 
-  async getSites(): Promise<AdminSiteDto[]> {
-    const offices = await this.officeConfigRepository.find();
+  private async getAccessibleSiteCodes(caller?: AuthenticatedUser): Promise<Set<string> | null> {
+    if (!caller || caller.role !== UserRole.SUPERVISOR) {
+      return null; // Admin has full system access
+    }
+    const userSites = await this.userSiteRepository.find({ where: { userId: caller.userId } });
+    const assignedCodes = new Set(userSites.map((us) => us.siteCode));
+    if (caller.siteCode) assignedCodes.add(caller.siteCode);
+
+    const createdSites = await this.officeConfigRepository.find({ where: { createdBy: caller.userId } });
+    createdSites.forEach((cs) => assignedCodes.add(cs.officeId));
+
+    return assignedCodes;
+  }
+
+  async getSites(caller?: AuthenticatedUser): Promise<AdminSiteDto[]> {
+    let offices: OfficeConfigEntity[];
+    const accessible = await this.getAccessibleSiteCodes(caller);
+
+    if (accessible) {
+      const allOffices = await this.officeConfigRepository.find();
+      offices = allOffices.filter(
+        (o) => o.createdBy === caller!.userId || accessible.has(o.officeId),
+      );
+    } else {
+      offices = await this.officeConfigRepository.find();
+    }
+
     return offices.map((o) => ({
       office_id: o.officeId,
       name: o.name,
@@ -42,10 +71,11 @@ export class AdminService {
       radius_m: o.radiusM,
       timezone: o.timezone,
       match_threshold: Number(o.matchThreshold) || 0.38,
+      created_by: o.createdBy,
     }));
   }
 
-  async createSite(dto: CreateSiteDto): Promise<AdminSiteDto> {
+  async createSite(dto: CreateSiteDto, caller?: AuthenticatedUser): Promise<AdminSiteDto> {
     const officeId = dto.office_id.trim().toUpperCase();
     const existing = await this.officeConfigRepository.findOne({
       where: { officeId },
@@ -67,9 +97,19 @@ export class AdminService {
       syncWindows: ['16:00', '00:00'],
       syncJitterMinutes: 30,
       matchThreshold: 0.38,
+      createdBy: caller?.userId,
     });
 
     const saved = await this.officeConfigRepository.save(site);
+
+    // If created by supervisor, automatically assign supervisor to their created site
+    if (caller && caller.role === UserRole.SUPERVISOR) {
+      await this.userSiteRepository.save({
+        userId: caller.userId,
+        siteCode: saved.officeId,
+        assignedBy: caller.userId,
+      });
+    }
 
     return {
       office_id: saved.officeId,
@@ -79,28 +119,56 @@ export class AdminService {
       radius_m: saved.radiusM,
       timezone: saved.timezone,
       match_threshold: Number(saved.matchThreshold) || 0.38,
+      created_by: saved.createdBy,
     };
   }
 
-  async getUsers(): Promise<AdminUserDto[]> {
+  async getUsers(caller?: AuthenticatedUser): Promise<AdminUserDto[]> {
+    const accessibleSites = await this.getAccessibleSiteCodes(caller);
+
     const users = await this.userRepository.find({
       order: { createdAt: 'DESC' },
     });
     const offices = await this.officeConfigRepository.find();
     const officeMap = new Map(offices.map((o) => [o.officeId, o.name]));
 
-    return users.map((u) => ({
-      user_id: u.userId,
-      name: u.name,
-      role: u.role,
-      site_code: u.siteCode || 'DEFAULT_OFFICE',
-      site_name: officeMap.get(u.siteCode) || officeMap.get('DEFAULT_OFFICE') || 'Headquarters',
-      status: u.status,
-      photo_change_used: u.photoChangeUsed,
-    }));
+    const allUserSites = await this.userSiteRepository.find();
+    const userSitesMap = new Map<string, { site_code: string; site_name: string }[]>();
+    for (const us of allUserSites) {
+      if (!userSitesMap.has(us.userId)) {
+        userSitesMap.set(us.userId, []);
+      }
+      userSitesMap.get(us.userId)!.push({
+        site_code: us.siteCode,
+        site_name: officeMap.get(us.siteCode) || us.siteCode,
+      });
+    }
+
+    let filteredUsers = users;
+    if (accessibleSites) {
+      filteredUsers = users.filter((u) => {
+        if (accessibleSites.has(u.siteCode)) return true;
+        const sites = userSitesMap.get(u.userId) || [];
+        return sites.some((s) => accessibleSites.has(s.site_code));
+      });
+    }
+
+    return filteredUsers.map((u) => {
+      const assigned = userSitesMap.get(u.userId) || (u.siteCode ? [{ site_code: u.siteCode, site_name: officeMap.get(u.siteCode) || u.siteCode }] : []);
+      return {
+        user_id: u.userId,
+        name: u.name,
+        role: u.role,
+        site_code: u.siteCode || 'DEFAULT_OFFICE',
+        site_name: officeMap.get(u.siteCode) || officeMap.get('DEFAULT_OFFICE') || 'Headquarters',
+        assigned_sites: assigned,
+        status: u.status,
+        photo_change_used: u.photoChangeUsed,
+      };
+    });
   }
 
-  async createUser(dto: CreateUserDto): Promise<AdminUserDto> {
+  async createUser(dto: CreateUserDto, caller?: AuthenticatedUser): Promise<AdminUserDto> {
     const existing = await this.userRepository.findOne({
       where: { userId: dto.user_id },
     });
@@ -111,7 +179,27 @@ export class AdminService {
       });
     }
 
-    const siteCode = dto.site_code || 'DEFAULT_OFFICE';
+    if (caller && caller.role === UserRole.SUPERVISOR) {
+      if (dto.role === UserRole.ADMIN) {
+        throw new ForbiddenException({
+          code: 'FORBIDDEN',
+          message: 'Supervisors cannot create ADMIN accounts.',
+        });
+      }
+      const accessible = await this.getAccessibleSiteCodes(caller);
+      const targetSites = dto.site_codes && dto.site_codes.length > 0
+        ? dto.site_codes
+        : [dto.site_code || 'DEFAULT_OFFICE'];
+      const hasInvalid = targetSites.some((s) => !accessible?.has(s));
+      if (hasInvalid) {
+        throw new ForbiddenException({
+          code: 'FORBIDDEN',
+          message: 'Supervisors can only assign employees to sites they manage.',
+        });
+      }
+    }
+
+    const siteCode = (dto.site_codes && dto.site_codes[0]) || dto.site_code || 'DEFAULT_OFFICE';
     const site = await this.officeConfigRepository.findOne({
       where: { officeId: siteCode },
     });
@@ -137,18 +225,39 @@ export class AdminService {
 
     const saved = await this.userRepository.save(user);
 
+    // Save site mapping in user_sites junction table
+    const targetSiteCodes = dto.site_codes && dto.site_codes.length > 0
+      ? dto.site_codes
+      : [siteCode];
+    for (const sc of targetSiteCodes) {
+      await this.userSiteRepository.save({
+        userId: saved.userId,
+        siteCode: sc,
+        assignedBy: caller?.userId,
+      });
+    }
+
     return {
       user_id: saved.userId,
       name: saved.name,
       role: saved.role,
       site_code: saved.siteCode,
       site_name: site?.name || 'Headquarters',
+      assigned_sites: targetSiteCodes.map((sc) => ({
+        site_code: sc,
+        site_name: sc === siteCode && site ? site.name : sc,
+      })),
       status: saved.status,
       photo_change_used: saved.photoChangeUsed,
     };
   }
 
-  async updateUserSite(userId: string, siteCode: string): Promise<AdminUserDto> {
+  async updateUserSite(
+    userId: string,
+    siteCode?: string,
+    siteCodes?: string[],
+    caller?: AuthenticatedUser,
+  ): Promise<AdminUserDto> {
     const user = await this.userRepository.findOne({ where: { userId } });
     if (!user) {
       throw new NotFoundException({
@@ -157,37 +266,101 @@ export class AdminService {
       });
     }
 
+    const accessible = await this.getAccessibleSiteCodes(caller);
+    if (accessible) {
+      const currentSites = await this.userSiteRepository.find({ where: { userId } });
+      const inScope = accessible.has(user.siteCode) || currentSites.some((s) => accessible.has(s.siteCode));
+      if (!inScope) {
+        throw new ForbiddenException({
+          code: 'FORBIDDEN',
+          message: 'You can only manage employees under your assigned sites.',
+        });
+      }
+      const newSites = siteCodes && siteCodes.length > 0 ? siteCodes : [siteCode || 'DEFAULT_OFFICE'];
+      if (newSites.some((s) => !accessible.has(s))) {
+        throw new ForbiddenException({
+          code: 'FORBIDDEN',
+          message: 'You can only assign employees to sites you manage.',
+        });
+      }
+    }
+
+    const primarySite = siteCode || (siteCodes && siteCodes.length > 0 ? siteCodes[0] : user.siteCode);
     const site = await this.officeConfigRepository.findOne({
-      where: { officeId: siteCode },
+      where: { officeId: primarySite },
     });
-    if (!site) {
+    if (!site && primarySite !== 'DEFAULT_OFFICE') {
       throw new BadRequestException({
         code: 'SITE_NOT_FOUND',
-        message: `Office site '${siteCode}' does not exist.`,
+        message: `Office site '${primarySite}' does not exist.`,
       });
     }
 
-    user.siteCode = siteCode;
+    user.siteCode = primarySite;
     const saved = await this.userRepository.save(user);
+
+    // Update user_sites junction table
+    if (siteCodes && siteCodes.length > 0) {
+      await this.userSiteRepository.delete({ userId });
+      for (const sc of siteCodes) {
+        await this.userSiteRepository.save({
+          userId,
+          siteCode: sc,
+          assignedBy: caller?.userId,
+        });
+      }
+    } else if (siteCode) {
+      const existing = await this.userSiteRepository.findOne({ where: { userId, siteCode } });
+      if (!existing) {
+        await this.userSiteRepository.save({
+          userId,
+          siteCode,
+          assignedBy: caller?.userId,
+        });
+      }
+    }
+
+    const assignedSitesEntities = await this.userSiteRepository.find({ where: { userId } });
+    const offices = await this.officeConfigRepository.find();
+    const officeMap = new Map(offices.map((o) => [o.officeId, o.name]));
 
     return {
       user_id: saved.userId,
       name: saved.name,
       role: saved.role,
       site_code: saved.siteCode,
-      site_name: site.name,
+      site_name: site?.name || officeMap.get(saved.siteCode) || 'Headquarters',
+      assigned_sites: assignedSitesEntities.map((as) => ({
+        site_code: as.siteCode,
+        site_name: officeMap.get(as.siteCode) || as.siteCode,
+      })),
       status: saved.status,
       photo_change_used: saved.photoChangeUsed,
     };
   }
 
-  async updateUserRole(userId: string, role: UserRole): Promise<AdminUserDto> {
+  async updateUserRole(userId: string, role: UserRole, caller?: AuthenticatedUser): Promise<AdminUserDto> {
     const user = await this.userRepository.findOne({ where: { userId } });
     if (!user) {
       throw new NotFoundException({
         code: 'USER_NOT_FOUND',
         message: `User '${userId}' not found.`,
       });
+    }
+
+    if (caller && caller.role === UserRole.SUPERVISOR) {
+      if (role === UserRole.ADMIN) {
+        throw new ForbiddenException({
+          code: 'FORBIDDEN',
+          message: 'Supervisors cannot promote users to ADMIN.',
+        });
+      }
+      if (user.role === UserRole.ADMIN) {
+        throw new ForbiddenException({
+          code: 'FORBIDDEN',
+          message: 'Supervisors cannot change ADMIN accounts.',
+        });
+      }
     }
 
     user.role = role;
@@ -208,13 +381,25 @@ export class AdminService {
     };
   }
 
-  async updateUserPassword(userId: string, newPassword: string): Promise<AdminUserDto> {
+  async updateUserPassword(userId: string, newPassword: string, caller?: AuthenticatedUser): Promise<AdminUserDto> {
     const user = await this.userRepository.findOne({ where: { userId } });
     if (!user) {
       throw new NotFoundException({
         code: 'USER_NOT_FOUND',
         message: `User '${userId}' not found.`,
       });
+    }
+
+    const accessible = await this.getAccessibleSiteCodes(caller);
+    if (accessible) {
+      const currentSites = await this.userSiteRepository.find({ where: { userId } });
+      const inScope = accessible.has(user.siteCode) || currentSites.some((s) => accessible.has(s.siteCode));
+      if (!inScope) {
+        throw new ForbiddenException({
+          code: 'FORBIDDEN',
+          message: 'You can only update passwords for employees under your assigned sites.',
+        });
+      }
     }
 
     const saltRounds = 10;
@@ -236,7 +421,7 @@ export class AdminService {
     };
   }
 
-  async deleteUser(userId: string, adminUserId?: string): Promise<{ success: boolean; message: string }> {
+  async deleteUser(userId: string, adminUserId?: string, caller?: AuthenticatedUser): Promise<{ success: boolean; message: string }> {
     if (adminUserId && userId.toLowerCase() === adminUserId.toLowerCase()) {
       throw new BadRequestException({
         code: 'CANNOT_DELETE_SELF',
@@ -252,8 +437,27 @@ export class AdminService {
       });
     }
 
-    // Clean up punches first if any
+    if (caller && caller.role === UserRole.SUPERVISOR) {
+      if (user.role === UserRole.ADMIN) {
+        throw new ForbiddenException({
+          code: 'FORBIDDEN',
+          message: 'Supervisors cannot delete ADMIN accounts.',
+        });
+      }
+      const accessible = await this.getAccessibleSiteCodes(caller);
+      const currentSites = await this.userSiteRepository.find({ where: { userId } });
+      const inScope = accessible?.has(user.siteCode) || currentSites.some((s) => accessible?.has(s.siteCode));
+      if (!inScope) {
+        throw new ForbiddenException({
+          code: 'FORBIDDEN',
+          message: 'You can only delete employees under your assigned sites.',
+        });
+      }
+    }
+
+    // Clean up punches, user_sites, photos
     await this.punchRepository.delete({ userId });
+    await this.userSiteRepository.delete({ userId });
     await this.userRepository.remove(user);
 
     return {
@@ -262,11 +466,26 @@ export class AdminService {
     };
   }
 
-  async getAllPunches(filter: AdminPunchFilterDto): Promise<AdminPunchDto[]> {
+  async getAllPunches(filter: AdminPunchFilterDto, caller?: AuthenticatedUser): Promise<AdminPunchDto[]> {
     const qb = this.punchRepository
       .createQueryBuilder('p')
       .leftJoinAndSelect('p.user', 'u')
       .orderBy('p.punchTimeUtc', 'DESC');
+
+    const accessible = await this.getAccessibleSiteCodes(caller);
+    if (accessible) {
+      const allUserSites = await this.userSiteRepository.find();
+      const inScopeUserIds = new Set(
+        allUserSites.filter((us) => accessible.has(us.siteCode)).map((us) => us.userId),
+      );
+      const allUsers = await this.userRepository.find();
+      allUsers.forEach((u) => {
+        if (accessible.has(u.siteCode)) inScopeUserIds.add(u.userId);
+      });
+      const allowedIds = Array.from(inScopeUserIds);
+      if (allowedIds.length === 0) return [];
+      qb.andWhere('p.userId IN (:...allowedIds)', { allowedIds });
+    }
 
     if (filter.user_id && filter.user_id.trim()) {
       qb.andWhere('p.userId = :userId', { userId: filter.user_id.trim() });
@@ -315,8 +534,8 @@ export class AdminService {
     });
   }
 
-  async exportPunchesCsv(filter: AdminPunchFilterDto): Promise<string> {
-    const punches = await this.getAllPunches(filter);
+  async exportPunchesCsv(filter: AdminPunchFilterDto, caller?: AuthenticatedUser): Promise<string> {
+    const punches = await this.getAllPunches(filter, caller);
     const headers = [
       'Punch UUID',
       'Employee ID',
@@ -364,12 +583,27 @@ export class AdminService {
     return [headers.join(','), ...rows].join('\r\n');
   }
 
-  async getAllAttendance(filter: AdminPunchFilterDto): Promise<AdminDailyAttendanceDto[]> {
+  async getAllAttendance(filter: AdminPunchFilterDto, caller?: AuthenticatedUser): Promise<AdminDailyAttendanceDto[]> {
     const qb = this.punchRepository
       .createQueryBuilder('p')
       .leftJoinAndSelect('p.user', 'u')
       .orderBy('p.dateLocal', 'DESC')
       .addOrderBy('p.punchTimeUtc', 'ASC');
+
+    const accessible = await this.getAccessibleSiteCodes(caller);
+    if (accessible) {
+      const allUserSites = await this.userSiteRepository.find();
+      const inScopeUserIds = new Set(
+        allUserSites.filter((us) => accessible.has(us.siteCode)).map((us) => us.userId),
+      );
+      const allUsers = await this.userRepository.find();
+      allUsers.forEach((u) => {
+        if (accessible.has(u.siteCode)) inScopeUserIds.add(u.userId);
+      });
+      const allowedIds = Array.from(inScopeUserIds);
+      if (allowedIds.length === 0) return [];
+      qb.andWhere('p.userId IN (:...allowedIds)', { allowedIds });
+    }
 
     if (filter.user_id && filter.user_id.trim()) {
       qb.andWhere('p.userId = :userId', { userId: filter.user_id.trim() });
@@ -568,8 +802,8 @@ export class AdminService {
     return filteredResults;
   }
 
-  async exportAttendanceCsv(filter: AdminPunchFilterDto): Promise<string> {
-    const records = await this.getAllAttendance(filter);
+  async exportAttendanceCsv(filter: AdminPunchFilterDto, caller?: AuthenticatedUser): Promise<string> {
+    const records = await this.getAllAttendance(filter, caller);
     const headers = [
       'Employee ID',
       'Employee Name',
@@ -616,13 +850,25 @@ export class AdminService {
 
     return [headers.join(','), ...rows].join('\r\n');
   }
-  async resetUserPhoto(userId: string): Promise<{ success: boolean; message: string }> {
+  async resetUserPhoto(userId: string, caller?: AuthenticatedUser): Promise<{ success: boolean; message: string }> {
     const user = await this.userRepository.findOne({ where: { userId } });
     if (!user) {
       throw new NotFoundException({
         code: 'USER_NOT_FOUND',
         message: `User '${userId}' not found.`,
       });
+    }
+
+    const accessible = await this.getAccessibleSiteCodes(caller);
+    if (accessible) {
+      const currentSites = await this.userSiteRepository.find({ where: { userId } });
+      const inScope = accessible.has(user.siteCode) || currentSites.some((s) => accessible.has(s.siteCode));
+      if (!inScope) {
+        throw new ForbiddenException({
+          code: 'FORBIDDEN',
+          message: 'You can only reset photos for employees under your assigned sites.',
+        });
+      }
     }
 
     await this.photoRepository.delete({ userId });

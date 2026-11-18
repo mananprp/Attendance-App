@@ -56,6 +56,7 @@ class ProfileViewModel @Inject constructor(
         val hasPhoto = session?.hasPhoto ?: tokenStorage.hasPhoto()
         val photoVersion = session?.activePhotoVersion ?: tokenStorage.getActivePhotoVersion()
         val isAdmin = tokenStorage.isAdmin()
+        val isSupervisor = tokenStorage.getRole().equals("SUPERVISOR", ignoreCase = true)
         val siteCode = session?.siteCode ?: tokenStorage.getSiteCode()
 
         // Check for locally cached profile photo
@@ -69,6 +70,7 @@ class ProfileViewModel @Inject constructor(
                 hasPhoto = hasPhoto,
                 activePhotoVersion = photoVersion,
                 isAdmin = isAdmin,
+                isSupervisor = isSupervisor,
                 siteCode = siteCode,
                 profilePhotoBitmap = localPhoto,
                 isLoadingProfile = true

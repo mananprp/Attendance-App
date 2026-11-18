@@ -17,6 +17,7 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.CameraAlt
 import androidx.compose.material.icons.filled.LocationOn
+import androidx.compose.material.icons.filled.Notifications
 import androidx.compose.material.icons.filled.Security
 import androidx.compose.material3.BasicAlertDialog
 import androidx.compose.material3.ExperimentalMaterial3Api
@@ -45,6 +46,7 @@ import com.company.attendance.design.theme.AppTypographyTokens
 fun PermissionGuardDialog(
     hasCameraPermission: Boolean,
     hasLocationPermission: Boolean,
+    hasNotificationPermission: Boolean = true,
     onRequestPermissions: () -> Unit,
     onOpenSettings: () -> Unit,
     modifier: Modifier = Modifier
@@ -97,7 +99,7 @@ fun PermissionGuardDialog(
                 Spacer(modifier = Modifier.height(AppDimensions.Spacing8))
 
                 Text(
-                    text = "Attendance requires both Camera and Location access to verify your identity and office geofence.",
+                    text = "Attendance requires Camera, Location, and Notification permissions for face verification and live field tracking.",
                     style = AppTypographyTokens.BodyMedium,
                     color = AppSecondaryText,
                     textAlign = TextAlign.Center
@@ -121,6 +123,16 @@ fun PermissionGuardDialog(
                     title = "Precise Location",
                     description = "Required to verify you are within the designated office perimeter.",
                     isGranted = hasLocationPermission
+                )
+
+                Spacer(modifier = Modifier.height(AppDimensions.Spacing12))
+
+                // Notification requirement item
+                PermissionRequirementItem(
+                    icon = Icons.Default.Notifications,
+                    title = "Notifications",
+                    description = "Required to display live field route tracking and sync status in real time.",
+                    isGranted = hasNotificationPermission
                 )
 
                 Spacer(modifier = Modifier.height(AppDimensions.Spacing24))

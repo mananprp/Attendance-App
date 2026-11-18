@@ -186,7 +186,7 @@ class HomeViewModelTest {
     }
 
     @Test
-    fun `after punch out, both buttons are blocked with times`() = runTest {
+    fun `after punch out, punch out remains enabled for multiple punch out`() = runTest {
         val zoneId = ZoneId.of("Asia/Kolkata")
         val inTimeEpoch = ZonedDateTime.of(2026, 9, 30, 9, 15, 0, 0, zoneId).toInstant().toEpochMilli()
         val outTimeEpoch = ZonedDateTime.of(2026, 9, 30, 18, 30, 0, 0, zoneId).toInstant().toEpochMilli()
@@ -207,10 +207,10 @@ class HomeViewModelTest {
         assertNotNull(state.outTimeFormatted)
         assertFalse(state.isPunchInEnabled)
         assertTrue(state.isPunchInBlocked)
-        assertFalse(state.isPunchOutEnabled)
-        assertTrue(state.isPunchOutBlocked)
+        assertTrue(state.isPunchOutEnabled)
+        assertFalse(state.isPunchOutBlocked)
         assertTrue(state.punchInButtonText.contains("Punched In at"))
-        assertTrue(state.punchOutButtonText.contains("Punched Out at"))
+        assertTrue(state.punchOutButtonText.contains("Update Check Out"))
     }
 
     @Test
@@ -332,7 +332,7 @@ class HomeViewModelTest {
         val dialog = state.geofenceDialogState as GeofenceDialogState.OutsideRadius
         assertEquals(350f, dialog.distanceMeters, 0.1f)
         assertEquals(100, dialog.allowedRadiusMeters)
-        assertTrue(dialog.formattedMessage.contains("350m"))
+        assertTrue(dialog.formattedMessage.contains("outside the office radius"))
     }
 
     @Test
@@ -414,7 +414,7 @@ class HomeViewModelTest {
         )
         advanceUntilIdle()
         assertEquals(WorkRingState.Complete, viewModel.uiState.value.ringState)
-        assertEquals(CenterPunchState.COMPLETE, viewModel.uiState.value.centerPunchState)
+        assertEquals(CenterPunchState.PUNCH_OUT, viewModel.uiState.value.centerPunchState)
     }
 
     @Test

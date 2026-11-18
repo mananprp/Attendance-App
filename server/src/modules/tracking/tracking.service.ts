@@ -10,9 +10,14 @@ import {
   TrackingSessionStatus,
   TrackingPointEntity,
   TrackingStopEntity,
+  UserEntity,
+  UserSiteEntity,
+  OfficeConfigEntity,
+  UserRole,
 } from '../../database/entities';
 import { StartTrackingSessionDto } from './dto/start-tracking-session.dto';
 import { FinishTrackingSessionDto } from './dto/finish-tracking-session.dto';
+import { AuthenticatedUser } from '../../common/decorators/current-user.decorator';
 
 @Injectable()
 export class TrackingService {
@@ -23,6 +28,12 @@ export class TrackingService {
     private readonly pointRepo: Repository<TrackingPointEntity>,
     @InjectRepository(TrackingStopEntity)
     private readonly stopRepo: Repository<TrackingStopEntity>,
+    @InjectRepository(UserEntity)
+    private readonly userRepo: Repository<UserEntity>,
+    @InjectRepository(UserSiteEntity)
+    private readonly userSiteRepo: Repository<UserSiteEntity>,
+    @InjectRepository(OfficeConfigEntity)
+    private readonly officeConfigRepo: Repository<OfficeConfigEntity>,
   ) {}
 
   async startSession(userId: string, dto: StartTrackingSessionDto) {
@@ -151,12 +162,63 @@ export class TrackingService {
     };
   }
 
-  async getAdminSessions(userId?: string, limit = 50) {
+  private async autoCloseExpiredSessions(): Promise<void> {
+    try {
+      const activeSessions = await this.sessionRepo.find({
+        where: { status: TrackingSessionStatus.ACTIVE },
+      });
+      const now = new Date();
+
+      for (const s of activeSessions) {
+        const start = new Date(s.startTimeUtc);
+        // Next midnight in IST (UTC+5.5)
+        const istStartDay = new Intl.DateTimeFormat('en-CA', { timeZone: 'Asia/Kolkata' }).format(start);
+        const istToday = new Intl.DateTimeFormat('en-CA', { timeZone: 'Asia/Kolkata' }).format(now);
+
+        if (istStartDay < istToday) {
+          // It started on a prior day and is still ACTIVE -> cutoff at midnight of that day
+          const [y, m, d] = istStartDay.split('-').map(Number);
+          const midnightUtc = new Date(Date.UTC(y, m - 1, d + 1, 0, 0, 0) - (5.5 * 3600 * 1000));
+          s.status = TrackingSessionStatus.COMPLETED;
+          s.endTimeUtc = midnightUtc;
+          await this.sessionRepo.save(s);
+        }
+      }
+    } catch (e) {
+      // Non-blocking background catch
+    }
+  }
+
+  async getAdminSessions(caller?: AuthenticatedUser, userId?: string, limit = 50) {
+    await this.autoCloseExpiredSessions();
+
     const qb = this.sessionRepo
       .createQueryBuilder('session')
       .leftJoinAndSelect('session.user', 'user')
       .orderBy('session.startTimeUtc', 'DESC')
       .take(limit);
+
+    if (caller && caller.role === UserRole.SUPERVISOR) {
+      const userSites = await this.userSiteRepo.find({ where: { userId: caller.userId } });
+      const assignedCodes = new Set(userSites.map((us) => us.siteCode));
+      if (caller.siteCode) assignedCodes.add(caller.siteCode);
+
+      const createdSites = await this.officeConfigRepo.find({ where: { createdBy: caller.userId } });
+      createdSites.forEach((cs) => assignedCodes.add(cs.officeId));
+
+      const allUserSites = await this.userSiteRepo.find();
+      const inScopeUserIds = new Set(
+        allUserSites.filter((us) => assignedCodes.has(us.siteCode)).map((us) => us.userId),
+      );
+      const allUsers = await this.userRepo.find();
+      allUsers.forEach((u) => {
+        if (assignedCodes.has(u.siteCode)) inScopeUserIds.add(u.userId);
+      });
+
+      const allowedIds = Array.from(inScopeUserIds);
+      if (allowedIds.length === 0) return [];
+      qb.andWhere('session.userId IN (:...allowedIds)', { allowedIds });
+    }
 
     if (userId) {
       qb.andWhere('session.userId = :userId', { userId });

@@ -45,6 +45,12 @@ data class AdminSiteDto(
 )
 
 @Serializable
+data class UserAssignedSiteDto(
+    @SerialName("site_code") val siteCode: String,
+    @SerialName("site_name") val siteName: String
+)
+
+@Serializable
 data class AdminUserDto(
     @SerialName("user_id") val userId: String,
     @SerialName("name") val name: String,
@@ -52,7 +58,8 @@ data class AdminUserDto(
     @SerialName("site_code") val siteCode: String,
     @SerialName("site_name") val siteName: String,
     @SerialName("status") val status: String,
-    @SerialName("photo_change_used") val photoChangeUsed: Boolean
+    @SerialName("photo_change_used") val photoChangeUsed: Boolean,
+    @SerialName("assigned_sites") val assignedSites: List<UserAssignedSiteDto>? = null
 )
 
 @Serializable
@@ -61,6 +68,7 @@ data class CreateUserRequestDto(
     @SerialName("name") val name: String,
     @SerialName("password") val password: String,
     @SerialName("site_code") val siteCode: String = "DEFAULT_OFFICE",
+    @SerialName("site_codes") val siteCodes: List<String>? = null,
     @SerialName("role") val role: String = "EMPLOYEE"
 )
 
@@ -97,6 +105,15 @@ data class AdminActionResponseDto(
 )
 
 @Serializable
+data class OfficeSiteDto(
+    @SerialName("office_id") val officeId: String,
+    @SerialName("name") val name: String,
+    @SerialName("latitude") val latitude: Double,
+    @SerialName("longitude") val longitude: Double,
+    @SerialName("radius_m") val radiusM: Int = 100
+)
+
+@Serializable
 data class AppConfigResponseDto(
     @SerialName("office_lat") val officeLat: Double,
     @SerialName("office_lng") val officeLng: Double,
@@ -104,7 +121,8 @@ data class AppConfigResponseDto(
     @SerialName("timezone") val timezone: String,
     @SerialName("sync_windows") val syncWindows: List<String>,
     @SerialName("sync_jitter_minutes") val syncJitterMinutes: Int,
-    @SerialName("match_threshold") val matchThreshold: Float
+    @SerialName("match_threshold") val matchThreshold: Float,
+    @SerialName("assigned_sites") val assignedSites: List<OfficeSiteDto>? = null
 )
 
 @Serializable

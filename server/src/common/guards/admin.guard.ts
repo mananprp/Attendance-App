@@ -11,10 +11,10 @@ export class AdminGuard implements CanActivate {
     const request = context.switchToHttp().getRequest();
     const user = request.user;
 
-    if (!user || user.role !== 'ADMIN') {
+    if (!user || (user.role !== 'ADMIN' && user.role !== 'SUPERVISOR')) {
       throw new ForbiddenException({
         code: 'FORBIDDEN',
-        message: 'Admin access required for this operation.',
+        message: 'Admin or Supervisor access required for this operation.',
       });
     }
 

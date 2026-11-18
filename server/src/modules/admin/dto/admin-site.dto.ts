@@ -21,4 +21,7 @@ export class AdminSiteDto {
 
   @ApiProperty({ example: 0.46 })
   match_threshold: number;
+
+  @ApiProperty({ example: 'EMP1001', required: false })
+  created_by?: string;
 }

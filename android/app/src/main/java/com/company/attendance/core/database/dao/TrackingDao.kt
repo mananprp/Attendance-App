@@ -32,6 +32,9 @@ interface TrackingDao {
     @Query("SELECT * FROM tracking_sessions WHERE is_synced = 0 AND status = 'COMPLETED'")
     suspend fun getUnsyncedCompletedSessions(): List<TrackingSessionEntity>
 
+    @Query("SELECT * FROM tracking_sessions WHERE is_synced = 0 AND status = 'COMPLETED'")
+    fun observeUnsyncedCompletedSessions(): Flow<List<TrackingSessionEntity>>
+
     // --- POINTS ---
     @Insert(onConflict = OnConflictStrategy.REPLACE)
     suspend fun insertPoint(point: TrackingPointEntity)

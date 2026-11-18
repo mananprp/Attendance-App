@@ -122,7 +122,7 @@ class HomeViewModel @Inject constructor(
                     is LocationStatus.Fix -> {
                         val ageSec = ((System.currentTimeMillis() - status.fixTimestampMs) / 1000L).coerceAtLeast(0L)
                         val summary = currentDaySummary
-                        if (summary?.locationType == "NEW_LOCATION" && summary.inTimeUtcEpochMs != null && summary.outTimeUtcEpochMs == null) {
+                        if (summary?.locationType == "NEW_LOCATION" && summary.inTimeUtcEpochMs != null) {
                             val anchorLat = summary.anchorLat
                             val anchorLng = summary.anchorLng
                             if (anchorLat != null && anchorLng != null && (anchorLat != 0.0 || anchorLng != 0.0)) {
@@ -402,11 +402,14 @@ class HomeViewModel @Inject constructor(
         val isPunchInBlocked = hasIn
         val punchInButtonText = if (hasIn) "Punched In at $inTimeFormatted" else "Punch In"
 
-        val isPunchOutEnabled = hasIn && !hasOut
-        val isPunchOutBlocked = hasOut
-        val punchOutButtonText = if (hasOut) {
-            if (isExpired && summary?.outTimeUtcEpochMs == null) "Shift Expired (Missed)" else "Punched Out at $outTimeFormatted"
-        } else "Punch Out"
+        // Allow multiple punch-outs in a day ("Update Check Out") as long as shift is active and not expired
+        val isPunchOutEnabled = hasIn && !isExpired
+        val isPunchOutBlocked = false
+        val punchOutButtonText = when {
+            isExpired && summary?.outTimeUtcEpochMs == null -> "Shift Expired (Missed)"
+            summary?.outTimeUtcEpochMs != null -> "Update Check Out"
+            else -> "Punch Out"
+        }
 
         val isNewLocationDay = summary?.locationType == "NEW_LOCATION"
 
@@ -419,8 +422,8 @@ class HomeViewModel @Inject constructor(
 
         val centerState = when {
             isPunchInEnabled && !isPunchInBlocked -> CenterPunchState.PUNCH_IN
-            isPunchOutEnabled && !isPunchOutBlocked -> CenterPunchState.PUNCH_OUT
-            !isPunchInEnabled && !isPunchOutEnabled && inTimeFormatted != null -> CenterPunchState.COMPLETE
+            isPunchOutEnabled -> CenterPunchState.PUNCH_OUT
+            inTimeFormatted != null -> CenterPunchState.COMPLETE
             else -> CenterPunchState.BLOCKED
         }
 

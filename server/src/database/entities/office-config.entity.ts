@@ -80,6 +80,14 @@ export class OfficeConfigEntity {
   syncJitterMinutes: number;
 
   @Column({
+    name: 'created_by',
+    type: 'varchar',
+    length: 64,
+    nullable: true,
+  })
+  createdBy?: string;
+
+  @Column({
     name: 'match_threshold',
     type: 'decimal',
     precision: 5,

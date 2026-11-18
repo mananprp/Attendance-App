@@ -4,6 +4,9 @@ import {
   TrackingSessionEntity,
   TrackingPointEntity,
   TrackingStopEntity,
+  UserEntity,
+  UserSiteEntity,
+  OfficeConfigEntity,
 } from '../../database/entities';
 import { TrackingService } from './tracking.service';
 import { TrackingController } from './tracking.controller';
@@ -14,6 +17,9 @@ import { TrackingController } from './tracking.controller';
       TrackingSessionEntity,
       TrackingPointEntity,
       TrackingStopEntity,
+      UserEntity,
+      UserSiteEntity,
+      OfficeConfigEntity,
     ]),
   ],
   controllers: [TrackingController],

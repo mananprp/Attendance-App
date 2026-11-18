@@ -36,6 +36,15 @@ data class UserSession(
     val activePhotoVersion: Int? = null
 )
 
+@kotlinx.serialization.Serializable
+data class OfficeSite(
+    val officeId: String,
+    val name: String,
+    val latitude: Double,
+    val longitude: Double,
+    val radiusMeters: Int = 100
+)
+
 data class AppConfig(
     val officeLat: Double,
     val officeLng: Double,
@@ -44,7 +53,8 @@ data class AppConfig(
     val syncWindows: List<String>,
     val syncJitterMinutes: Int,
     val matchThreshold: Float,
-    val lastFetchedAt: Long = System.currentTimeMillis()
+    val lastFetchedAt: Long = System.currentTimeMillis(),
+    val assignedSites: List<OfficeSite> = emptyList()
 )
 
 enum class ShiftType {

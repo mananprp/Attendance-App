@@ -252,18 +252,42 @@ class LocationMonitorImpl @Inject constructor(
         }
 
         val config = remoteConfigRepository.getConfig()
-        val distance = locationChecker.calculateDistanceMeters(
-            location.latitude,
-            location.longitude,
-            config.officeLat,
-            config.officeLng
-        )
+        val sitesToCheck = if (config.assignedSites.isNotEmpty()) {
+            config.assignedSites
+        } else {
+            listOf(
+                com.company.attendance.core.model.OfficeSite(
+                    officeId = "DEFAULT",
+                    name = "Headquarters",
+                    latitude = config.officeLat,
+                    longitude = config.officeLng,
+                    radiusMeters = config.radiusMeters
+                )
+            )
+        }
 
         val accuracy = if (location.hasAccuracy()) location.accuracy else 30f
-        // Soft margin for indoor jitter (capped at 30% of office radius or accuracy)
-        val tolerance = min(accuracy, config.radiusMeters * 0.3f)
-        val effectiveDistance = max(0f, distance - tolerance)
-        val isInside = effectiveDistance <= config.radiusMeters
+        var isInsideAny = false
+        var minDistance = Float.MAX_VALUE
+        var matchedRadius = config.radiusMeters
+
+        for (site in sitesToCheck) {
+            val dist = locationChecker.calculateDistanceMeters(
+                location.latitude,
+                location.longitude,
+                site.latitude,
+                site.longitude
+            )
+            if (dist < minDistance) {
+                minDistance = dist
+                matchedRadius = site.radiusMeters
+            }
+            val tolerance = min(accuracy, site.radiusMeters * 0.3f)
+            val effectiveDistance = max(0f, dist - tolerance)
+            if (effectiveDistance <= site.radiusMeters) {
+                isInsideAny = true
+            }
+        }
 
         val fixElapsed = if (location.elapsedRealtimeNanos > 0) {
             location.elapsedRealtimeNanos / 1_000_000L
@@ -275,9 +299,9 @@ class LocationMonitorImpl @Inject constructor(
             latitude = location.latitude,
             longitude = location.longitude,
             accuracyMeters = accuracy,
-            distanceMeters = distance,
-            allowedRadiusMeters = config.radiusMeters,
-            isInside = isInside,
+            distanceMeters = minDistance,
+            allowedRadiusMeters = matchedRadius,
+            isInside = isInsideAny,
             fixElapsedRealtimeMs = fixElapsed,
             fixTimestampMs = location.time.takeIf { it > 0 } ?: System.currentTimeMillis()
         )

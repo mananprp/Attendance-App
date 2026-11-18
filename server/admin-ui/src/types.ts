@@ -1,9 +1,10 @@
 export interface AdminUser {
   user_id: string;
   name: string;
-  role: 'ADMIN' | 'EMPLOYEE';
+  role: 'ADMIN' | 'SUPERVISOR' | 'EMPLOYEE';
   site_code: string;
   site_name: string;
+  assigned_sites?: { site_code: string; site_name: string }[];
   status: string;
   photo_change_used: boolean;
 }
@@ -16,6 +17,7 @@ export interface AdminSite {
   radius_m: number;
   timezone: string;
   match_threshold: number;
+  created_by?: string;
 }
 
 export interface AdminPunch {

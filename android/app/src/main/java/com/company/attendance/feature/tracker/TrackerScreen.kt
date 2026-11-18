@@ -20,15 +20,20 @@ import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.outlined.CloudOff
 import androidx.compose.material.icons.outlined.LocationOn
 import androidx.compose.material.icons.outlined.Place
 import androidx.compose.material.icons.outlined.Schedule
 import androidx.compose.material.icons.outlined.Timeline
+import androidx.compose.material3.AlertDialog
+import androidx.compose.material3.Button
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
+import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.Icon
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
@@ -56,6 +61,7 @@ import com.company.attendance.design.theme.AppPrimaryText
 import com.company.attendance.design.theme.AppSecondaryText
 import com.company.attendance.design.theme.AppSurface
 import com.company.attendance.design.theme.AppTypographyTokens
+import com.company.attendance.design.theme.AppWarning
 import com.company.attendance.feature.tracking.TrackingViewModel
 import com.company.attendance.feature.tracking.dialogs.AddStopDialog
 import com.company.attendance.feature.tracking.ui.FieldTrackerCard
@@ -76,6 +82,8 @@ fun TrackerScreen(
     val completedTripSummary by viewModel.completedTripSummary.collectAsState()
     val showAddStopDialog by viewModel.showAddStopDialog.collectAsState()
     val isStopping by viewModel.isStopping.collectAsState()
+    val syncFailedSessionId by viewModel.syncFailedSessionId.collectAsState()
+    val isSyncing by viewModel.isSyncing.collectAsState()
 
     var hasLocationPermission by remember {
         mutableStateOf(PermissionManager.hasLocationPermission(context))
@@ -230,6 +238,61 @@ fun TrackerScreen(
             TripSummaryScreen(
                 summary = summary,
                 onDoneClick = { viewModel.clearCompletedTrip() }
+            )
+        }
+
+        // Sync Failure / Offline Retry Dialog
+        syncFailedSessionId?.let { sessionId ->
+            AlertDialog(
+                onDismissRequest = { viewModel.dismissSyncFailedDialog() },
+                icon = {
+                    Icon(
+                        imageVector = Icons.Outlined.CloudOff,
+                        contentDescription = "Offline",
+                        tint = AppWarning,
+                        modifier = Modifier.size(32.dp)
+                    )
+                },
+                title = {
+                    Text(
+                        text = "Trip Saved Locally",
+                        style = AppTypographyTokens.SectionHeading.copy(fontWeight = FontWeight.Bold),
+                        color = AppPrimaryText
+                    )
+                },
+                text = {
+                    Text(
+                        text = "Your route and stops were recorded locally on your device, but could not be uploaded to the server due to network connectivity issues.\n\nWould you like to retry uploading now?",
+                        style = AppTypographyTokens.BodyMedium,
+                        color = AppSecondaryText
+                    )
+                },
+                confirmButton = {
+                    Button(
+                        onClick = { viewModel.retrySync(sessionId) },
+                        enabled = !isSyncing
+                    ) {
+                        if (isSyncing) {
+                            CircularProgressIndicator(
+                                modifier = Modifier.size(16.dp),
+                                color = androidx.compose.ui.graphics.Color.White,
+                                strokeWidth = 2.dp
+                            )
+                            Spacer(modifier = Modifier.width(8.dp))
+                        }
+                        Text(if (isSyncing) "Syncing..." else "Retry Sync")
+                    }
+                },
+                dismissButton = {
+                    TextButton(
+                        onClick = { viewModel.dismissSyncFailedDialog() },
+                        enabled = !isSyncing
+                    ) {
+                        Text("Close")
+                    }
+                },
+                containerColor = AppSurface,
+                shape = RoundedCornerShape(20.dp)
             )
         }
     }

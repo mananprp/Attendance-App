@@ -85,21 +85,13 @@ sealed interface GeofenceDialogState {
             get() = locationType == "NEW_LOCATION"
 
         val dialogTitle: String
-            get() = if (isFieldVisit) "Outside Field Location Radius" else "Outside Office Radius"
+            get() = if (isFieldVisit) "Outside Check-In Radius" else "Outside Office"
 
         val formattedMessage: String
             get() = if (isFieldVisit) {
-                if (userLat != 0.0) {
-                    "You are ${distanceMeters.toInt()}m away from your check-in location.\n\nCurrent GPS: %.5f, %.5f\nCheck-in Location: %.5f, %.5f\n\nYou must be within ${allowedRadiusMeters}m of your check-in location to punch out.".format(userLat, userLng, officeLat, officeLng)
-                } else {
-                    "You are ${distanceMeters.toInt()}m away from your check-in location. Must be within ${allowedRadiusMeters}m of your check-in location to punch out."
-                }
+                "You are outside your initial check-in location radius. Please return to your check-in spot to punch out."
             } else {
-                if (userLat != 0.0) {
-                    "You are ${distanceMeters.toInt()}m away from the office.\n\nCurrent GPS: %.5f, %.5f\nOffice: %.5f, %.5f\n\nMust be within ${allowedRadiusMeters}m to punch.".format(userLat, userLng, officeLat, officeLng)
-                } else {
-                    "You are ${distanceMeters.toInt()}m away from the office. Must be within ${allowedRadiusMeters}m to punch."
-                }
+                "You are currently outside the office radius.\n\nTip: If you are working on-site or at a client location, please use \"Punch In at New Location\" instead."
             }
     }
 

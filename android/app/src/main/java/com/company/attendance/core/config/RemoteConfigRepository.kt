@@ -50,6 +50,16 @@ class RemoteConfigRepositoryImpl @Inject constructor(
             }
             
             parsedResult.mapCatching { dto ->
+                val mappedSites = dto.assignedSites?.map {
+                    com.company.attendance.core.model.OfficeSite(
+                        officeId = it.officeId,
+                        name = it.name,
+                        latitude = it.latitude,
+                        longitude = it.longitude,
+                        radiusMeters = it.radiusM
+                    )
+                } ?: emptyList()
+
                 val entity = AppConfigEntity(
                     id = 1,
                     officeLat = dto.officeLat,
@@ -59,6 +69,7 @@ class RemoteConfigRepositoryImpl @Inject constructor(
                     syncWindowsJson = json.encodeToString(dto.syncWindows),
                     syncJitterMinutes = dto.syncJitterMinutes,
                     matchThreshold = dto.matchThreshold,
+                    assignedSitesJson = json.encodeToString(mappedSites),
                     lastFetchedAt = System.currentTimeMillis()
                 )
                 appConfigDao.insertOrUpdate(entity)

@@ -46,29 +46,35 @@ export class AdminController {
   @Get('sites')
   @ApiOperation({ summary: 'List all configured office sites' })
   @ApiResponse({ status: 200, type: [AdminSiteDto] })
-  async getSites(): Promise<AdminSiteDto[]> {
-    return this.adminService.getSites();
+  async getSites(@CurrentUser() user: AuthenticatedUser): Promise<AdminSiteDto[]> {
+    return this.adminService.getSites(user);
   }
 
   @Post('sites')
   @ApiOperation({ summary: 'Create a new office site location' })
   @ApiResponse({ status: 201, type: AdminSiteDto })
-  async createSite(@Body() dto: CreateSiteDto): Promise<AdminSiteDto> {
-    return this.adminService.createSite(dto);
+  async createSite(
+    @Body() dto: CreateSiteDto,
+    @CurrentUser() user: AuthenticatedUser,
+  ): Promise<AdminSiteDto> {
+    return this.adminService.createSite(dto, user);
   }
 
   @Get('users')
   @ApiOperation({ summary: 'List all users with their roles and assigned sites' })
   @ApiResponse({ status: 200, type: [AdminUserDto] })
-  async getUsers(): Promise<AdminUserDto[]> {
-    return this.adminService.getUsers();
+  async getUsers(@CurrentUser() user: AuthenticatedUser): Promise<AdminUserDto[]> {
+    return this.adminService.getUsers(user);
   }
 
   @Post('users')
   @ApiOperation({ summary: 'Create a new user account' })
   @ApiResponse({ status: 201, type: AdminUserDto })
-  async createUser(@Body() dto: CreateUserDto): Promise<AdminUserDto> {
-    return this.adminService.createUser(dto);
+  async createUser(
+    @Body() dto: CreateUserDto,
+    @CurrentUser() user: AuthenticatedUser,
+  ): Promise<AdminUserDto> {
+    return this.adminService.createUser(dto, user);
   }
 
   @Patch('users/:userId/site')
@@ -77,18 +83,20 @@ export class AdminController {
   async updateUserSite(
     @Param('userId') userId: string,
     @Body() dto: UpdateUserSiteDto,
+    @CurrentUser() user: AuthenticatedUser,
   ): Promise<AdminUserDto> {
-    return this.adminService.updateUserSite(userId, dto.site_code);
+    return this.adminService.updateUserSite(userId, dto.site_code, dto.site_codes, user);
   }
 
   @Patch('users/:userId/role')
-  @ApiOperation({ summary: 'Update role (ADMIN/EMPLOYEE) for a user' })
+  @ApiOperation({ summary: 'Update role (ADMIN/SUPERVISOR/EMPLOYEE) for a user' })
   @ApiResponse({ status: 200, type: AdminUserDto })
   async updateUserRole(
     @Param('userId') userId: string,
     @Body() dto: UpdateUserRoleDto,
+    @CurrentUser() user: AuthenticatedUser,
   ): Promise<AdminUserDto> {
-    return this.adminService.updateUserRole(userId, dto.role);
+    return this.adminService.updateUserRole(userId, dto.role, user);
   }
 
   @Patch('users/:userId/password')
@@ -97,8 +105,9 @@ export class AdminController {
   async updateUserPassword(
     @Param('userId') userId: string,
     @Body() dto: UpdateUserPasswordDto,
+    @CurrentUser() user: AuthenticatedUser,
   ): Promise<AdminUserDto> {
-    return this.adminService.updateUserPassword(userId, dto.password);
+    return this.adminService.updateUserPassword(userId, dto.password, user);
   }
 
   @Delete('users/:userId')
@@ -108,23 +117,27 @@ export class AdminController {
     @Param('userId') userId: string,
     @CurrentUser() adminUser: AuthenticatedUser,
   ): Promise<{ success: boolean; message: string }> {
-    return this.adminService.deleteUser(userId, adminUser?.userId);
+    return this.adminService.deleteUser(userId, adminUser?.userId, adminUser);
   }
 
   @Get('attendance')
   @ApiOperation({ summary: 'List consolidated daily attendance (1 row per user per day with In, Out, Shift, Status)' })
   @ApiResponse({ status: 200, type: [AdminDailyAttendanceDto] })
-  async getAttendance(@Query() filter: AdminPunchFilterDto): Promise<AdminDailyAttendanceDto[]> {
-    return this.adminService.getAllAttendance(filter);
+  async getAttendance(
+    @Query() filter: AdminPunchFilterDto,
+    @CurrentUser() user: AuthenticatedUser,
+  ): Promise<AdminDailyAttendanceDto[]> {
+    return this.adminService.getAllAttendance(filter, user);
   }
 
   @Get('attendance/export')
   @ApiOperation({ summary: 'Export consolidated daily attendance to CSV with optional user/date/site filtering' })
   async exportAttendanceCsv(
     @Query() filter: AdminPunchFilterDto,
+    @CurrentUser() user: AuthenticatedUser,
     @Res() res: Response,
   ): Promise<void> {
-    const csv = await this.adminService.exportAttendanceCsv(filter);
+    const csv = await this.adminService.exportAttendanceCsv(filter, user);
     const timestamp = new Date().toISOString().slice(0, 10);
     const userSuffix = filter.user_id && filter.user_id.trim() ? `_${filter.user_id.trim()}` : '';
     res.setHeader('Content-Type', 'text/csv');
@@ -138,17 +151,21 @@ export class AdminController {
   @Get('punches')
   @ApiOperation({ summary: 'List all punches with optional filtering by date range, user, site' })
   @ApiResponse({ status: 200, type: [AdminPunchDto] })
-  async getPunches(@Query() filter: AdminPunchFilterDto): Promise<AdminPunchDto[]> {
-    return this.adminService.getAllPunches(filter);
+  async getPunches(
+    @Query() filter: AdminPunchFilterDto,
+    @CurrentUser() user: AuthenticatedUser,
+  ): Promise<AdminPunchDto[]> {
+    return this.adminService.getAllPunches(filter, user);
   }
 
   @Get('punches/export')
   @ApiOperation({ summary: 'Export punches to CSV with optional filtering' })
   async exportPunchesCsv(
     @Query() filter: AdminPunchFilterDto,
+    @CurrentUser() user: AuthenticatedUser,
     @Res() res: Response,
   ): Promise<void> {
-    const csv = await this.adminService.exportPunchesCsv(filter);
+    const csv = await this.adminService.exportPunchesCsv(filter, user);
     const timestamp = new Date().toISOString().slice(0, 10);
     res.setHeader('Content-Type', 'text/csv');
     res.setHeader(
@@ -163,8 +180,9 @@ export class AdminController {
   @ApiResponse({ status: 404, description: 'User not found' })
   async resetUserPhoto(
     @Param('userId') userId: string,
+    @CurrentUser() user: AuthenticatedUser,
   ): Promise<{ success: boolean; message: string }> {
-    return this.adminService.resetUserPhoto(userId);
+    return this.adminService.resetUserPhoto(userId, user);
   }
 
   @Get('users/:userId/photo')

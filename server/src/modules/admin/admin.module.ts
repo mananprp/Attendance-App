@@ -1,6 +1,7 @@
 import { Module } from '@nestjs/common';
 import { TypeOrmModule } from '@nestjs/typeorm';
 import { UserEntity } from '../../database/entities/user.entity';
+import { UserSiteEntity } from '../../database/entities/user-site.entity';
 import { OfficeConfigEntity } from '../../database/entities/office-config.entity';
 import { AttendancePunchEntity } from '../../database/entities/attendance-punch.entity';
 import { UserPhotoEntity } from '../../database/entities/user-photo.entity';
@@ -11,6 +12,7 @@ import { AdminService } from './admin.service';
   imports: [
     TypeOrmModule.forFeature([
       UserEntity,
+      UserSiteEntity,
       OfficeConfigEntity,
       AttendancePunchEntity,
       UserPhotoEntity,

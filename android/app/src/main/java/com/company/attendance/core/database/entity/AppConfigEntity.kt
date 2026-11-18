@@ -31,6 +31,9 @@ data class AppConfigEntity(
     @ColumnInfo(name = "match_threshold")
     val matchThreshold: Float = 0.46f,
 
+    @ColumnInfo(name = "assigned_sites_json")
+    val assignedSitesJson: String = "[]",
+
     @ColumnInfo(name = "last_fetched_at")
     val lastFetchedAt: Long = System.currentTimeMillis()
 )

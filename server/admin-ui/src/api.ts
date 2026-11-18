@@ -1,10 +1,6 @@
 import { AdminUser, AdminSite, AdminPunch, AdminDailyAttendance, AuthSession } from './types';
 
-const API_BASE =
-  import.meta.env.VITE_API_BASE ||
-  (typeof window !== 'undefined' && window.location.hostname === 'attendance.pess.co.in'
-    ? '/v1'
-    : 'https://attendance.pess.co.in/v1');
+const API_BASE = import.meta.env.VITE_API_BASE || '/v1';
 
 export function getAuthToken(): string | null {
   return localStorage.getItem('admin_token');
@@ -217,8 +213,9 @@ export const api = {
     user_id: string;
     name: string;
     password: string;
-    role?: 'EMPLOYEE' | 'ADMIN';
+    role?: 'EMPLOYEE' | 'SUPERVISOR' | 'ADMIN';
     site_code?: string;
+    site_codes?: string[];
   }): Promise<AdminUser> {
     return request<AdminUser>('/admin/users', {
       method: 'POST',
@@ -226,14 +223,14 @@ export const api = {
     });
   },
 
-  async updateUserSite(userId: string, siteCode: string): Promise<AdminUser> {
+  async updateUserSite(userId: string, siteCode: string, siteCodes?: string[]): Promise<AdminUser> {
     return request<AdminUser>(`/admin/users/${userId}/site`, {
       method: 'PATCH',
-      body: JSON.stringify({ site_code: siteCode }),
+      body: JSON.stringify({ site_code: siteCode, site_codes: siteCodes }),
     });
   },
 
-  async updateUserRole(userId: string, role: 'EMPLOYEE' | 'ADMIN'): Promise<AdminUser> {
+  async updateUserRole(userId: string, role: 'EMPLOYEE' | 'SUPERVISOR' | 'ADMIN'): Promise<AdminUser> {
     return request<AdminUser>(`/admin/users/${userId}/role`, {
       method: 'PATCH',
       body: JSON.stringify({ role }),

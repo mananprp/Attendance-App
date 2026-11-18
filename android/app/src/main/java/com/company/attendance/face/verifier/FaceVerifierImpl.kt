@@ -257,7 +257,7 @@ class FaceVerifierImpl(
             val calibratedScore = MathUtils.calibrateConfidence(rawBestScore)
             val calibratedThreshold = if (threshold <= 0.50f) MathUtils.calibrateConfidence(threshold) else threshold
 
-            val isMatch = rawBestScore >= (if (threshold > 0.50f) 0.38f else threshold) || calibratedScore >= calibratedThreshold
+            val isMatch = rawBestScore >= threshold
 
             return@withContext if (isMatch) {
                 FaceVerificationResult.Match(

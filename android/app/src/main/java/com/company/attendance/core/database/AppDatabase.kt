@@ -28,7 +28,7 @@ import androidx.sqlite.db.SupportSQLiteDatabase
         TrackingPointEntity::class,
         TrackingStopEntity::class
     ],
-    version = 4,
+    version = 5,
     exportSchema = false
 )
 abstract class AppDatabase : RoomDatabase() {
@@ -94,6 +94,12 @@ abstract class AppDatabase : RoomDatabase() {
                     )
                 """.trimIndent())
                 db.execSQL("CREATE INDEX IF NOT EXISTS index_tracking_stops_session_time ON tracking_stops(session_id, arrived_at_utc)")
+            }
+        }
+
+        val MIGRATION_4_5 = object : Migration(4, 5) {
+            override fun migrate(db: SupportSQLiteDatabase) {
+                db.execSQL("ALTER TABLE app_config ADD COLUMN assigned_sites_json TEXT NOT NULL DEFAULT '[]'")
             }
         }
     }

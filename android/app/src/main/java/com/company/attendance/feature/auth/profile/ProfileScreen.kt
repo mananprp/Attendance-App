@@ -316,14 +316,18 @@ fun ProfileScreenContent(
 
                             Spacer(modifier = Modifier.height(2.dp))
 
-                            val roleText = if (uiState.isAdmin) "Role: Administrator" else "Role: Employee"
+                            val roleText = when {
+                                uiState.isAdmin -> "Role: Administrator"
+                                uiState.isSupervisor -> "Role: Supervisor"
+                                else -> "Role: Employee"
+                            }
                             Text(
                                 text = roleText,
                                 style = AppTypographyTokens.BodyMedium.copy(
                                     fontSize = 13.sp,
                                     fontWeight = FontWeight.Normal
                                 ),
-                                color = if (uiState.isAdmin) AppAccent else AppSecondaryText
+                                color = if (uiState.isAdmin || uiState.isSupervisor) AppAccent else AppSecondaryText
                             )
                         }
                     }
@@ -350,11 +354,11 @@ fun ProfileScreenContent(
                         title = if (uiState.profilePhotoBitmap != null) "Update Profile Photo" else "Enroll Face / Take Photo",
                         subtitle = if (uiState.photoChangeUsed) "Photo change limit reached (1/1)" else "Capture and verify photo for presence matching",
                         enabled = uiState.canChangePhoto,
-                        actionText = if (uiState.canChangePhoto) (if (uiState.profilePhotoBitmap != null) "Update" else "Capture") else "Locked",
+                        actionText = if (uiState.canChangePhoto) (if (uiState.profilePhotoBitmap != null) "1 update available" else "Capture") else "Locked",
                         onClick = { if (uiState.canChangePhoto) onChangePhotoClick() }
                     )
 
-                    if (uiState.isAdmin) {
+                    if (uiState.isAdmin || uiState.isSupervisor) {
                         Box(
                             modifier = Modifier
                                 .fillMaxWidth()
@@ -363,7 +367,7 @@ fun ProfileScreenContent(
                         )
                         ProfileOptionRow(
                             icon = Icons.Default.Business,
-                            title = "Admin Console",
+                            title = if (uiState.isAdmin) "Admin Console" else "Supervisor Console",
                             subtitle = "Manage sites, employees & credentials",
                             onClick = onNavigateToAdminPanel
                         )

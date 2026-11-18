@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { api, getStoredUser } from '../api';
 import { AdminUser, AdminSite } from '../types';
-import { UserPlus, Shield, User, MapPin, RefreshCw, X, Key, Trash2, CheckCircle, AlertCircle, Camera } from 'lucide-react';
+import { UserPlus, Shield, User, MapPin, RefreshCw, X, Key, Trash2, CheckCircle, AlertCircle, Camera, UserCheck } from 'lucide-react';
 
 interface UsersViewProps {
   sites: AdminSite[];
@@ -19,14 +19,21 @@ export const UsersView: React.FC<UsersViewProps> = ({ sites }) => {
   const [newUserId, setNewUserId] = useState('');
   const [newName, setNewName] = useState('');
   const [newPassword, setNewPassword] = useState('Password@123');
-  const [newRole, setNewRole] = useState<'EMPLOYEE' | 'ADMIN'>('EMPLOYEE');
+  const [newRole, setNewRole] = useState<'EMPLOYEE' | 'SUPERVISOR' | 'ADMIN'>('EMPLOYEE');
   const [newSiteCode, setNewSiteCode] = useState('DEFAULT_OFFICE');
+  const [newSiteCodes, setNewSiteCodes] = useState<string[]>([]);
   const [creating, setCreating] = useState(false);
 
   // Edit Site Modal State
   const [editingUser, setEditingUser] = useState<AdminUser | null>(null);
   const [selectedSiteCode, setSelectedSiteCode] = useState('');
+  const [selectedSiteCodes, setSelectedSiteCodes] = useState<string[]>([]);
   const [savingSite, setSavingSite] = useState(false);
+
+  // Edit Role Modal State
+  const [roleUser, setRoleUser] = useState<AdminUser | null>(null);
+  const [selectedRole, setSelectedRole] = useState<'EMPLOYEE' | 'SUPERVISOR' | 'ADMIN'>('EMPLOYEE');
+  const [savingRole, setSavingRole] = useState(false);
 
   // Reset Password Modal State
   const [resettingUser, setResettingUser] = useState<AdminUser | null>(null);
@@ -66,17 +73,20 @@ export const UsersView: React.FC<UsersViewProps> = ({ sites }) => {
     e.preventDefault();
     try {
       setCreating(true);
+      const targetSites = newSiteCodes.length > 0 ? newSiteCodes : [newSiteCode];
       await api.createUser({
         user_id: newUserId.trim().toUpperCase(),
         name: newName.trim(),
         password: newPassword,
         role: newRole,
-        site_code: newSiteCode,
+        site_code: targetSites[0],
+        site_codes: targetSites,
       });
       setShowCreateModal(false);
       setNewUserId('');
       setNewName('');
       setNewPassword('Password@123');
+      setNewSiteCodes([]);
       await loadUsers();
     } catch (err: any) {
       alert(`Failed to create employee: ${err.message}`);
@@ -85,23 +95,29 @@ export const UsersView: React.FC<UsersViewProps> = ({ sites }) => {
     }
   };
 
-  const handleUpdateRole = async (user: AdminUser) => {
-    const nextRole = user.role === 'ADMIN' ? 'EMPLOYEE' : 'ADMIN';
-    const confirm = window.confirm(
-      `Are you sure you want to change role of ${user.name} (${user.user_id}) to ${nextRole}?`,
-    );
-    if (!confirm) return;
+  const handleOpenRoleModal = (user: AdminUser) => {
+    setRoleUser(user);
+    setSelectedRole(user.role);
+  };
 
+  const handleSaveUserRole = async () => {
+    if (!roleUser) return;
     try {
-      await api.updateUserRole(user.user_id, nextRole);
+      setSavingRole(true);
+      await api.updateUserRole(roleUser.user_id, selectedRole);
+      setRoleUser(null);
       await loadUsers();
     } catch (err: any) {
       alert(`Failed to update role: ${err.message}`);
+    } finally {
+      setSavingRole(false);
     }
   };
 
   const handleOpenSiteModal = (user: AdminUser) => {
     setEditingUser(user);
+    const existing = user.assigned_sites?.map((s) => s.site_code) || [user.site_code];
+    setSelectedSiteCodes(existing.length > 0 ? existing : [user.site_code]);
     setSelectedSiteCode(user.site_code);
   };
 
@@ -109,7 +125,8 @@ export const UsersView: React.FC<UsersViewProps> = ({ sites }) => {
     if (!editingUser) return;
     try {
       setSavingSite(true);
-      await api.updateUserSite(editingUser.user_id, selectedSiteCode);
+      const primary = selectedSiteCodes[0] || selectedSiteCode;
+      await api.updateUserSite(editingUser.user_id, primary, selectedSiteCodes);
       setEditingUser(null);
       await loadUsers();
     } catch (err: any) {
@@ -250,10 +267,14 @@ export const UsersView: React.FC<UsersViewProps> = ({ sites }) => {
                     <div style={{ fontWeight: 600 }}>{u.name}</div>
                   </td>
                   <td>
-                    <span className={`badge ${u.role === 'ADMIN' ? 'badge-admin' : 'badge-employee'}`}>
+                    <span className={`badge ${u.role === 'ADMIN' ? 'badge-admin' : (u.role === 'SUPERVISOR' ? 'badge-in-progress' : 'badge-employee')}`}>
                       {u.role === 'ADMIN' ? (
                         <>
                           <Shield size={12} /> ADMIN
+                        </>
+                      ) : u.role === 'SUPERVISOR' ? (
+                        <>
+                          <UserCheck size={12} /> SUPERVISOR
                         </>
                       ) : (
                         <>
@@ -263,10 +284,17 @@ export const UsersView: React.FC<UsersViewProps> = ({ sites }) => {
                     </span>
                   </td>
                   <td>
-                    <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
-                      <MapPin size={14} color="var(--primary)" />
-                      <span>{u.site_name}</span>
-                      <span style={{ fontSize: '0.75rem', color: 'var(--text-secondary)' }}>({u.site_code})</span>
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+                        <MapPin size={14} color="var(--primary)" />
+                        <span style={{ fontWeight: 600 }}>{u.site_name}</span>
+                        <span style={{ fontSize: '0.75rem', color: 'var(--text-secondary)' }}>({u.site_code})</span>
+                      </div>
+                      {u.assigned_sites && u.assigned_sites.length > 1 && (
+                        <div style={{ fontSize: '0.75rem', color: 'var(--primary)', fontWeight: 500, paddingLeft: 20 }}>
+                          +{u.assigned_sites.length - 1} more sites assigned
+                        </div>
+                      )}
                     </div>
                   </td>
                   <td>
@@ -297,11 +325,12 @@ export const UsersView: React.FC<UsersViewProps> = ({ sites }) => {
                         Change Site
                       </button>
                       <button
-                        onClick={() => handleUpdateRole(u)}
+                        onClick={() => handleOpenRoleModal(u)}
                         className="btn btn-secondary btn-sm"
-                        title="Toggle Admin / Employee role"
+                        title="Change user access role (Admin, Supervisor, Employee)"
+                        style={{ display: 'inline-flex', alignItems: 'center', gap: 4 }}
                       >
-                        {u.role === 'ADMIN' ? 'Set Employee' : 'Promote Admin'}
+                        <Shield size={13} /> Change Role
                       </button>
                       <button
                         onClick={() => handleOpenResetPasswordModal(u)}
@@ -404,23 +433,41 @@ export const UsersView: React.FC<UsersViewProps> = ({ sites }) => {
                     onChange={(e) => setNewRole(e.target.value as any)}
                   >
                     <option value="EMPLOYEE">EMPLOYEE</option>
-                    <option value="ADMIN">ADMIN</option>
+                    <option value="SUPERVISOR">SUPERVISOR</option>
+                    {(!currentUser || currentUser.role === 'ADMIN') && (
+                      <option value="ADMIN">ADMIN</option>
+                    )}
                   </select>
                 </div>
 
                 <div className="filter-group">
-                  <label className="filter-label">Assigned Office Site</label>
-                  <select
-                    className="select"
-                    value={newSiteCode}
-                    onChange={(e) => setNewSiteCode(e.target.value)}
-                  >
-                    {sites.map((s) => (
-                      <option key={s.office_id} value={s.office_id}>
-                        {s.name} ({s.office_id})
-                      </option>
-                    ))}
-                  </select>
+                  <label className="filter-label">Assigned Office Sites (Select 1 or more)</label>
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: 8, maxHeight: 160, overflowY: 'auto', padding: 10, border: '1px solid var(--border)', borderRadius: 8, background: 'var(--card-bg)' }}>
+                    {sites.map((s) => {
+                      const checked = newSiteCodes.length > 0 ? newSiteCodes.includes(s.office_id) : s.office_id === newSiteCode;
+                      return (
+                        <label key={s.office_id} style={{ display: 'flex', alignItems: 'center', gap: 8, cursor: 'pointer', fontSize: '0.88rem' }}>
+                          <input
+                            type="checkbox"
+                            checked={checked}
+                            onChange={(e) => {
+                              const currentList = newSiteCodes.length > 0 ? [...newSiteCodes] : [newSiteCode];
+                              if (e.target.checked) {
+                                if (!currentList.includes(s.office_id)) currentList.push(s.office_id);
+                              } else {
+                                const idx = currentList.indexOf(s.office_id);
+                                if (idx >= 0 && currentList.length > 1) currentList.splice(idx, 1);
+                              }
+                              setNewSiteCodes(currentList);
+                              setNewSiteCode(currentList[0]);
+                            }}
+                          />
+                          <span style={{ fontWeight: 600 }}>{s.name}</span>
+                          <span style={{ color: 'var(--text-secondary)', fontSize: '0.78rem' }}>({s.office_id})</span>
+                        </label>
+                      );
+                    })}
+                  </div>
                 </div>
               </div>
 
@@ -451,7 +498,7 @@ export const UsersView: React.FC<UsersViewProps> = ({ sites }) => {
           <div className="modal-content">
             <div className="modal-header">
               <h3 style={{ fontSize: '1.1rem', fontWeight: 700 }}>
-                Reassign Site: {editingUser.name} ({editingUser.user_id})
+                Manage Sites: {editingUser.name} ({editingUser.user_id})
               </h3>
               <button
                 onClick={() => setEditingUser(null)}
@@ -462,18 +509,34 @@ export const UsersView: React.FC<UsersViewProps> = ({ sites }) => {
             </div>
             <div className="modal-body">
               <div className="filter-group">
-                <label className="filter-label">Select Target Office Site</label>
-                <select
-                  className="select"
-                  value={selectedSiteCode}
-                  onChange={(e) => setSelectedSiteCode(e.target.value)}
-                >
-                  {sites.map((s) => (
-                    <option key={s.office_id} value={s.office_id}>
-                      {s.name} ({s.office_id})
-                    </option>
-                  ))}
-                </select>
+                <label className="filter-label">Assigned Office Sites (Select all applicable locations)</label>
+                <p style={{ fontSize: '0.8rem', color: 'var(--text-secondary)', marginBottom: 8 }}>
+                  Employees assigned to multiple sites can check in at any of these office geofences.
+                </p>
+                <div style={{ display: 'flex', flexDirection: 'column', gap: 8, maxHeight: 220, overflowY: 'auto', padding: 10, border: '1px solid var(--border)', borderRadius: 8, background: 'var(--card-bg)' }}>
+                  {sites.map((s) => {
+                    const checked = selectedSiteCodes.includes(s.office_id);
+                    return (
+                      <label key={s.office_id} style={{ display: 'flex', alignItems: 'center', gap: 8, cursor: 'pointer', fontSize: '0.88rem' }}>
+                        <input
+                          type="checkbox"
+                          checked={checked}
+                          onChange={(e) => {
+                            if (e.target.checked) {
+                              setSelectedSiteCodes([...selectedSiteCodes, s.office_id]);
+                            } else {
+                              if (selectedSiteCodes.length > 1) {
+                                setSelectedSiteCodes(selectedSiteCodes.filter((code) => code !== s.office_id));
+                              }
+                            }
+                          }}
+                        />
+                        <span style={{ fontWeight: 600 }}>{s.name}</span>
+                        <span style={{ color: 'var(--text-secondary)', fontSize: '0.78rem' }}>({s.office_id})</span>
+                      </label>
+                    );
+                  })}
+                </div>
               </div>
             </div>
             <div className="modal-footer">
@@ -491,6 +554,85 @@ export const UsersView: React.FC<UsersViewProps> = ({ sites }) => {
                 className="btn btn-primary"
               >
                 {savingSite ? 'Saving...' : 'Save Site Assignment'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Change Role Modal */}
+      {roleUser && (
+        <div className="modal-overlay">
+          <div className="modal-content">
+            <div className="modal-header">
+              <h3 style={{ fontSize: '1.1rem', fontWeight: 700, display: 'flex', alignItems: 'center', gap: 8 }}>
+                <Shield size={20} className="text-accent" />
+                Change Role: {roleUser.name} ({roleUser.user_id})
+              </h3>
+              <button
+                onClick={() => setRoleUser(null)}
+                style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--text-secondary)' }}
+              >
+                <X size={20} />
+              </button>
+            </div>
+            <div className="modal-body">
+              <div className="filter-group">
+                <label className="filter-label">Select System Role</label>
+                <select
+                  className="select"
+                  value={selectedRole}
+                  onChange={(e) => setSelectedRole(e.target.value as any)}
+                  style={{ width: '100%', marginBottom: 12 }}
+                >
+                  <option value="EMPLOYEE">EMPLOYEE</option>
+                  <option value="SUPERVISOR">SUPERVISOR</option>
+                  {(!currentUser || currentUser.role === 'ADMIN') && (
+                    <option value="ADMIN">ADMIN</option>
+                  )}
+                </select>
+
+                <div style={{ background: 'var(--card-bg)', border: '1px solid var(--border)', borderRadius: 8, padding: 12, fontSize: '0.85rem' }}>
+                  <div style={{ fontWeight: 600, marginBottom: 6, color: 'var(--text-primary)' }}>Role Permissions Summary:</div>
+                  {selectedRole === 'EMPLOYEE' && (
+                    <div style={{ color: 'var(--text-secondary)', lineHeight: 1.5 }}>
+                      • Mark daily attendance check-in/out at assigned office site(s).<br/>
+                      • Record field trips with live GPS tracking.<br/>
+                      • View personal attendance logs and profile.
+                    </div>
+                  )}
+                  {selectedRole === 'SUPERVISOR' && (
+                    <div style={{ color: 'var(--text-secondary)', lineHeight: 1.5 }}>
+                      • All Employee features.<br/>
+                      • View staff attendance across assigned sites.<br/>
+                      • Can manage office sites and oversee on-ground operations.
+                    </div>
+                  )}
+                  {selectedRole === 'ADMIN' && (
+                    <div style={{ color: 'var(--text-secondary)', lineHeight: 1.5 }}>
+                      • Full administrator privileges across all office sites.<br/>
+                      • Create, update, and delete users and sites.<br/>
+                      • Assign user roles, reset passwords, and reset face photo verification.
+                    </div>
+                  )}
+                </div>
+              </div>
+            </div>
+            <div className="modal-footer">
+              <button
+                type="button"
+                onClick={() => setRoleUser(null)}
+                className="btn btn-secondary"
+              >
+                Cancel
+              </button>
+              <button
+                type="button"
+                onClick={handleSaveUserRole}
+                disabled={savingRole || selectedRole === roleUser.role}
+                className="btn btn-primary"
+              >
+                {savingRole ? 'Updating...' : `Set as ${selectedRole}`}
               </button>
             </div>
           </div>

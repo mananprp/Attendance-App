@@ -1,5 +1,22 @@
 import { ApiProperty } from '@nestjs/swagger';
 
+export class OfficeSiteDto {
+  @ApiProperty({ example: 'SITE_01' })
+  office_id: string;
+
+  @ApiProperty({ example: 'Headquarters' })
+  name: string;
+
+  @ApiProperty({ example: 28.613939 })
+  latitude: number;
+
+  @ApiProperty({ example: 77.209021 })
+  longitude: number;
+
+  @ApiProperty({ example: 100 })
+  radius_m: number;
+}
+
 export class AppConfigResponseDto {
   @ApiProperty({ example: 28.613939, description: 'Office latitude' })
   office_lat: number;
@@ -31,4 +48,11 @@ export class AppConfigResponseDto {
     description: 'Minimum cosine similarity threshold for face match',
   })
   match_threshold: number;
+
+  @ApiProperty({
+    type: [OfficeSiteDto],
+    description: 'All assigned office sites for this user',
+    required: false,
+  })
+  assigned_sites?: OfficeSiteDto[];
 }

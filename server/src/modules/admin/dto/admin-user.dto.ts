@@ -7,7 +7,7 @@ export class AdminUserDto {
   @ApiProperty({ example: 'Rahul Sharma' })
   name: string;
 
-  @ApiProperty({ example: 'EMPLOYEE', enum: ['ADMIN', 'EMPLOYEE'] })
+  @ApiProperty({ example: 'EMPLOYEE', enum: ['ADMIN', 'SUPERVISOR', 'EMPLOYEE'] })
   role: string;
 
   @ApiProperty({ example: 'DEFAULT_OFFICE' })
@@ -15,6 +15,9 @@ export class AdminUserDto {
 
   @ApiProperty({ example: 'Headquarters' })
   site_name: string;
+
+  @ApiProperty({ example: [{ site_code: 'DEFAULT_OFFICE', site_name: 'Headquarters' }], required: false })
+  assigned_sites?: { site_code: string; site_name: string }[];
 
   @ApiProperty({ example: 'ACTIVE' })
   status: string;

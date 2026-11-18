@@ -35,6 +35,11 @@ object EntityMappers {
         } catch (_: Exception) {
             listOf("16:00", "00:00")
         }
+        val sites = try {
+            json.decodeFromString<List<com.company.attendance.core.model.OfficeSite>>(assignedSitesJson)
+        } catch (_: Exception) {
+            emptyList()
+        }
         return AppConfig(
             officeLat = officeLat,
             officeLng = officeLng,
@@ -43,12 +48,14 @@ object EntityMappers {
             syncWindows = windows,
             syncJitterMinutes = syncJitterMinutes,
             matchThreshold = matchThreshold,
-            lastFetchedAt = lastFetchedAt
+            lastFetchedAt = lastFetchedAt,
+            assignedSites = sites
         )
     }
 
     fun AppConfig.toEntity(id: Int = 1): AppConfigEntity {
         val windowsJson = json.encodeToString(syncWindows)
+        val sitesJson = json.encodeToString(assignedSites)
         return AppConfigEntity(
             id = id,
             officeLat = officeLat,
@@ -58,6 +65,7 @@ object EntityMappers {
             syncWindowsJson = windowsJson,
             syncJitterMinutes = syncJitterMinutes,
             matchThreshold = matchThreshold,
+            assignedSitesJson = sitesJson,
             lastFetchedAt = lastFetchedAt
         )
     }

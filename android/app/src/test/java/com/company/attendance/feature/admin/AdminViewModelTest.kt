@@ -187,4 +187,34 @@ class AdminViewModelTest {
         assertEquals(false, updatedUser?.photoChangeUsed)
         assertTrue(state.successMessage?.contains("Photo reset successfully") == true)
     }
+
+    @Test
+    fun updateUserRole_success_updatesRoleInState() = runTest {
+        val user = AdminUserDto(
+            userId = "EMP1001",
+            name = "Alice",
+            role = "EMPLOYEE",
+            siteCode = "DEFAULT_OFFICE",
+            siteName = "Headquarters",
+            status = "ACTIVE",
+            photoChangeUsed = false
+        )
+        viewModel.openRoleChangeDialog(user)
+        assertEquals(user, viewModel.uiState.value.selectedUserForRoleChange)
+
+        val updated = user.copy(role = "SUPERVISOR")
+        coEvery {
+            apiService.updateAdminUserRole("EMP1001", com.company.attendance.core.network.model.UpdateUserRoleRequestDto("SUPERVISOR"))
+        } returns Response.success(updated)
+
+        viewModel.updateUserRole("EMP1001", "SUPERVISOR")
+        advanceUntilIdle()
+
+        val state = viewModel.uiState.value
+        assertEquals(null, state.selectedUserForRoleChange)
+        assertFalse(state.isActionLoading)
+        val resultUser = state.users.find { it.userId == "EMP1001" }
+        assertEquals("SUPERVISOR", resultUser?.role)
+        assertTrue(state.successMessage?.contains("updated to SUPERVISOR") == true)
+    }
 }

@@ -46,6 +46,12 @@ class TrackingViewModel @Inject constructor(
     private val _isStopping = MutableStateFlow(false)
     val isStopping: StateFlow<Boolean> = _isStopping.asStateFlow()
 
+    private val _syncFailedSessionId = MutableStateFlow<String?>(null)
+    val syncFailedSessionId: StateFlow<String?> = _syncFailedSessionId.asStateFlow()
+
+    private val _isSyncing = MutableStateFlow(false)
+    val isSyncing: StateFlow<Boolean> = _isSyncing.asStateFlow()
+
     init {
         viewModelScope.launch {
             trackingRepository.observeActiveSession().collect { session ->
@@ -82,11 +88,33 @@ class TrackingViewModel @Inject constructor(
                 val summary = trackingRepository.stopTracking()
                 if (summary != null) {
                     _completedTripSummary.value = summary
+                    val syncResult = trackingRepository.syncSession(summary.sessionId)
+                    if (syncResult.isFailure) {
+                        _syncFailedSessionId.value = summary.sessionId
+                    }
                 }
             } finally {
                 _isStopping.value = false
             }
         }
+    }
+
+    fun retrySync(sessionId: String) {
+        viewModelScope.launch {
+            _isSyncing.value = true
+            try {
+                val syncResult = trackingRepository.syncSession(sessionId)
+                if (syncResult.isSuccess) {
+                    _syncFailedSessionId.value = null
+                }
+            } finally {
+                _isSyncing.value = false
+            }
+        }
+    }
+
+    fun dismissSyncFailedDialog() {
+        _syncFailedSessionId.value = null
     }
 
     fun resumeTracking() {

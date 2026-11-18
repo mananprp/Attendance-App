@@ -55,6 +55,27 @@ class LocationTrackerService : Service() {
     private var isPaused = false
     private var lastLocation: Location? = null
     private var isReceiverRegistered = false
+    private var midnightJob: kotlinx.coroutines.Job? = null
+
+    private fun scheduleMidnightAutoStop() {
+        midnightJob?.cancel()
+        midnightJob = serviceScope.launch {
+            val now = java.util.Calendar.getInstance()
+            val nextMidnight = java.util.Calendar.getInstance().apply {
+                add(java.util.Calendar.DAY_OF_YEAR, 1)
+                set(java.util.Calendar.HOUR_OF_DAY, 0)
+                set(java.util.Calendar.MINUTE, 0)
+                set(java.util.Calendar.SECOND, 0)
+                set(java.util.Calendar.MILLISECOND, 0)
+            }
+            val delayMs = nextMidnight.timeInMillis - now.timeInMillis
+            if (delayMs > 0) {
+                kotlinx.coroutines.delay(delayMs)
+            }
+            Log.i(TAG, "Midnight 12:00 AM reached: Auto-stopping tracking session.")
+            stopTrackingSession()
+        }
+    }
 
     private val locationCallback = object : LocationCallback() {
         override fun onLocationResult(result: LocationResult) {
@@ -142,6 +163,7 @@ class LocationTrackerService : Service() {
         }
 
         checkGpsState()
+        scheduleMidnightAutoStop()
     }
 
     private fun checkGpsState() {
@@ -233,6 +255,8 @@ class LocationTrackerService : Service() {
     }
 
     private fun stopTrackingSession() {
+        midnightJob?.cancel()
+        midnightJob = null
         val sId = activeSessionId
 
         // Stop updates and unregister receivers
@@ -251,19 +275,25 @@ class LocationTrackerService : Service() {
             if (sId != null) {
                 val session = trackingDao.getSession(sId)
                 if (session != null) {
-                    val completedSession = session.copy(
-                        status = "COMPLETED",
-                        endTimeUtc = System.currentTimeMillis()
-                    )
-                    trackingDao.updateSession(completedSession)
+                    val sessionToSync = if (session.status != "COMPLETED") {
+                        val cs = session.copy(
+                            status = "COMPLETED",
+                            endTimeUtc = System.currentTimeMillis()
+                        )
+                        trackingDao.updateSession(cs)
+                        cs
+                    } else {
+                        session
+                    }
 
-                    // Gather points & stops for backend sync
-                    syncCompletedSession(completedSession)
+                    if (!sessionToSync.isSynced) {
+                        launch { syncCompletedSession(sessionToSync) }
+                    }
                 }
             }
-            stopForeground(STOP_FOREGROUND_REMOVE)
-            stopSelf()
         }
+        stopForeground(STOP_FOREGROUND_REMOVE)
+        stopSelf()
     }
 
     private suspend fun syncCompletedSession(session: TrackingSessionEntity) {

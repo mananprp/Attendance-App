@@ -404,6 +404,7 @@ fun HomeScreen(
                         // Swipe-To-Punch Slider
                         val swipeLabel = when {
                             uiState.isPunchInEnabled -> "Swipe to Check In"
+                            uiState.isPunchOutEnabled && uiState.outTimeFormatted != null -> "Swipe to Update Check Out"
                             uiState.isPunchOutEnabled -> "Swipe to Check Out"
                             uiState.inTimeFormatted != null && uiState.outTimeFormatted != null -> "Attendance complete"
                             else -> uiState.punchInButtonText
@@ -591,11 +592,13 @@ fun HomeScreen(
         null -> {}
     }
 
-    // Mandatory Permission Guard Dialog (Blocks all actions until Camera and Location are granted)
-    if (!hasCameraPermission || !hasLocationPermission) {
+    // Mandatory Permission Guard Dialog (Blocks actions until Camera, Location, and Notifications are granted)
+    val hasNotificationPermission = PermissionManager.hasNotificationPermission(context)
+    if (!hasCameraPermission || !hasLocationPermission || !hasNotificationPermission) {
         PermissionGuardDialog(
             hasCameraPermission = hasCameraPermission,
             hasLocationPermission = hasLocationPermission,
+            hasNotificationPermission = hasNotificationPermission,
             onRequestPermissions = {
                 val missing = PermissionManager.getMissingPermissions(context)
                 if (missing.isNotEmpty()) {

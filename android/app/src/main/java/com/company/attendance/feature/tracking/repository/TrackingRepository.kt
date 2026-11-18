@@ -8,6 +8,9 @@ import com.company.attendance.core.database.entity.TrackingPointEntity
 import com.company.attendance.core.database.entity.TrackingSessionEntity
 import com.company.attendance.core.database.entity.TrackingStopEntity
 import com.company.attendance.core.network.AttendanceApiService
+import com.company.attendance.core.network.model.FinishTrackingRequestDto
+import com.company.attendance.core.network.model.NetworkTrackingPointDto
+import com.company.attendance.core.network.model.NetworkTrackingStopDto
 import com.company.attendance.core.network.model.StartTrackingRequestDto
 import com.company.attendance.feature.tracking.service.LocationTrackerService
 import com.google.android.gms.location.LocationServices
@@ -17,6 +20,7 @@ import dagger.hilt.android.qualifiers.ApplicationContext
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.withContext
+import java.io.IOException
 import java.util.UUID
 import java.util.concurrent.TimeUnit
 import javax.inject.Inject
@@ -110,10 +114,22 @@ class TrackingRepository @Inject constructor(
         }
     }
 
+    fun observeUnsyncedCompletedSessions(): Flow<List<TrackingSessionEntity>> {
+        return trackingDao.observeUnsyncedCompletedSessions()
+    }
+
     suspend fun stopTracking(): TrackingTripSummary? {
         return withContext(Dispatchers.IO) {
             val session = trackingDao.getActiveSession() ?: return@withContext null
             val endTime = System.currentTimeMillis()
+
+            // Save COMPLETED status to local database immediately
+            val completedSession = session.copy(
+                status = "COMPLETED",
+                endTimeUtc = endTime,
+                isSynced = false
+            )
+            trackingDao.updateSession(completedSession)
 
             LocationTrackerService.stopTracking(context)
 
@@ -128,6 +144,52 @@ class TrackingRepository @Inject constructor(
                 points = points,
                 stops = stops
             )
+        }
+    }
+
+    suspend fun syncSession(sessionId: String): Result<Unit> {
+        return withContext(Dispatchers.IO) {
+            try {
+                val session = trackingDao.getSession(sessionId)
+                    ?: return@withContext Result.failure(IllegalStateException("Session $sessionId not found"))
+
+                val points = trackingDao.getPointsForSession(sessionId)
+                val stops = trackingDao.getStopsForSession(sessionId)
+
+                val payload = FinishTrackingRequestDto(
+                    endTimeUtc = session.endTimeUtc ?: System.currentTimeMillis(),
+                    totalDistanceM = session.totalDistanceM,
+                    points = points.map {
+                        NetworkTrackingPointDto(
+                            id = it.id,
+                            latitude = it.latitude,
+                            longitude = it.longitude,
+                            accuracyM = it.accuracyM,
+                            recordedAtUtc = it.timestampUtc,
+                            isPausedGap = it.isPausedGap
+                        )
+                    },
+                    stops = stops.map {
+                        NetworkTrackingStopDto(
+                            id = it.id,
+                            latitude = it.latitude,
+                            longitude = it.longitude,
+                            stopName = it.stopName,
+                            arrivedAtUtc = it.arrivedAtUtc
+                        )
+                    }
+                )
+
+                val response = apiService.finishTrackingSession(sessionId, payload)
+                if (response.isSuccessful) {
+                    trackingDao.updateSession(session.copy(isSynced = true))
+                    Result.success(Unit)
+                } else {
+                    Result.failure(IOException("Server returned HTTP ${response.code()}: ${response.message()}"))
+                }
+            } catch (e: Exception) {
+                Result.failure(e)
+            }
         }
     }
 

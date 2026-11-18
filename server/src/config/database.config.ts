@@ -2,6 +2,7 @@ import { TypeOrmModuleOptions } from '@nestjs/typeorm';
 import {
   UserEntity,
   UserPhotoEntity,
+  UserSiteEntity,
   OfficeConfigEntity,
   SyncBatchEntity,
   AttendancePunchEntity,
@@ -17,6 +18,7 @@ export const getDatabaseConfig = (): TypeOrmModuleOptions => {
   const entities = [
     UserEntity,
     UserPhotoEntity,
+    UserSiteEntity,
     OfficeConfigEntity,
     SyncBatchEntity,
     AttendancePunchEntity,

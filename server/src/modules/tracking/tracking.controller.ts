@@ -80,8 +80,11 @@ export class TrackingController {
   @ApiOperation({ summary: 'Get all tracking sessions for admin overview' })
   @ApiQuery({ name: 'userId', required: false, type: String })
   @ApiResponse({ status: 200, description: 'List of sessions with user details' })
-  async getAdminSessions(@Query('userId') userId?: string) {
-    return this.trackingService.getAdminSessions(userId);
+  async getAdminSessions(
+    @CurrentUser() user: AuthenticatedUser,
+    @Query('userId') userId?: string,
+  ) {
+    return this.trackingService.getAdminSessions(user, userId);
   }
 
   @Get('admin/tracking/sessions/:id')
