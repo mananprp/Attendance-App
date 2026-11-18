@@ -85,7 +85,8 @@ data class CreateSiteRequestDto(
 
 @Serializable
 data class UpdateUserSiteRequestDto(
-    @SerialName("site_code") val siteCode: String
+    @SerialName("site_code") val siteCode: String? = null,
+    @SerialName("site_codes") val siteCodes: List<String>? = null
 )
 
 @Serializable

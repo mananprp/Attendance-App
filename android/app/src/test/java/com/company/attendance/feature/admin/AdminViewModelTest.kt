@@ -217,4 +217,38 @@ class AdminViewModelTest {
         assertEquals("SUPERVISOR", resultUser?.role)
         assertTrue(state.successMessage?.contains("updated to SUPERVISOR") == true)
     }
+
+    @Test
+    fun updateUserSites_success_updatesSitesInState() = runTest {
+        val user = AdminUserDto(
+            userId = "EMP1001",
+            name = "Alice",
+            role = "SUPERVISOR",
+            siteCode = "DEFAULT_OFFICE",
+            siteName = "Headquarters",
+            status = "ACTIVE",
+            photoChangeUsed = false
+        )
+        val updated = user.copy(
+            assignedSites = listOf(
+                com.company.attendance.core.network.model.UserAssignedSiteDto("DEFAULT_OFFICE", "Headquarters"),
+                com.company.attendance.core.network.model.UserAssignedSiteDto("SITE_NORTH", "North Branch")
+            )
+        )
+        coEvery {
+            apiService.updateAdminUserSite(
+                "EMP1001",
+                com.company.attendance.core.network.model.UpdateUserSiteRequestDto(siteCode = "DEFAULT_OFFICE", siteCodes = listOf("DEFAULT_OFFICE", "SITE_NORTH"))
+            )
+        } returns Response.success(updated)
+
+        viewModel.updateUserSites("EMP1001", listOf("DEFAULT_OFFICE", "SITE_NORTH"))
+        advanceUntilIdle()
+
+        val state = viewModel.uiState.value
+        assertFalse(state.isActionLoading)
+        val resultUser = state.users.find { it.userId == "EMP1001" }
+        assertEquals(2, resultUser?.assignedSites?.size)
+        assertTrue(state.successMessage?.contains("Updated site assignments") == true)
+    }
 }

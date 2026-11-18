@@ -231,12 +231,20 @@ class AdminViewModel @Inject constructor(
     }
 
     fun updateUserSite(userId: String, newSiteCode: String) {
+        updateUserSites(userId, listOf(newSiteCode))
+    }
+
+    fun updateUserSites(userId: String, siteCodes: List<String>) {
+        if (siteCodes.isEmpty()) {
+            _uiState.update { it.copy(errorMessage = "At least one office site must be selected.") }
+            return
+        }
         viewModelScope.launch {
             _uiState.update { it.copy(isActionLoading = true, errorMessage = null) }
             try {
                 val response = apiService.updateAdminUserSite(
                     userId = userId,
-                    request = UpdateUserSiteRequestDto(siteCode = newSiteCode)
+                    request = UpdateUserSiteRequestDto(siteCode = siteCodes.first(), siteCodes = siteCodes)
                 )
                 val result = NetworkHelper.parseResponse(response)
 
@@ -246,17 +254,17 @@ class AdminViewModel @Inject constructor(
                             isActionLoading = false,
                             selectedUserForSiteChange = null,
                             users = current.users.map { if (it.userId == updatedUser.userId) updatedUser else it },
-                            successMessage = "Assigned '${updatedUser.userId}' to ${updatedUser.siteName}."
+                            successMessage = "Updated site assignments for '${updatedUser.userId}'."
                         )
                     }
                 }.onFailure { err ->
                     _uiState.update {
-                        it.copy(isActionLoading = false, errorMessage = err.message ?: "Failed to update user site.")
+                        it.copy(isActionLoading = false, errorMessage = err.message ?: "Failed to update sites.")
                     }
                 }
             } catch (e: Exception) {
                 _uiState.update {
-                    it.copy(isActionLoading = false, errorMessage = e.message ?: "Failed to update user site.")
+                    it.copy(isActionLoading = false, errorMessage = e.message ?: "Failed to update sites.")
                 }
             }
         }

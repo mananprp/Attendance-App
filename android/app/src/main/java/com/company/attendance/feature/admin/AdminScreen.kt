@@ -29,14 +29,21 @@ import androidx.compose.material.icons.filled.Business
 import androidx.compose.material.icons.filled.Check
 import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.Lock
+import androidx.compose.material.icons.filled.People
 import androidx.compose.material.icons.filled.Person
 import androidx.compose.material.icons.filled.Place
 import androidx.compose.material.icons.filled.Refresh
+import androidx.compose.material.icons.filled.Search
 import androidx.compose.material.icons.filled.MoreVert
 import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.PersonAdd
+import androidx.compose.material3.Checkbox
+import androidx.compose.material3.CheckboxDefaults
 import androidx.compose.material3.DropdownMenu
 import androidx.compose.material3.DropdownMenuItem
+import androidx.compose.material3.OutlinedTextField
+import androidx.compose.material3.OutlinedTextFieldDefaults
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.material.icons.outlined.ChevronRight
 import androidx.compose.material.icons.outlined.ErrorOutline
 import androidx.compose.material.icons.outlined.CheckCircle
@@ -88,6 +95,11 @@ import com.company.attendance.design.theme.AppSuccessTint
 import com.company.attendance.design.theme.AppSurface
 import com.company.attendance.design.theme.AppTypographyTokens
 
+enum class AdminTab {
+    EMPLOYEES,
+    SITES
+}
+
 @Composable
 fun AdminScreen(
     onNavigateBack: () -> Unit,
@@ -95,6 +107,9 @@ fun AdminScreen(
     viewModel: AdminViewModel = hiltViewModel()
 ) {
     val uiState by viewModel.uiState.collectAsState()
+    var currentTab by remember { mutableStateOf(AdminTab.EMPLOYEES) }
+    var employeeSearchQuery by remember { mutableStateOf("") }
+    var siteSearchQuery by remember { mutableStateOf("") }
     var selectedSite by remember { mutableStateOf<AdminSiteDto?>(null) }
 
     BackHandler(enabled = selectedSite != null) {
@@ -111,17 +126,28 @@ fun AdminScreen(
     Scaffold(
         topBar = {
             if (selectedSite == null) {
+                val screenTitle = if (currentTab == AdminTab.EMPLOYEES) "Employees" else "Office Sites"
                 AttendanceTopAppBar(
-                    title = "Office Sites",
+                    title = screenTitle,
                     canNavigateBack = true,
                     onNavigateBack = onNavigateBack,
                     actions = {
-                        IconButton(onClick = { viewModel.openCreateUserDialog(null) }) {
-                            Icon(
-                                imageVector = Icons.Default.PersonAdd,
-                                contentDescription = "Add User",
-                                tint = AppAccent
-                            )
+                        if (currentTab == AdminTab.EMPLOYEES) {
+                            IconButton(onClick = { viewModel.openCreateUserDialog(null) }) {
+                                Icon(
+                                    imageVector = Icons.Default.PersonAdd,
+                                    contentDescription = "Add Staff",
+                                    tint = AppAccent
+                                )
+                            }
+                        } else {
+                            IconButton(onClick = viewModel::openCreateSiteDialog) {
+                                Icon(
+                                    imageVector = Icons.Default.Add,
+                                    contentDescription = "Add Site",
+                                    tint = AppAccent
+                                )
+                            }
                         }
                         IconButton(onClick = viewModel::loadData) {
                             Icon(
@@ -264,19 +290,11 @@ fun AdminScreen(
                     ) {
                         CircularProgressIndicator(color = AppAccent)
                     }
-                } else if (selectedSite == null) {
-                    // SITES MENU VIEW
-                    SitesMenuView(
-                        sites = uiState.sites,
-                        users = uiState.users,
-                        onSiteSelected = { site -> selectedSite = site },
-                        onAddSiteClick = viewModel::openCreateSiteDialog
-                    )
-                } else {
-                    // SITE EMPLOYEES VIEW
+                } else if (selectedSite != null) {
+                    // DRILL-DOWN: SPECIFIC SITE EMPLOYEES VIEW
                     SiteEmployeesView(
                         site = selectedSite!!,
-                        users = uiState.users.filter { it.siteCode == selectedSite!!.officeId },
+                        users = uiState.users.filter { it.siteCode == selectedSite!!.officeId || it.assignedSites?.any { s -> s.siteCode == selectedSite!!.officeId } == true },
                         currentUserId = viewModel.getCurrentUserId(),
                         onChangeSiteClick = { user -> viewModel.openSiteChangeDialog(user) },
                         onChangeRoleClick = { user -> viewModel.openRoleChangeDialog(user) },
@@ -284,6 +302,98 @@ fun AdminScreen(
                         onResetPhotoClick = { user -> viewModel.openResetPhotoDialog(user) },
                         onDeleteUserClick = { user -> viewModel.openDeleteUserDialog(user) }
                     )
+                } else {
+                    // MAIN TWO-TAB INTERFACE: [ EMPLOYEES ] | [ SITES ]
+                    Row(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(bottom = AppDimensions.Spacing16),
+                        horizontalArrangement = Arrangement.spacedBy(8.dp)
+                    ) {
+                        val isEmp = currentTab == AdminTab.EMPLOYEES
+                        Surface(
+                            modifier = Modifier
+                                .weight(1f)
+                                .height(44.dp)
+                                .clickable { currentTab = AdminTab.EMPLOYEES },
+                            shape = RoundedCornerShape(12.dp),
+                            color = if (isEmp) AppAccent else AppSurface,
+                            border = BorderStroke(1.dp, if (isEmp) AppAccent else AppBorder)
+                        ) {
+                            Row(
+                                modifier = Modifier.fillMaxSize(),
+                                horizontalArrangement = Arrangement.Center,
+                                verticalAlignment = Alignment.CenterVertically
+                            ) {
+                                Icon(
+                                    imageVector = Icons.Default.People,
+                                    contentDescription = null,
+                                    tint = if (isEmp) Color.White else AppSecondaryText,
+                                    modifier = Modifier.size(18.dp)
+                                )
+                                Spacer(modifier = Modifier.width(6.dp))
+                                Text(
+                                    text = "Employees (${uiState.users.size})",
+                                    style = AppTypographyTokens.BodyMedium.copy(fontWeight = FontWeight.SemiBold),
+                                    color = if (isEmp) Color.White else AppPrimaryText
+                                )
+                            }
+                        }
+
+                        val isSites = currentTab == AdminTab.SITES
+                        Surface(
+                            modifier = Modifier
+                                .weight(1f)
+                                .height(44.dp)
+                                .clickable { currentTab = AdminTab.SITES },
+                            shape = RoundedCornerShape(12.dp),
+                            color = if (isSites) AppAccent else AppSurface,
+                            border = BorderStroke(1.dp, if (isSites) AppAccent else AppBorder)
+                        ) {
+                            Row(
+                                modifier = Modifier.fillMaxSize(),
+                                horizontalArrangement = Arrangement.Center,
+                                verticalAlignment = Alignment.CenterVertically
+                            ) {
+                                Icon(
+                                    imageVector = Icons.Default.Business,
+                                    contentDescription = null,
+                                    tint = if (isSites) Color.White else AppSecondaryText,
+                                    modifier = Modifier.size(18.dp)
+                                )
+                                Spacer(modifier = Modifier.width(6.dp))
+                                Text(
+                                    text = "Sites (${uiState.sites.size})",
+                                    style = AppTypographyTokens.BodyMedium.copy(fontWeight = FontWeight.SemiBold),
+                                    color = if (isSites) Color.White else AppPrimaryText
+                                )
+                            }
+                        }
+                    }
+
+                    if (currentTab == AdminTab.EMPLOYEES) {
+                        EmployeesMenuView(
+                            users = uiState.users,
+                            currentUserId = viewModel.getCurrentUserId(),
+                            searchQuery = employeeSearchQuery,
+                            onSearchQueryChange = { employeeSearchQuery = it },
+                            onAddUserClick = { viewModel.openCreateUserDialog(null) },
+                            onChangeSiteClick = { user -> viewModel.openSiteChangeDialog(user) },
+                            onChangeRoleClick = { user -> viewModel.openRoleChangeDialog(user) },
+                            onResetPasswordClick = { user -> viewModel.openResetPasswordDialog(user) },
+                            onResetPhotoClick = { user -> viewModel.openResetPhotoDialog(user) },
+                            onDeleteUserClick = { user -> viewModel.openDeleteUserDialog(user) }
+                        )
+                    } else {
+                        SitesMenuView(
+                            sites = uiState.sites,
+                            users = uiState.users,
+                            searchQuery = siteSearchQuery,
+                            onSearchQueryChange = { siteSearchQuery = it },
+                            onSiteSelected = { site -> selectedSite = site },
+                            onAddSiteClick = viewModel::openCreateSiteDialog
+                        )
+                    }
                 }
             }
         }
@@ -317,15 +427,15 @@ fun AdminScreen(
         )
     }
 
-    // Change Site Dialog
+    // Manage Sites Dialog (Multi-site Assignment)
     uiState.selectedUserForSiteChange?.let { targetUser ->
-        ChangeSiteDialog(
+        ManageSitesDialog(
             user = targetUser,
             sites = uiState.sites,
             isLoading = uiState.isActionLoading,
             onDismiss = viewModel::closeSiteChangeDialog,
-            onConfirm = { newSiteCode ->
-                viewModel.updateUserSite(targetUser.userId, newSiteCode)
+            onConfirm = { newSiteCodes ->
+                viewModel.updateUserSites(targetUser.userId, newSiteCodes)
             }
         )
     }
@@ -379,6 +489,147 @@ fun AdminScreen(
     }
 }
 
+@Composable
+private fun AdminSearchBar(
+    query: String,
+    onQueryChange: (String) -> Unit,
+    placeholder: String,
+    modifier: Modifier = Modifier
+) {
+    OutlinedTextField(
+        value = query,
+        onValueChange = onQueryChange,
+        placeholder = { Text(placeholder, style = AppTypographyTokens.BodyMedium, color = AppSecondaryText) },
+        leadingIcon = {
+            Icon(Icons.Default.Search, contentDescription = "Search", tint = AppSecondaryText, modifier = Modifier.size(20.dp))
+        },
+        trailingIcon = {
+            if (query.isNotEmpty()) {
+                IconButton(onClick = { onQueryChange("") }) {
+                    Icon(Icons.Default.Close, contentDescription = "Clear", tint = AppSecondaryText, modifier = Modifier.size(18.dp))
+                }
+            }
+        },
+        singleLine = true,
+        shape = RoundedCornerShape(12.dp),
+        colors = OutlinedTextFieldDefaults.colors(
+            focusedContainerColor = AppSurface,
+            unfocusedContainerColor = AppSurface,
+            focusedBorderColor = AppAccent,
+            unfocusedBorderColor = AppBorder,
+            focusedTextColor = AppPrimaryText,
+            unfocusedTextColor = AppPrimaryText
+        ),
+        modifier = modifier.fillMaxWidth()
+    )
+}
+
+@Composable
+private fun EmployeesMenuView(
+    users: List<AdminUserDto>,
+    currentUserId: String?,
+    searchQuery: String,
+    onSearchQueryChange: (String) -> Unit,
+    onAddUserClick: () -> Unit,
+    onChangeSiteClick: (AdminUserDto) -> Unit,
+    onChangeRoleClick: (AdminUserDto) -> Unit,
+    onResetPasswordClick: (AdminUserDto) -> Unit,
+    onResetPhotoClick: (AdminUserDto) -> Unit,
+    onDeleteUserClick: (AdminUserDto) -> Unit
+) {
+    val filteredUsers = remember(users, searchQuery) {
+        if (searchQuery.isBlank()) {
+            users
+        } else {
+            val q = searchQuery.trim().lowercase()
+            users.filter {
+                it.name.lowercase().contains(q) || it.userId.lowercase().contains(q) || it.role.lowercase().contains(q) || it.siteName.lowercase().contains(q)
+            }
+        }
+    }
+
+    Column(modifier = Modifier.fillMaxSize()) {
+        AdminSearchBar(
+            query = searchQuery,
+            onQueryChange = onSearchQueryChange,
+            placeholder = "Search by name, ID or role..."
+        )
+
+        Spacer(modifier = Modifier.height(AppDimensions.Spacing16))
+
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            horizontalArrangement = Arrangement.SpaceBetween,
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            Text(
+                text = "Staff Directory (${filteredUsers.size})",
+                style = AppTypographyTokens.SectionHeading,
+                color = AppPrimaryText
+            )
+            Surface(
+                modifier = Modifier.clickable(onClick = onAddUserClick),
+                shape = RoundedCornerShape(AppDimensions.ChipCornerRadius),
+                color = AppSurface,
+                border = BorderStroke(1.dp, AppBorder)
+            ) {
+                Row(
+                    modifier = Modifier.padding(horizontal = 12.dp, vertical = 6.dp),
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Icon(
+                        imageVector = Icons.Default.PersonAdd,
+                        contentDescription = null,
+                        modifier = Modifier.size(16.dp),
+                        tint = AppPrimaryText
+                    )
+                    Spacer(modifier = Modifier.width(4.dp))
+                    Text("Add Staff", style = AppTypographyTokens.CaptionMedium, color = AppPrimaryText)
+                }
+            }
+        }
+
+        Spacer(modifier = Modifier.height(AppDimensions.Spacing12))
+
+        if (filteredUsers.isEmpty()) {
+            Box(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .weight(1f),
+                contentAlignment = Alignment.Center
+            ) {
+                Text(
+                    text = if (searchQuery.isBlank()) "No employees found." else "No staff found matching '$searchQuery'.",
+                    style = AppTypographyTokens.BodyMedium,
+                    color = AppSecondaryText
+                )
+            }
+        } else {
+            LazyColumn(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .weight(1f),
+                verticalArrangement = Arrangement.spacedBy(AppDimensions.Spacing12)
+            ) {
+                items(filteredUsers, key = { it.userId }) { user ->
+                    UserItemCard(
+                        user = user,
+                        isSelf = currentUserId?.equals(user.userId, ignoreCase = true) == true,
+                        onChangeSiteClick = { onChangeSiteClick(user) },
+                        onChangeRoleClick = { onChangeRoleClick(user) },
+                        onResetPasswordClick = { onResetPasswordClick(user) },
+                        onResetPhotoClick = { onResetPhotoClick(user) },
+                        onDeleteUserClick = { onDeleteUserClick(user) }
+                    )
+                }
+                item {
+                    Spacer(modifier = Modifier.height(32.dp))
+                }
+            }
+        }
+    }
+}
+
 /**
  * Menu of sites view: lists all sites with employee count and location specs.
  */
@@ -386,10 +637,31 @@ fun AdminScreen(
 private fun SitesMenuView(
     sites: List<AdminSiteDto>,
     users: List<AdminUserDto>,
+    searchQuery: String,
+    onSearchQueryChange: (String) -> Unit,
     onSiteSelected: (AdminSiteDto) -> Unit,
     onAddSiteClick: () -> Unit
 ) {
+    val filteredSites = remember(sites, searchQuery) {
+        if (searchQuery.isBlank()) {
+            sites
+        } else {
+            val q = searchQuery.trim().lowercase()
+            sites.filter {
+                it.name.lowercase().contains(q) || it.officeId.lowercase().contains(q)
+            }
+        }
+    }
+
     Column(modifier = Modifier.fillMaxSize()) {
+        AdminSearchBar(
+            query = searchQuery,
+            onQueryChange = onSearchQueryChange,
+            placeholder = "Search sites by name or ID..."
+        )
+
+        Spacer(modifier = Modifier.height(AppDimensions.Spacing16))
+
         // Metric Overview Tiles (Findez StatCard style)
         Row(
             modifier = Modifier.fillMaxWidth(),
@@ -458,7 +730,7 @@ private fun SitesMenuView(
             verticalAlignment = Alignment.CenterVertically
         ) {
             Text(
-                text = "Locations",
+                text = "Locations (${filteredSites.size})",
                 style = AppTypographyTokens.SectionHeading,
                 color = AppPrimaryText
             )
@@ -486,7 +758,7 @@ private fun SitesMenuView(
 
         Spacer(modifier = Modifier.height(AppDimensions.Spacing12))
 
-        if (sites.isEmpty()) {
+        if (filteredSites.isEmpty()) {
             Box(
                 modifier = Modifier
                     .fillMaxWidth()
@@ -495,16 +767,18 @@ private fun SitesMenuView(
             ) {
                 Column(horizontalAlignment = Alignment.CenterHorizontally) {
                     Text(
-                        text = "No sites configured.",
+                        text = if (searchQuery.isBlank()) "No sites configured." else "No sites found matching '$searchQuery'.",
                         style = AppTypographyTokens.BodyMedium,
                         color = AppSecondaryText
                     )
-                    Spacer(modifier = Modifier.height(AppDimensions.Spacing12))
-                    PrimaryButton(
-                        text = "Create First Site",
-                        onClick = onAddSiteClick,
-                        modifier = Modifier.width(200.dp)
-                    )
+                    if (searchQuery.isBlank()) {
+                        Spacer(modifier = Modifier.height(AppDimensions.Spacing12))
+                        PrimaryButton(
+                            text = "Create First Site",
+                            onClick = onAddSiteClick,
+                            modifier = Modifier.width(200.dp)
+                        )
+                    }
                 }
             }
         } else {
@@ -514,8 +788,10 @@ private fun SitesMenuView(
                     .weight(1f),
                 verticalArrangement = Arrangement.spacedBy(AppDimensions.Spacing12)
             ) {
-                items(sites, key = { it.officeId }) { site ->
-                    val siteEmployeeCount = users.count { it.siteCode == site.officeId }
+                items(filteredSites, key = { it.officeId }) { site ->
+                    val siteEmployeeCount = users.count {
+                        it.siteCode == site.officeId || it.assignedSites?.any { s -> s.siteCode == site.officeId } == true
+                    }
                     SiteCardItem(
                         site = site,
                         employeeCount = siteEmployeeCount,
@@ -778,10 +1054,18 @@ private fun UserItemCard(
 
                 Spacer(modifier = Modifier.height(2.dp))
 
+                val sitesText = if (!user.assignedSites.isNullOrEmpty()) {
+                    user.assignedSites.joinToString(", ") { it.siteName }
+                } else {
+                    user.siteName.ifBlank { user.siteCode }
+                }
+
                 Text(
-                    text = "${user.userId} • ${user.siteName}",
+                    text = "${user.userId} • $sitesText",
                     style = AppTypographyTokens.Caption,
-                    color = AppSecondaryText
+                    color = AppSecondaryText,
+                    maxLines = 2,
+                    overflow = TextOverflow.Ellipsis
                 )
             }
 
@@ -803,7 +1087,7 @@ private fun UserItemCard(
                     modifier = Modifier.background(AppSurface)
                 ) {
                     DropdownMenuItem(
-                        text = { Text("Change Site", style = AppTypographyTokens.BodyMedium, color = AppPrimaryText) },
+                        text = { Text("Manage Sites", style = AppTypographyTokens.BodyMedium, color = AppPrimaryText) },
                         leadingIcon = { Icon(Icons.Default.Business, contentDescription = null, tint = AppAccent) },
                         onClick = {
                             menuExpanded = false
@@ -1096,14 +1380,21 @@ private fun CreateUserDialog(
 }
 
 @Composable
-private fun ChangeSiteDialog(
+private fun ManageSitesDialog(
     user: AdminUserDto,
     sites: List<AdminSiteDto>,
     isLoading: Boolean,
     onDismiss: () -> Unit,
-    onConfirm: (newSiteCode: String) -> Unit
+    onConfirm: (newSiteCodes: List<String>) -> Unit
 ) {
-    var selectedSiteCode by remember { mutableStateOf(user.siteCode) }
+    val initialCodes = remember(user) {
+        if (!user.assignedSites.isNullOrEmpty()) {
+            user.assignedSites.map { it.siteCode }.toSet()
+        } else {
+            setOf(user.siteCode)
+        }
+    }
+    var selectedSiteCodes by remember(user) { mutableStateOf(initialCodes) }
 
     Dialog(onDismissRequest = onDismiss) {
         Surface(
@@ -1112,14 +1403,18 @@ private fun ChangeSiteDialog(
             border = BorderStroke(1.dp, AppBorder),
             modifier = Modifier.fillMaxWidth()
         ) {
-            Column(modifier = Modifier.padding(AppDimensions.Spacing20)) {
+            Column(
+                modifier = Modifier
+                    .padding(AppDimensions.Spacing20)
+                    .verticalScroll(rememberScrollState())
+            ) {
                 Row(
                     modifier = Modifier.fillMaxWidth(),
                     horizontalArrangement = Arrangement.SpaceBetween,
                     verticalAlignment = Alignment.CenterVertically
                 ) {
                     Text(
-                        text = "Change Site Assignment",
+                        text = "Manage Sites",
                         style = AppTypographyTokens.Title,
                         color = AppPrimaryText
                     )
@@ -1131,7 +1426,7 @@ private fun ChangeSiteDialog(
                 Spacer(modifier = Modifier.height(AppDimensions.Spacing8))
 
                 Text(
-                    text = "Reassign ${user.name} (${user.userId}) to an office location:",
+                    text = "Assign ${user.name} (${user.userId}) to one or more office locations:",
                     style = AppTypographyTokens.BodyMedium,
                     color = AppSecondaryText
                 )
@@ -1144,27 +1439,52 @@ private fun ChangeSiteDialog(
                     } else sites
 
                     effectiveSites.forEach { site ->
-                        val isSelected = selectedSiteCode == site.officeId
+                        val isChecked = selectedSiteCodes.contains(site.officeId)
                         Surface(
                             modifier = Modifier
                                 .fillMaxWidth()
-                                .clickable { selectedSiteCode = site.officeId },
+                                .clickable {
+                                    selectedSiteCodes = if (isChecked) {
+                                        if (selectedSiteCodes.size > 1) selectedSiteCodes - site.officeId else selectedSiteCodes
+                                    } else {
+                                        selectedSiteCodes + site.officeId
+                                    }
+                                },
                             shape = RoundedCornerShape(AppDimensions.ChipCornerRadius),
-                            color = if (isSelected) AppAccentTint else AppBackground,
-                            border = BorderStroke(1.dp, if (isSelected) AppAccent else AppBorder)
+                            color = if (isChecked) AppAccentTint else AppBackground,
+                            border = BorderStroke(1.dp, if (isChecked) AppAccent else AppBorder)
                         ) {
                             Row(
                                 modifier = Modifier.padding(horizontal = 12.dp, vertical = 10.dp),
                                 verticalAlignment = Alignment.CenterVertically
                             ) {
-                                Text(
-                                    text = "${site.name} (${site.officeId})",
-                                    style = AppTypographyTokens.BodyMedium,
-                                    color = if (isSelected) AppAccent else AppPrimaryText,
-                                    modifier = Modifier.weight(1f)
+                                Checkbox(
+                                    checked = isChecked,
+                                    onCheckedChange = { checked ->
+                                        selectedSiteCodes = if (checked) {
+                                            selectedSiteCodes + site.officeId
+                                        } else {
+                                            if (selectedSiteCodes.size > 1) selectedSiteCodes - site.officeId else selectedSiteCodes
+                                        }
+                                    },
+                                    colors = CheckboxDefaults.colors(
+                                        checkedColor = AppAccent,
+                                        uncheckedColor = AppSecondaryText
+                                    ),
+                                    modifier = Modifier.size(24.dp)
                                 )
-                                if (isSelected) {
-                                    Icon(Icons.Default.Check, contentDescription = null, tint = AppAccent, modifier = Modifier.size(18.dp))
+                                Spacer(modifier = Modifier.width(8.dp))
+                                Column(modifier = Modifier.weight(1f)) {
+                                    Text(
+                                        text = site.name,
+                                        style = AppTypographyTokens.BodyMedium.copy(fontWeight = FontWeight.SemiBold),
+                                        color = if (isChecked) AppAccent else AppPrimaryText
+                                    )
+                                    Text(
+                                        text = "${site.officeId} • ${site.radiusM}m geofence",
+                                        style = AppTypographyTokens.Caption,
+                                        color = AppSecondaryText
+                                    )
                                 }
                             }
                         }
@@ -1173,10 +1493,11 @@ private fun ChangeSiteDialog(
 
                 Spacer(modifier = Modifier.height(AppDimensions.Spacing20))
 
+                val hasChanges = selectedSiteCodes != initialCodes
                 PrimaryButton(
-                    text = if (isLoading) "Updating..." else "Confirm Change",
-                    onClick = { onConfirm(selectedSiteCode) },
-                    enabled = !isLoading && selectedSiteCode != user.siteCode
+                    text = if (isLoading) "Saving Sites..." else "Save Assigned Sites (${selectedSiteCodes.size})",
+                    onClick = { onConfirm(selectedSiteCodes.toList()) },
+                    enabled = !isLoading && selectedSiteCodes.isNotEmpty() && hasChanges
                 )
             }
         }
