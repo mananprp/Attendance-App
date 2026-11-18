@@ -70,8 +70,8 @@ export const api = {
     }
 
     const rawUser = res.user || {};
-    if (rawUser.role !== 'ADMIN') {
-      throw new Error('Access denied: Account does not have administrator privileges.');
+    if (rawUser.role !== 'ADMIN' && rawUser.role !== 'SUPERVISOR') {
+      throw new Error('Access denied: Account does not have administrator or supervisor privileges.');
     }
 
     const session: AuthSession = {

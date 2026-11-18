@@ -45,7 +45,7 @@ export const LoginPage: React.FC<LoginPageProps> = ({ onLoginSuccess }) => {
           <ShieldCheck size={32} />
         </div>
         <h1 style={{ fontSize: '1.5rem', fontWeight: 800, color: 'var(--text-primary)', marginBottom: 6 }}>
-          Admin Portal
+          Admin & Supervisor Portal
         </h1>
         <p style={{ fontSize: '0.88rem', color: 'var(--text-secondary)', marginBottom: 24 }}>
           Attendance System Management Console
@@ -73,13 +73,13 @@ export const LoginPage: React.FC<LoginPageProps> = ({ onLoginSuccess }) => {
 
         <form onSubmit={handleSubmit} style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
           <div className="filter-group">
-            <label className="filter-label">Employee ID (Admin Account)</label>
+            <label className="filter-label">Employee ID</label>
             <input
               type="text"
               className="input"
               value={userId}
               onChange={(e) => setUserId(e.target.value)}
-              placeholder="e.g. EMP1001 or EMP2001"
+              placeholder="e.g. EMP1001 or Supervisor ID"
               required
             />
           </div>
@@ -106,7 +106,7 @@ export const LoginPage: React.FC<LoginPageProps> = ({ onLoginSuccess }) => {
               'Authenticating...'
             ) : (
               <>
-                <LogIn size={18} /> Sign In as Admin
+                <LogIn size={18} /> Sign In
               </>
             )}
           </button>
