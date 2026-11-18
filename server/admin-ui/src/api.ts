@@ -1,6 +1,6 @@
 import { AdminUser, AdminSite, AdminPunch, AdminDailyAttendance, AuthSession } from './types';
 
-const API_BASE = import.meta.env.VITE_API_BASE || '/v1';
+const API_BASE = import.meta.env.VITE_API_BASE || 'https://attendance.pess.co.in/v1';
 
 export function getAuthToken(): string | null {
   return localStorage.getItem('admin_token');
