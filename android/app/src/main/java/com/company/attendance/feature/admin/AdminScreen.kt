@@ -25,6 +25,7 @@ import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Add
+import androidx.compose.material.icons.filled.ArrowDropDown
 import androidx.compose.material.icons.filled.Business
 import androidx.compose.material.icons.filled.Check
 import androidx.compose.material.icons.filled.Close
@@ -296,6 +297,7 @@ fun AdminScreen(
                         site = selectedSite!!,
                         users = uiState.users.filter { it.siteCode == selectedSite!!.officeId || it.assignedSites?.any { s -> s.siteCode == selectedSite!!.officeId } == true },
                         currentUserId = viewModel.getCurrentUserId(),
+                        isAdmin = uiState.isAdmin,
                         onChangeSiteClick = { user -> viewModel.openSiteChangeDialog(user) },
                         onChangeRoleClick = { user -> viewModel.openRoleChangeDialog(user) },
                         onResetPasswordClick = { user -> viewModel.openResetPasswordDialog(user) },
@@ -328,14 +330,14 @@ fun AdminScreen(
                                 Icon(
                                     imageVector = Icons.Default.People,
                                     contentDescription = null,
-                                    tint = if (isEmp) Color.White else AppSecondaryText,
+                                    tint = if (isEmp) Color.Black else AppSecondaryText,
                                     modifier = Modifier.size(18.dp)
                                 )
                                 Spacer(modifier = Modifier.width(6.dp))
                                 Text(
                                     text = "Employees (${uiState.users.size})",
                                     style = AppTypographyTokens.BodyMedium.copy(fontWeight = FontWeight.SemiBold),
-                                    color = if (isEmp) Color.White else AppPrimaryText
+                                    color = if (isEmp) Color.Black else AppPrimaryText
                                 )
                             }
                         }
@@ -358,14 +360,14 @@ fun AdminScreen(
                                 Icon(
                                     imageVector = Icons.Default.Business,
                                     contentDescription = null,
-                                    tint = if (isSites) Color.White else AppSecondaryText,
+                                    tint = if (isSites) Color.Black else AppSecondaryText,
                                     modifier = Modifier.size(18.dp)
                                 )
                                 Spacer(modifier = Modifier.width(6.dp))
                                 Text(
                                     text = "Sites (${uiState.sites.size})",
                                     style = AppTypographyTokens.BodyMedium.copy(fontWeight = FontWeight.SemiBold),
-                                    color = if (isSites) Color.White else AppPrimaryText
+                                    color = if (isSites) Color.Black else AppPrimaryText
                                 )
                             }
                         }
@@ -375,6 +377,7 @@ fun AdminScreen(
                         EmployeesMenuView(
                             users = uiState.users,
                             currentUserId = viewModel.getCurrentUserId(),
+                            isAdmin = uiState.isAdmin,
                             searchQuery = employeeSearchQuery,
                             onSearchQueryChange = { employeeSearchQuery = it },
                             onAddUserClick = { viewModel.openCreateUserDialog(null) },
@@ -420,6 +423,7 @@ fun AdminScreen(
             users = uiState.users,
             targetSiteCode = uiState.targetSiteForNewUser ?: selectedSite?.officeId,
             isLoading = uiState.isActionLoading,
+            isAdmin = uiState.isAdmin,
             onDismiss = viewModel::closeCreateUserDialog,
             onConfirm = { userId, name, password, siteCode, role ->
                 viewModel.createUser(userId, name, password, siteCode, role)
@@ -444,6 +448,7 @@ fun AdminScreen(
     uiState.selectedUserForRoleChange?.let { targetUser ->
         ChangeRoleDialog(
             user = targetUser,
+            isAdmin = uiState.isAdmin,
             isLoading = uiState.isActionLoading,
             onDismiss = viewModel::closeRoleChangeDialog,
             onConfirm = { newRole ->
@@ -528,6 +533,7 @@ private fun AdminSearchBar(
 private fun EmployeesMenuView(
     users: List<AdminUserDto>,
     currentUserId: String?,
+    isAdmin: Boolean = true,
     searchQuery: String,
     onSearchQueryChange: (String) -> Unit,
     onAddUserClick: () -> Unit,
@@ -615,6 +621,7 @@ private fun EmployeesMenuView(
                     UserItemCard(
                         user = user,
                         isSelf = currentUserId?.equals(user.userId, ignoreCase = true) == true,
+                        isAdmin = isAdmin,
                         onChangeSiteClick = { onChangeSiteClick(user) },
                         onChangeRoleClick = { onChangeRoleClick(user) },
                         onResetPasswordClick = { onResetPasswordClick(user) },
@@ -661,68 +668,6 @@ private fun SitesMenuView(
         )
 
         Spacer(modifier = Modifier.height(AppDimensions.Spacing16))
-
-        // Metric Overview Tiles (Findez StatCard style)
-        Row(
-            modifier = Modifier.fillMaxWidth(),
-            horizontalArrangement = Arrangement.spacedBy(AppDimensions.Spacing12)
-        ) {
-            Surface(
-                modifier = Modifier.weight(1f),
-                shape = RoundedCornerShape(AppDimensions.CardCornerRadius),
-                color = AppSurface,
-                border = BorderStroke(AppDimensions.BorderWidth, AppBorder)
-            ) {
-                Column(modifier = Modifier.padding(AppDimensions.Spacing16)) {
-                    Icon(
-                        imageVector = Icons.Default.Business,
-                        contentDescription = null,
-                        tint = AppAccent,
-                        modifier = Modifier.size(20.dp)
-                    )
-                    Spacer(modifier = Modifier.height(AppDimensions.Spacing8))
-                    Text(
-                        text = sites.size.toString(),
-                        style = AppTypographyTokens.HeroTime,
-                        color = AppPrimaryText
-                    )
-                    Text(
-                        text = "Office Sites",
-                        style = AppTypographyTokens.Caption,
-                        color = AppSecondaryText
-                    )
-                }
-            }
-
-            Surface(
-                modifier = Modifier.weight(1f),
-                shape = RoundedCornerShape(AppDimensions.CardCornerRadius),
-                color = AppSurface,
-                border = BorderStroke(AppDimensions.BorderWidth, AppBorder)
-            ) {
-                Column(modifier = Modifier.padding(AppDimensions.Spacing16)) {
-                    Icon(
-                        imageVector = Icons.Default.Person,
-                        contentDescription = null,
-                        tint = AppAccent,
-                        modifier = Modifier.size(20.dp)
-                    )
-                    Spacer(modifier = Modifier.height(AppDimensions.Spacing8))
-                    Text(
-                        text = users.size.toString(),
-                        style = AppTypographyTokens.HeroTime,
-                        color = AppPrimaryText
-                    )
-                    Text(
-                        text = "Enrolled Staff",
-                        style = AppTypographyTokens.Caption,
-                        color = AppSecondaryText
-                    )
-                }
-            }
-        }
-
-        Spacer(modifier = Modifier.height(AppDimensions.Spacing20))
 
         Row(
             modifier = Modifier.fillMaxWidth(),
@@ -870,6 +815,7 @@ private fun SiteEmployeesView(
     site: AdminSiteDto,
     users: List<AdminUserDto>,
     currentUserId: String?,
+    isAdmin: Boolean = true,
     onChangeSiteClick: (AdminUserDto) -> Unit,
     onChangeRoleClick: (AdminUserDto) -> Unit,
     onResetPasswordClick: (AdminUserDto) -> Unit,
@@ -877,48 +823,6 @@ private fun SiteEmployeesView(
     onDeleteUserClick: (AdminUserDto) -> Unit
 ) {
     Column(modifier = Modifier.fillMaxSize()) {
-        // Site details header card
-        Surface(
-            modifier = Modifier.fillMaxWidth(),
-            shape = RoundedCornerShape(AppDimensions.CardCornerRadius),
-            color = AppSurface,
-            border = BorderStroke(1.dp, AppBorder)
-        ) {
-            Column(modifier = Modifier.padding(AppDimensions.Spacing16)) {
-                Row(
-                    modifier = Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.SpaceBetween,
-                    verticalAlignment = Alignment.CenterVertically
-                ) {
-                    Text(
-                        text = site.name,
-                        style = AppTypographyTokens.SectionHeading,
-                        color = AppPrimaryText
-                    )
-                    Surface(
-                        shape = RoundedCornerShape(AppDimensions.ChipCornerRadius),
-                        color = AppBackground,
-                        border = BorderStroke(1.dp, AppBorder)
-                    ) {
-                        Text(
-                            text = site.officeId,
-                            style = AppTypographyTokens.CaptionMedium,
-                            color = AppSecondaryText,
-                            modifier = Modifier.padding(horizontal = 8.dp, vertical = 2.dp)
-                        )
-                    }
-                }
-                Spacer(modifier = Modifier.height(4.dp))
-                Text(
-                    text = "${site.radiusM}m geofence radius • Timezone: ${site.timezone}",
-                    style = AppTypographyTokens.Caption,
-                    color = AppSecondaryText
-                )
-            }
-        }
-
-        Spacer(modifier = Modifier.height(AppDimensions.Spacing16))
-
         Row(
             modifier = Modifier.fillMaxWidth(),
             horizontalArrangement = Arrangement.SpaceBetween,
@@ -957,6 +861,7 @@ private fun SiteEmployeesView(
                     UserItemCard(
                         user = user,
                         isSelf = currentUserId?.equals(user.userId, ignoreCase = true) == true,
+                        isAdmin = isAdmin,
                         onChangeSiteClick = { onChangeSiteClick(user) },
                         onChangeRoleClick = { onChangeRoleClick(user) },
                         onResetPasswordClick = { onResetPasswordClick(user) },
@@ -976,6 +881,7 @@ private fun SiteEmployeesView(
 private fun UserItemCard(
     user: AdminUserDto,
     isSelf: Boolean,
+    isAdmin: Boolean = true,
     onChangeSiteClick: () -> Unit,
     onChangeRoleClick: () -> Unit,
     onResetPasswordClick: () -> Unit,
@@ -983,6 +889,8 @@ private fun UserItemCard(
     onDeleteUserClick: () -> Unit
 ) {
     var menuExpanded by remember { mutableStateOf(false) }
+    val isTargetAdmin = user.role.equals("ADMIN", ignoreCase = true)
+    val canManageUser = isAdmin || !isTargetAdmin
 
     Surface(
         modifier = Modifier.fillMaxWidth(),
@@ -1069,64 +977,68 @@ private fun UserItemCard(
                 )
             }
 
-            Box {
-                IconButton(
-                    onClick = { menuExpanded = true },
-                    modifier = Modifier.size(36.dp)
-                ) {
-                    Icon(
-                        imageVector = Icons.Default.MoreVert,
-                        contentDescription = "Actions",
-                        tint = AppSecondaryText
-                    )
-                }
+            if (canManageUser) {
+                Box {
+                    IconButton(
+                        onClick = { menuExpanded = true },
+                        modifier = Modifier.size(36.dp)
+                    ) {
+                        Icon(
+                            imageVector = Icons.Default.MoreVert,
+                            contentDescription = "Actions",
+                            tint = AppSecondaryText
+                        )
+                    }
 
-                DropdownMenu(
-                    expanded = menuExpanded,
-                    onDismissRequest = { menuExpanded = false },
-                    modifier = Modifier.background(AppSurface)
-                ) {
-                    DropdownMenuItem(
-                        text = { Text("Manage Sites", style = AppTypographyTokens.BodyMedium, color = AppPrimaryText) },
-                        leadingIcon = { Icon(Icons.Default.Business, contentDescription = null, tint = AppAccent) },
-                        onClick = {
-                            menuExpanded = false
-                            onChangeSiteClick()
-                        }
-                    )
-                    DropdownMenuItem(
-                        text = { Text("Change Role", style = AppTypographyTokens.BodyMedium, color = AppPrimaryText) },
-                        leadingIcon = { Icon(Icons.Default.Person, contentDescription = null, tint = AppAccent) },
-                        onClick = {
-                            menuExpanded = false
-                            onChangeRoleClick()
-                        }
-                    )
-                    DropdownMenuItem(
-                        text = { Text("Reset Password", style = AppTypographyTokens.BodyMedium, color = AppPrimaryText) },
-                        leadingIcon = { Icon(Icons.Default.Lock, contentDescription = null, tint = AppAccent) },
-                        onClick = {
-                            menuExpanded = false
-                            onResetPasswordClick()
-                        }
-                    )
-                    DropdownMenuItem(
-                        text = { Text("Reset Photo", style = AppTypographyTokens.BodyMedium, color = AppPrimaryText) },
-                        leadingIcon = { Icon(Icons.Default.Refresh, contentDescription = null, tint = AppAccent) },
-                        onClick = {
-                            menuExpanded = false
-                            onResetPhotoClick()
-                        }
-                    )
-                    if (!isSelf) {
+                    DropdownMenu(
+                        expanded = menuExpanded,
+                        onDismissRequest = { menuExpanded = false },
+                        modifier = Modifier.background(AppSurface)
+                    ) {
                         DropdownMenuItem(
-                            text = { Text("Delete User", style = AppTypographyTokens.BodyMedium, color = AppError) },
-                            leadingIcon = { Icon(Icons.Default.Delete, contentDescription = null, tint = AppError) },
+                            text = { Text("Manage Sites", style = AppTypographyTokens.BodyMedium, color = AppPrimaryText) },
+                            leadingIcon = { Icon(Icons.Default.Business, contentDescription = null, tint = AppAccent) },
                             onClick = {
                                 menuExpanded = false
-                                onDeleteUserClick()
+                                onChangeSiteClick()
                             }
                         )
+                        DropdownMenuItem(
+                            text = { Text("Change Role", style = AppTypographyTokens.BodyMedium, color = AppPrimaryText) },
+                            leadingIcon = { Icon(Icons.Default.Person, contentDescription = null, tint = AppAccent) },
+                            onClick = {
+                                menuExpanded = false
+                                onChangeRoleClick()
+                            }
+                        )
+                        if (isAdmin) {
+                            DropdownMenuItem(
+                                text = { Text("Reset Password", style = AppTypographyTokens.BodyMedium, color = AppPrimaryText) },
+                                leadingIcon = { Icon(Icons.Default.Lock, contentDescription = null, tint = AppAccent) },
+                                onClick = {
+                                    menuExpanded = false
+                                    onResetPasswordClick()
+                                }
+                            )
+                        }
+                        DropdownMenuItem(
+                            text = { Text("Reset Photo", style = AppTypographyTokens.BodyMedium, color = AppPrimaryText) },
+                            leadingIcon = { Icon(Icons.Default.Refresh, contentDescription = null, tint = AppAccent) },
+                            onClick = {
+                                menuExpanded = false
+                                onResetPhotoClick()
+                            }
+                        )
+                        if (isAdmin && !isSelf) {
+                            DropdownMenuItem(
+                                text = { Text("Delete User", style = AppTypographyTokens.BodyMedium, color = AppError) },
+                                leadingIcon = { Icon(Icons.Default.Delete, contentDescription = null, tint = AppError) },
+                                onClick = {
+                                    menuExpanded = false
+                                    onDeleteUserClick()
+                                }
+                            )
+                        }
                     }
                 }
             }
@@ -1185,6 +1097,7 @@ private fun CreateUserDialog(
     users: List<AdminUserDto>,
     targetSiteCode: String?,
     isLoading: Boolean,
+    isAdmin: Boolean = true,
     onDismiss: () -> Unit,
     onConfirm: (userId: String, name: String, password: String, siteCode: String, role: String) -> Unit
 ) {
@@ -1192,11 +1105,18 @@ private fun CreateUserDialog(
         listOf(AdminSiteDto("DEFAULT_OFFICE", "Headquarters", 28.490293, 77.060544, 100, "Asia/Kolkata", 0.46f))
     } else sites
 
+    var selectedRole by remember { mutableStateOf("EMPLOYEE") }
+    var roleDropdownExpanded by remember { mutableStateOf(false) }
+    val availableRoles = remember(isAdmin) {
+        if (isAdmin) listOf("EMPLOYEE", "SUPERVISOR", "ADMIN") else listOf("EMPLOYEE", "SUPERVISOR")
+    }
+
     var selectedSiteCode by remember {
         mutableStateOf(
             targetSiteCode ?: effectiveSites.firstOrNull()?.officeId ?: "DEFAULT_OFFICE"
         )
     }
+    var siteDropdownExpanded by remember { mutableStateOf(false) }
 
     var userId by remember(selectedSiteCode) {
         mutableStateOf(generateNextEmployeeId(selectedSiteCode, users, effectiveSites))
@@ -1204,7 +1124,10 @@ private fun CreateUserDialog(
 
     var name by remember { mutableStateOf("") }
     var password by remember { mutableStateOf("Password@123") }
-    var selectedRole by remember { mutableStateOf("EMPLOYEE") }
+
+    val selectedSiteName = remember(selectedSiteCode, effectiveSites) {
+        effectiveSites.find { it.officeId == selectedSiteCode }?.name ?: selectedSiteCode
+    }
 
     Dialog(onDismissRequest = onDismiss) {
         Surface(
@@ -1235,68 +1158,7 @@ private fun CreateUserDialog(
 
                 Spacer(modifier = Modifier.height(AppDimensions.Spacing16))
 
-                // 1. SITE PICKER (required if >1 site)
-                Text(
-                    text = "1. Assigned Office Site",
-                    style = AppTypographyTokens.CaptionMedium.copy(fontWeight = FontWeight.SemiBold),
-                    color = AppPrimaryText,
-                    modifier = Modifier.padding(bottom = AppDimensions.Spacing4)
-                )
-
-                Column(verticalArrangement = Arrangement.spacedBy(AppDimensions.Spacing6)) {
-                    effectiveSites.forEach { site ->
-                        val isSelected = selectedSiteCode == site.officeId
-                        Surface(
-                            modifier = Modifier
-                                .fillMaxWidth()
-                                .clickable {
-                                    selectedSiteCode = site.officeId
-                                },
-                            shape = RoundedCornerShape(AppDimensions.ChipCornerRadius),
-                            color = if (isSelected) AppSurface else AppBackground,
-                            border = BorderStroke(1.dp, if (isSelected) AppAccent.copy(alpha = 0.8f) else AppBorder)
-                        ) {
-                            Row(
-                                modifier = Modifier.padding(horizontal = 12.dp, vertical = 8.dp),
-                                verticalAlignment = Alignment.CenterVertically
-                            ) {
-                                Column(modifier = Modifier.weight(1f)) {
-                                    Text(
-                                        text = site.name,
-                                        style = AppTypographyTokens.BodyMedium.copy(
-                                            fontWeight = if (isSelected) FontWeight.SemiBold else FontWeight.Normal
-                                        ),
-                                        color = AppPrimaryText
-                                    )
-                                    Text(
-                                        text = "${site.officeId} • ${site.radiusM}m geofence",
-                                        style = AppTypographyTokens.Caption,
-                                        color = AppSecondaryText
-                                    )
-                                }
-                                if (isSelected) {
-                                    Icon(
-                                        Icons.Default.Check,
-                                        contentDescription = null,
-                                        tint = AppAccent,
-                                        modifier = Modifier.size(20.dp)
-                                    )
-                                }
-                            }
-                        }
-                    }
-                }
-
-                Spacer(modifier = Modifier.height(AppDimensions.Spacing16))
-
-                // 2. FULL NAME (primary input needed)
-                Text(
-                    text = "2. Employee Details",
-                    style = AppTypographyTokens.CaptionMedium.copy(fontWeight = FontWeight.SemiBold),
-                    color = AppPrimaryText,
-                    modifier = Modifier.padding(bottom = AppDimensions.Spacing4)
-                )
-
+                // 1. FULL NAME
                 AttendanceTextField(
                     value = name,
                     onValueChange = { name = it },
@@ -1306,7 +1168,7 @@ private fun CreateUserDialog(
 
                 Spacer(modifier = Modifier.height(AppDimensions.Spacing12))
 
-                // 3. EMPLOYEE ID (auto-generated)
+                // 2. EMPLOYEE ID (auto-generated)
                 AttendanceTextField(
                     value = userId,
                     onValueChange = { userId = it },
@@ -1316,7 +1178,7 @@ private fun CreateUserDialog(
 
                 Spacer(modifier = Modifier.height(AppDimensions.Spacing12))
 
-                // 4. PASSWORD (prefilled default)
+                // 3. PASSWORD
                 AttendanceTextField(
                     value = password,
                     onValueChange = { password = it },
@@ -1327,7 +1189,7 @@ private fun CreateUserDialog(
 
                 Spacer(modifier = Modifier.height(AppDimensions.Spacing12))
 
-                // 5. ROLE
+                // 4. ROLE DROPDOWN
                 Text(
                     text = "Role",
                     style = AppTypographyTokens.CaptionMedium,
@@ -1335,32 +1197,118 @@ private fun CreateUserDialog(
                     modifier = Modifier.padding(bottom = AppDimensions.Spacing4)
                 )
 
-                Row(
-                    modifier = Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.spacedBy(AppDimensions.Spacing8)
-                ) {
-                    listOf("EMPLOYEE", "SUPERVISOR", "ADMIN").forEach { role ->
-                        val isSelected = selectedRole == role
-                        Surface(
+                Box(modifier = Modifier.fillMaxWidth()) {
+                    Surface(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .clickable { roleDropdownExpanded = true },
+                        shape = RoundedCornerShape(AppDimensions.ChipCornerRadius),
+                        color = AppBackground,
+                        border = BorderStroke(1.dp, AppBorder)
+                    ) {
+                        Row(
                             modifier = Modifier
-                                .weight(1f)
-                                .clickable { selectedRole = role },
-                            shape = RoundedCornerShape(AppDimensions.ChipCornerRadius),
-                            color = if (isSelected) AppAccent.copy(alpha = 0.12f) else AppBackground,
-                            border = BorderStroke(1.dp, if (isSelected) AppAccent.copy(alpha = 0.8f) else AppBorder)
+                                .fillMaxWidth()
+                                .padding(horizontal = 14.dp, vertical = 12.dp),
+                            horizontalArrangement = Arrangement.SpaceBetween,
+                            verticalAlignment = Alignment.CenterVertically
                         ) {
-                            Box(
-                                modifier = Modifier.padding(vertical = 10.dp),
-                                contentAlignment = Alignment.Center
-                            ) {
-                                Text(
-                                    text = role,
-                                    style = AppTypographyTokens.CaptionMedium.copy(
-                                        fontWeight = if (isSelected) FontWeight.SemiBold else FontWeight.Normal
-                                    ),
-                                    color = if (isSelected) AppAccent else AppSecondaryText
-                                )
-                            }
+                            Text(
+                                text = selectedRole,
+                                style = AppTypographyTokens.BodyMedium.copy(fontWeight = FontWeight.Medium),
+                                color = AppPrimaryText
+                            )
+                            Icon(
+                                imageVector = Icons.Default.ArrowDropDown,
+                                contentDescription = "Select Role",
+                                tint = AppSecondaryText
+                            )
+                        }
+                    }
+                    DropdownMenu(
+                        expanded = roleDropdownExpanded,
+                        onDismissRequest = { roleDropdownExpanded = false },
+                        modifier = Modifier.background(AppSurface)
+                    ) {
+                        availableRoles.forEach { role ->
+                            DropdownMenuItem(
+                                text = {
+                                    Text(
+                                        text = role,
+                                        style = AppTypographyTokens.BodyMedium.copy(
+                                            fontWeight = if (role == selectedRole) FontWeight.Bold else FontWeight.Normal
+                                        ),
+                                        color = if (role == selectedRole) AppAccent else AppPrimaryText
+                                    )
+                                },
+                                onClick = {
+                                    selectedRole = role
+                                    roleDropdownExpanded = false
+                                }
+                            )
+                        }
+                    }
+                }
+
+                Spacer(modifier = Modifier.height(AppDimensions.Spacing12))
+
+                // 5. ASSIGNED OFFICE SITE DROPDOWN (below role!)
+                Text(
+                    text = "Assigned Office Site",
+                    style = AppTypographyTokens.CaptionMedium,
+                    color = AppSecondaryText,
+                    modifier = Modifier.padding(bottom = AppDimensions.Spacing4)
+                )
+
+                Box(modifier = Modifier.fillMaxWidth()) {
+                    Surface(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .clickable { siteDropdownExpanded = true },
+                        shape = RoundedCornerShape(AppDimensions.ChipCornerRadius),
+                        color = AppBackground,
+                        border = BorderStroke(1.dp, AppBorder)
+                    ) {
+                        Row(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .padding(horizontal = 14.dp, vertical = 12.dp),
+                            horizontalArrangement = Arrangement.SpaceBetween,
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            Text(
+                                text = selectedSiteName,
+                                style = AppTypographyTokens.BodyMedium.copy(fontWeight = FontWeight.Medium),
+                                color = AppPrimaryText
+                            )
+                            Icon(
+                                imageVector = Icons.Default.ArrowDropDown,
+                                contentDescription = "Select Site",
+                                tint = AppSecondaryText
+                            )
+                        }
+                    }
+                    DropdownMenu(
+                        expanded = siteDropdownExpanded,
+                        onDismissRequest = { siteDropdownExpanded = false },
+                        modifier = Modifier.background(AppSurface)
+                    ) {
+                        effectiveSites.forEach { site ->
+                            DropdownMenuItem(
+                                text = {
+                                    Text(
+                                        text = site.name,
+                                        style = AppTypographyTokens.BodyMedium.copy(
+                                            fontWeight = if (site.officeId == selectedSiteCode) FontWeight.Bold else FontWeight.Normal
+                                        ),
+                                        color = if (site.officeId == selectedSiteCode) AppAccent else AppPrimaryText
+                                    )
+                                },
+                                onClick = {
+                                    selectedSiteCode = site.officeId
+                                    siteDropdownExpanded = false
+                                }
+                            )
                         }
                     }
                 }
@@ -1507,17 +1455,25 @@ private fun ManageSitesDialog(
 @Composable
 private fun ChangeRoleDialog(
     user: AdminUserDto,
+    isAdmin: Boolean = true,
     isLoading: Boolean,
     onDismiss: () -> Unit,
     onConfirm: (newRole: String) -> Unit
 ) {
-    var selectedRole by remember { mutableStateOf(user.role.uppercase()) }
-
-    val roles = listOf(
+    val allRoles = listOf(
         Triple("EMPLOYEE", "Regular Staff", "Attendance check-in/out and field tracking"),
         Triple("SUPERVISOR", "Site Supervisor", "Staff oversight, view attendance, manage site ops"),
         Triple("ADMIN", "System Administrator", "Full system access, manage all users and sites")
     )
+
+    val roles = remember(isAdmin) {
+        if (!isAdmin) allRoles.filter { it.first != "ADMIN" } else allRoles
+    }
+
+    var selectedRole by remember(user, isAdmin) {
+        val initial = user.role.uppercase()
+        mutableStateOf(if (!isAdmin && initial == "ADMIN") "EMPLOYEE" else initial)
+    }
 
     Dialog(onDismissRequest = onDismiss) {
         Surface(

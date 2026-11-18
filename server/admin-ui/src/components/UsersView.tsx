@@ -13,6 +13,7 @@ export const UsersView: React.FC<UsersViewProps> = ({ sites }) => {
   const [error, setError] = useState<string | null>(null);
 
   const currentUser = getStoredUser();
+  const isSupervisor = currentUser?.role === 'SUPERVISOR';
 
   // Create User Modal State
   const [showCreateModal, setShowCreateModal] = useState(false);
@@ -71,6 +72,10 @@ export const UsersView: React.FC<UsersViewProps> = ({ sites }) => {
 
   const handleCreateUser = async (e: React.FormEvent) => {
     e.preventDefault();
+    if (isSupervisor && newRole === 'ADMIN') {
+      alert('Supervisors cannot create Admin users.');
+      return;
+    }
     try {
       setCreating(true);
       const targetSites = newSiteCodes.length > 0 ? newSiteCodes : [newSiteCode];
@@ -96,12 +101,20 @@ export const UsersView: React.FC<UsersViewProps> = ({ sites }) => {
   };
 
   const handleOpenRoleModal = (user: AdminUser) => {
+    if (isSupervisor && user.role === 'ADMIN') {
+      alert('Supervisors cannot modify Administrator accounts.');
+      return;
+    }
     setRoleUser(user);
-    setSelectedRole(user.role);
+    setSelectedRole(isSupervisor && user.role === 'ADMIN' ? 'EMPLOYEE' : user.role);
   };
 
   const handleSaveUserRole = async () => {
     if (!roleUser) return;
+    if (isSupervisor && selectedRole === 'ADMIN') {
+      alert('Supervisors cannot assign the Admin role.');
+      return;
+    }
     try {
       setSavingRole(true);
       await api.updateUserRole(roleUser.user_id, selectedRole);
@@ -317,55 +330,67 @@ export const UsersView: React.FC<UsersViewProps> = ({ sites }) => {
                   </td>
                   <td style={{ textAlign: 'right' }}>
                     <div style={{ display: 'inline-flex', gap: 6, flexWrap: 'wrap', justifyContent: 'flex-end' }}>
-                      <button
-                        onClick={() => handleOpenSiteModal(u)}
-                        className="btn btn-secondary btn-sm"
-                        title="Reassign to another office site"
-                      >
-                        Change Site
-                      </button>
-                      <button
-                        onClick={() => handleOpenRoleModal(u)}
-                        className="btn btn-secondary btn-sm"
-                        title="Change user access role (Admin, Supervisor, Employee)"
-                        style={{ display: 'inline-flex', alignItems: 'center', gap: 4 }}
-                      >
-                        <Shield size={13} /> Change Role
-                      </button>
-                      <button
-                        onClick={() => handleOpenResetPasswordModal(u)}
-                        className="btn btn-secondary btn-sm"
-                        title="Reset employee password"
-                        style={{ display: 'inline-flex', alignItems: 'center', gap: 4 }}
-                      >
-                        <Key size={13} /> Password
-                      </button>
-                      <button
-                        onClick={() => handleOpenResetPhotoModal(u)}
-                        className="btn btn-secondary btn-sm"
-                        title="Reset employee profile photo count"
-                        style={{ display: 'inline-flex', alignItems: 'center', gap: 4 }}
-                      >
-                        <Camera size={13} /> Reset Photo
-                      </button>
-                      <button
-                        onClick={() => handleOpenDeleteModal(u)}
-                        disabled={currentUser?.userId === u.user_id}
-                        className="btn btn-sm"
-                        style={{
-                          background: 'rgba(239, 68, 68, 0.1)',
-                          color: '#ef4444',
-                          border: '1px solid rgba(239, 68, 68, 0.2)',
-                          display: 'inline-flex',
-                          alignItems: 'center',
-                          gap: 4,
-                          cursor: currentUser?.userId === u.user_id ? 'not-allowed' : 'pointer',
-                          opacity: currentUser?.userId === u.user_id ? 0.5 : 1,
-                        }}
-                        title={currentUser?.userId === u.user_id ? 'Cannot delete own account' : 'Delete user account'}
-                      >
-                        <Trash2 size={13} /> Delete
-                      </button>
+                      {u.role === 'ADMIN' && isSupervisor ? (
+                        <span style={{ fontSize: '0.8rem', color: 'var(--text-secondary)', fontStyle: 'italic', padding: '4px 8px' }}>
+                          Protected Admin
+                        </span>
+                      ) : (
+                        <>
+                          <button
+                            onClick={() => handleOpenSiteModal(u)}
+                            className="btn btn-secondary btn-sm"
+                            title="Reassign to another office site"
+                          >
+                            Change Site
+                          </button>
+                          <button
+                            onClick={() => handleOpenRoleModal(u)}
+                            className="btn btn-secondary btn-sm"
+                            title="Change user access role (Supervisor, Employee)"
+                            style={{ display: 'inline-flex', alignItems: 'center', gap: 4 }}
+                          >
+                            <Shield size={13} /> Change Role
+                          </button>
+                          {!isSupervisor && (
+                            <button
+                              onClick={() => handleOpenResetPasswordModal(u)}
+                              className="btn btn-secondary btn-sm"
+                              title="Reset employee password"
+                              style={{ display: 'inline-flex', alignItems: 'center', gap: 4 }}
+                            >
+                              <Key size={13} /> Password
+                            </button>
+                          )}
+                          <button
+                            onClick={() => handleOpenResetPhotoModal(u)}
+                            className="btn btn-secondary btn-sm"
+                            title="Reset employee profile photo count"
+                            style={{ display: 'inline-flex', alignItems: 'center', gap: 4 }}
+                          >
+                            <Camera size={13} /> Reset Photo
+                          </button>
+                          {!isSupervisor && (
+                            <button
+                              onClick={() => handleOpenDeleteModal(u)}
+                              disabled={currentUser?.userId === u.user_id}
+                              className="btn btn-sm"
+                              style={{
+                                background: 'rgba(239, 68, 68, 0.1)',
+                                color: '#ef4444',
+                                border: '1px solid rgba(239, 68, 68, 0.2)',
+                                display: 'inline-flex',
+                                alignItems: 'center',
+                                gap: 4,
+                                cursor: currentUser?.userId === u.user_id ? 'not-allowed' : 'pointer',
+                                opacity: currentUser?.userId === u.user_id ? 0.5 : 1,
+                              }}
+                              title={currentUser?.userId === u.user_id ? 'Cannot delete own account' : 'Delete user account'}
+                            >
+                              <Trash2 size={13} /> Delete
+                            </button>
+                          )}
+                        </>
+                      )}
                     </div>
                   </td>
                 </tr>
@@ -434,7 +459,7 @@ export const UsersView: React.FC<UsersViewProps> = ({ sites }) => {
                   >
                     <option value="EMPLOYEE">EMPLOYEE</option>
                     <option value="SUPERVISOR">SUPERVISOR</option>
-                    {(!currentUser || currentUser.role === 'ADMIN') && (
+                    {!isSupervisor && (
                       <option value="ADMIN">ADMIN</option>
                     )}
                   </select>
@@ -587,7 +612,7 @@ export const UsersView: React.FC<UsersViewProps> = ({ sites }) => {
                 >
                   <option value="EMPLOYEE">EMPLOYEE</option>
                   <option value="SUPERVISOR">SUPERVISOR</option>
-                  {(!currentUser || currentUser.role === 'ADMIN') && (
+                  {!isSupervisor && (
                     <option value="ADMIN">ADMIN</option>
                   )}
                 </select>

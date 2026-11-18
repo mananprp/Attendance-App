@@ -31,6 +31,12 @@ class AdminViewModel @Inject constructor(
     val uiState: StateFlow<AdminUiState> = _uiState.asStateFlow()
 
     init {
+        _uiState.update {
+            it.copy(
+                isAdmin = tokenStorage.isAdmin(),
+                currentRole = tokenStorage.getRole()
+            )
+        }
         loadData()
     }
 
@@ -49,7 +55,9 @@ class AdminViewModel @Inject constructor(
                         it.copy(
                             isLoading = false,
                             sites = sitesResult.getOrDefault(emptyList()),
-                            users = usersResult.getOrDefault(emptyList())
+                            users = usersResult.getOrDefault(emptyList()),
+                            isAdmin = tokenStorage.isAdmin(),
+                            currentRole = tokenStorage.getRole()
                         )
                     }
                 } else {
@@ -195,6 +203,11 @@ class AdminViewModel @Inject constructor(
             return
         }
 
+        if (!tokenStorage.isAdmin() && role.equals("ADMIN", ignoreCase = true)) {
+            _uiState.update { it.copy(errorMessage = "Supervisors cannot create Admin users.") }
+            return
+        }
+
         viewModelScope.launch {
             _uiState.update { it.copy(isActionLoading = true, errorMessage = null) }
             try {
@@ -279,6 +292,17 @@ class AdminViewModel @Inject constructor(
     }
 
     fun updateUserRole(userId: String, newRole: String) {
+        if (!tokenStorage.isAdmin()) {
+            if (newRole.equals("ADMIN", ignoreCase = true)) {
+                _uiState.update { it.copy(errorMessage = "Supervisors cannot assign the Admin role.") }
+                return
+            }
+            val targetUser = _uiState.value.users.find { it.userId == userId }
+            if (targetUser?.role.equals("ADMIN", ignoreCase = true)) {
+                _uiState.update { it.copy(errorMessage = "Supervisors cannot modify Admin users.") }
+                return
+            }
+        }
         viewModelScope.launch {
             _uiState.update { it.copy(isActionLoading = true, errorMessage = null) }
             try {
@@ -321,6 +345,10 @@ class AdminViewModel @Inject constructor(
     }
 
     fun resetUserPassword(userId: String, newPassword: String) {
+        if (!tokenStorage.isAdmin()) {
+            _uiState.update { it.copy(errorMessage = "Supervisors are not permitted to reset passwords.") }
+            return
+        }
         if (newPassword.length < 6) {
             _uiState.update { it.copy(errorMessage = "Password must be at least 6 characters.") }
             return
@@ -404,6 +432,10 @@ class AdminViewModel @Inject constructor(
     }
 
     fun deleteUser(userId: String) {
+        if (!tokenStorage.isAdmin()) {
+            _uiState.update { it.copy(errorMessage = "Supervisors are not permitted to delete users.") }
+            return
+        }
         val currentUserId = tokenStorage.getUserId()
         if (currentUserId?.equals(userId, ignoreCase = true) == true) {
             _uiState.update { it.copy(errorMessage = "You cannot delete your own account.") }
