@@ -3,6 +3,9 @@ package com.company.attendance.feature.auth.profile
 import android.graphics.Bitmap
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
+import com.company.attendance.core.database.dao.DaySummaryDao
+import com.company.attendance.core.database.dao.PunchDao
+import com.company.attendance.core.database.dao.TrackingDao
 import com.company.attendance.core.database.dao.UserLocalDao
 import com.company.attendance.core.interfaces.FaceVerifier
 import com.company.attendance.core.network.ApiException
@@ -34,6 +37,9 @@ class ProfileViewModel @Inject constructor(
     private val okHttpClient: OkHttpClient,
     private val tokenStorage: TokenStorage,
     private val userLocalDao: UserLocalDao,
+    private val punchDao: PunchDao,
+    private val daySummaryDao: DaySummaryDao,
+    private val trackingDao: TrackingDao,
     private val apiService: AttendanceApiService,
     private val faceVerifier: FaceVerifier
 ) : ViewModel() {
@@ -310,6 +316,12 @@ class ProfileViewModel @Inject constructor(
         viewModelScope.launch {
             tokenStorage.clearSession()
             userLocalDao.clearAll()
+            punchDao.clearAll()
+            daySummaryDao.clearAll()
+            trackingDao.clearAllSessions()
+            trackingDao.clearAllPoints()
+            trackingDao.clearAllStops()
+            ImageStorageUtils.deleteAllProfilePhotos(context)
             _navigationEvent.emit(ProfileNavigationEvent.NavigateToLogin)
         }
     }

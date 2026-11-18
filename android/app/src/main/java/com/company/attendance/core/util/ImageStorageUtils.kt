@@ -45,6 +45,30 @@ object ImageStorageUtils {
         }
     }
 
+    fun deleteProfilePhoto(context: Context, userId: String): Boolean {
+        return try {
+            val file = File(context.filesDir, "profile_${userId}.jpg")
+            if (file.exists()) {
+                file.delete()
+            } else {
+                true
+            }
+        } catch (e: Exception) {
+            Log.e(TAG, "Error deleting profile photo for $userId: ${e.message}", e)
+            false
+        }
+    }
+
+    fun deleteAllProfilePhotos(context: Context) {
+        try {
+            context.filesDir.listFiles()
+                ?.filter { it.name.startsWith("profile_") && it.name.endsWith(".jpg") }
+                ?.forEach { it.delete() }
+        } catch (e: Exception) {
+            Log.e(TAG, "Error deleting all profile photos: ${e.message}", e)
+        }
+    }
+
     suspend fun fetchAndSaveProfilePhoto(
         context: Context,
         userId: String,

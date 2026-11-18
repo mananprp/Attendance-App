@@ -49,8 +49,12 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.hilt.navigation.compose.hiltViewModel
+import androidx.compose.foundation.clickable
+import com.company.attendance.core.database.entity.TrackingSessionEntity
 import com.company.attendance.core.database.entity.TrackingStopEntity
 import com.company.attendance.core.util.PermissionManager
+import androidx.compose.material.icons.outlined.ChevronRight
+import androidx.compose.material.icons.outlined.History
 import com.company.attendance.design.theme.AppAccent
 import com.company.attendance.design.theme.AppAccentTint
 import com.company.attendance.design.theme.AppBackground
@@ -79,6 +83,7 @@ fun TrackerScreen(
     val context = LocalContext.current
     val activeSession by viewModel.activeSession.collectAsState()
     val activeStops by viewModel.activeStops.collectAsState()
+    val completedSessions by viewModel.completedSessions.collectAsState()
     val completedTripSummary by viewModel.completedTripSummary.collectAsState()
     val showAddStopDialog by viewModel.showAddStopDialog.collectAsState()
     val isStopping by viewModel.isStopping.collectAsState()
@@ -221,6 +226,42 @@ fun TrackerScreen(
                     }
                 }
 
+                // Past Completed Trips / History
+                if (activeSession == null && completedSessions.isNotEmpty()) {
+                    Row(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(top = AppDimensions.Spacing8, start = 4.dp),
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Icon(
+                            imageVector = Icons.Outlined.History,
+                            contentDescription = null,
+                            tint = AppAccent,
+                            modifier = Modifier.size(18.dp)
+                        )
+                        Spacer(modifier = Modifier.width(6.dp))
+                        Text(
+                            text = "Trip History (${completedSessions.size})",
+                            style = AppTypographyTokens.BodyMedium.copy(
+                                fontWeight = FontWeight.SemiBold,
+                                color = AppPrimaryText
+                            )
+                        )
+                    }
+
+                    Column(
+                        verticalArrangement = Arrangement.spacedBy(8.dp)
+                    ) {
+                        completedSessions.forEach { session ->
+                            TripHistoryCard(
+                                session = session,
+                                onClick = { viewModel.viewPastTripSummary(session.sessionId) }
+                            )
+                        }
+                    }
+                }
+
                 Spacer(modifier = Modifier.height(AppDimensions.Spacing32))
             }
         }
@@ -357,6 +398,86 @@ private fun StopItemCard(
                     )
                 )
             }
+        }
+    }
+}
+
+@Composable
+private fun TripHistoryCard(
+    session: TrackingSessionEntity,
+    onClick: () -> Unit
+) {
+    val dateFormat = remember { SimpleDateFormat("dd MMM yyyy • hh:mm a", Locale.getDefault()) }
+    val formattedDate = remember(session.startTimeUtc) {
+        dateFormat.format(Date(session.startTimeUtc))
+    }
+
+    val durationMins = remember(session.startTimeUtc, session.endTimeUtc) {
+        val end = session.endTimeUtc ?: System.currentTimeMillis()
+        Math.max(1, ((end - session.startTimeUtc) / 60000).toInt())
+    }
+    val hrs = durationMins / 60
+    val remMins = durationMins % 60
+    val durationText = if (hrs > 0) "${hrs}h ${remMins}m" else "${durationMins}m"
+
+    val distanceKm = session.totalDistanceM / 1000f
+    val distanceText = String.format(Locale.getDefault(), "%.2f km", distanceKm)
+
+    Card(
+        modifier = Modifier
+            .fillMaxWidth()
+            .clickable(onClick = onClick),
+        shape = RoundedCornerShape(14.dp),
+        colors = CardDefaults.cardColors(containerColor = AppSurface),
+        border = androidx.compose.foundation.BorderStroke(1.dp, AppBorder)
+    ) {
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(AppDimensions.Spacing14),
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            Box(
+                modifier = Modifier
+                    .size(36.dp)
+                    .clip(CircleShape)
+                    .background(AppAccentTint),
+                contentAlignment = Alignment.Center
+            ) {
+                Icon(
+                    imageVector = Icons.Outlined.Timeline,
+                    contentDescription = null,
+                    tint = AppAccent,
+                    modifier = Modifier.size(20.dp)
+                )
+            }
+
+            Spacer(modifier = Modifier.width(AppDimensions.Spacing12))
+
+            Column(modifier = Modifier.weight(1f)) {
+                Text(
+                    text = formattedDate,
+                    style = AppTypographyTokens.BodyMedium.copy(
+                        fontWeight = FontWeight.SemiBold,
+                        color = AppPrimaryText
+                    )
+                )
+                Spacer(modifier = Modifier.height(2.dp))
+                Text(
+                    text = "$distanceText • $durationText",
+                    style = AppTypographyTokens.Caption.copy(
+                        color = AppSecondaryText,
+                        fontWeight = FontWeight.Medium
+                    )
+                )
+            }
+
+            Icon(
+                imageVector = Icons.Outlined.ChevronRight,
+                contentDescription = "View Details",
+                tint = AppSecondaryText,
+                modifier = Modifier.size(20.dp)
+            )
         }
     }
 }

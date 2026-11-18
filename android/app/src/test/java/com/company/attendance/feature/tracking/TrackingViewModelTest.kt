@@ -136,4 +136,23 @@ class TrackingViewModelTest {
         viewModel.clearCompletedTrip()
         assertNull(viewModel.completedTripSummary.value)
     }
+
+    @Test
+    fun `viewPastTripSummary loads summary from repository`() = runTest {
+        val summary = TrackingTripSummary(
+            sessionId = "session-past-1",
+            startTimeUtc = 5000L,
+            endTimeUtc = 8000L,
+            totalDistanceM = 3200f,
+            points = emptyList(),
+            stops = emptyList()
+        )
+        coEvery { trackingRepository.getTripSummary("session-past-1") } returns summary
+
+        viewModel.viewPastTripSummary("session-past-1")
+        advanceUntilIdle()
+
+        coVerify { trackingRepository.getTripSummary("session-past-1") }
+        assertEquals(summary, viewModel.completedTripSummary.value)
+    }
 }

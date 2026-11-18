@@ -258,38 +258,6 @@ fun TripSummaryScreen(
 
             Spacer(modifier = Modifier.height(AppDimensions.Spacing16))
 
-            // Breadcrumb Summary
-            Surface(
-                shape = RoundedCornerShape(16.dp),
-                color = AppSurface,
-                border = BorderStroke(1.dp, AppBorder),
-                modifier = Modifier.fillMaxWidth()
-            ) {
-                Row(
-                    modifier = Modifier.padding(16.dp),
-                    verticalAlignment = Alignment.CenterVertically,
-                    horizontalArrangement = Arrangement.SpaceBetween
-                ) {
-                    Column {
-                        Text(
-                            text = "Recorded Coordinate Points",
-                            style = AppTypographyTokens.BodyMedium.copy(fontWeight = FontWeight.SemiBold),
-                            color = AppPrimaryText
-                        )
-                        Text(
-                            text = "1-minute GPS location breadcrumbs",
-                            style = AppTypographyTokens.Caption,
-                            color = AppSecondaryText
-                        )
-                    }
-                    Text(
-                        text = "${summary.points.size} points",
-                        style = AppTypographyTokens.Title.copy(color = AppAccent),
-                        fontWeight = FontWeight.Bold
-                    )
-                }
-            }
-
             Spacer(modifier = Modifier.weight(1f, fill = false))
             Spacer(modifier = Modifier.height(AppDimensions.Spacing32))
 

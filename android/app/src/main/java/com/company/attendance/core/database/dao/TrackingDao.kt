@@ -35,6 +35,12 @@ interface TrackingDao {
     @Query("SELECT * FROM tracking_sessions WHERE is_synced = 0 AND status = 'COMPLETED'")
     fun observeUnsyncedCompletedSessions(): Flow<List<TrackingSessionEntity>>
 
+    @Query("SELECT * FROM tracking_sessions WHERE status = 'COMPLETED' ORDER BY start_time_utc DESC")
+    fun observeCompletedSessions(): Flow<List<TrackingSessionEntity>>
+
+    @Query("SELECT * FROM tracking_sessions WHERE status = 'COMPLETED' ORDER BY start_time_utc DESC")
+    suspend fun getCompletedSessions(): List<TrackingSessionEntity>
+
     // --- POINTS ---
     @Insert(onConflict = OnConflictStrategy.REPLACE)
     suspend fun insertPoint(point: TrackingPointEntity)
@@ -67,4 +73,13 @@ interface TrackingDao {
 
     @Query("DELETE FROM tracking_stops WHERE session_id = :sessionId")
     suspend fun deleteStops(sessionId: String)
+
+    @Query("DELETE FROM tracking_sessions")
+    suspend fun clearAllSessions()
+
+    @Query("DELETE FROM tracking_points")
+    suspend fun clearAllPoints()
+
+    @Query("DELETE FROM tracking_stops")
+    suspend fun clearAllStops()
 }

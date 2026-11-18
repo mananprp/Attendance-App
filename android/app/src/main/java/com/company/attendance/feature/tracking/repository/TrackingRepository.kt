@@ -118,6 +118,10 @@ class TrackingRepository @Inject constructor(
         return trackingDao.observeUnsyncedCompletedSessions()
     }
 
+    fun observeCompletedSessions(): Flow<List<TrackingSessionEntity>> {
+        return trackingDao.observeCompletedSessions()
+    }
+
     suspend fun stopTracking(): TrackingTripSummary? {
         return withContext(Dispatchers.IO) {
             val session = trackingDao.getActiveSession() ?: return@withContext null

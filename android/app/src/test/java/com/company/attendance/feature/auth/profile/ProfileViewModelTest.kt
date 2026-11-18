@@ -2,6 +2,9 @@ package com.company.attendance.feature.auth.profile
 
 import android.graphics.Bitmap
 import app.cash.turbine.test
+import com.company.attendance.core.database.dao.DaySummaryDao
+import com.company.attendance.core.database.dao.PunchDao
+import com.company.attendance.core.database.dao.TrackingDao
 import com.company.attendance.core.database.dao.UserLocalDao
 import com.company.attendance.core.database.entity.UserLocalEntity
 import com.company.attendance.core.interfaces.FaceVerifier
@@ -43,6 +46,9 @@ class ProfileViewModelTest {
 
     private val tokenStorage: TokenStorage = mockk(relaxed = true)
     private val userLocalDao: UserLocalDao = mockk(relaxed = true)
+    private val punchDao: PunchDao = mockk(relaxed = true)
+    private val daySummaryDao: DaySummaryDao = mockk(relaxed = true)
+    private val trackingDao: TrackingDao = mockk(relaxed = true)
     private val apiService: AttendanceApiService = mockk()
     private val faceVerifier: FaceVerifier = mockk()
     private val context: android.content.Context = mockk(relaxed = true)
@@ -109,6 +115,9 @@ class ProfileViewModelTest {
             okHttpClient = okHttpClient,
             tokenStorage = tokenStorage,
             userLocalDao = userLocalDao,
+            punchDao = punchDao,
+            daySummaryDao = daySummaryDao,
+            trackingDao = trackingDao,
             apiService = apiService,
             faceVerifier = faceVerifier
         )
@@ -281,6 +290,11 @@ class ProfileViewModelTest {
 
             verify { tokenStorage.clearSession() }
             coVerify { userLocalDao.clearAll() }
+            coVerify { punchDao.clearAll() }
+            coVerify { daySummaryDao.clearAll() }
+            coVerify { trackingDao.clearAllSessions() }
+            coVerify { trackingDao.clearAllPoints() }
+            coVerify { trackingDao.clearAllStops() }
         }
     }
 }

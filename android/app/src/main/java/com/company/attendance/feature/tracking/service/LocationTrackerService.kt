@@ -146,10 +146,10 @@ class LocationTrackerService : Service() {
             isReceiverRegistered = true
         }
 
-        // Request Location Updates (every 60s, min distance 10m)
-        val locationRequest = LocationRequest.Builder(Priority.PRIORITY_HIGH_ACCURACY, 60000L)
-            .setMinUpdateDistanceMeters(10f)
-            .setMinUpdateIntervalMillis(30000L)
+        // Request Location Updates (every 30s, min distance 12m)
+        val locationRequest = LocationRequest.Builder(Priority.PRIORITY_HIGH_ACCURACY, 30000L)
+            .setMinUpdateDistanceMeters(12f)
+            .setMinUpdateIntervalMillis(15000L)
             .build()
 
         try {
@@ -207,15 +207,38 @@ class LocationTrackerService : Service() {
         val sId = activeSessionId ?: return
         if (isPaused) return
 
+        // 1. Accuracy Filter: discard fixes with poor accuracy (> 25m)
+        if (!location.hasAccuracy() || location.accuracy > 25f) {
+            Log.d(TAG, "GPS fix discarded due to poor accuracy: ${location.accuracy}m")
+            return
+        }
+
         serviceScope.launch {
             val session = trackingDao.getSession(sId) ?: return@launch
 
             var addedDist = 0f
-            if (lastLocation != null) {
-                addedDist = lastLocation!!.distanceTo(location)
-            }
-            lastLocation = location
+            val previous = lastLocation
+            if (previous != null) {
+                val dist = previous.distanceTo(location)
+                val timeDeltaSec = (location.time - previous.time) / 1000f
 
+                // 2. Speed / Jump Outlier Filter: reject sudden impossible speed jumps (> 33 m/s ~= 120 km/h)
+                if (timeDeltaSec > 0 && (dist / timeDeltaSec) > 33f) {
+                    Log.w(TAG, "GPS outlier rejected: moved ${dist}m in ${timeDeltaSec}s")
+                    return@launch
+                }
+
+                // 3. Stationary Jitter Deadband Filter: require movement beyond error margin (at least 12m or accuracy radius)
+                val minMoveThreshold = maxOf(location.accuracy, 12f)
+                if (dist < minMoveThreshold) {
+                    // Drifting while stationary - do not record fake distance or noisy points
+                    return@launch
+                }
+
+                addedDist = dist
+            }
+
+            lastLocation = location
             val updatedDist = session.totalDistanceM + addedDist
 
             // Insert tracking point

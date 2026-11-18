@@ -40,6 +40,10 @@ class TrackingViewModel @Inject constructor(
     private val _completedTripSummary = MutableStateFlow<TrackingTripSummary?>(null)
     val completedTripSummary: StateFlow<TrackingTripSummary?> = _completedTripSummary.asStateFlow()
 
+    val completedSessions: StateFlow<List<TrackingSessionEntity>> = trackingRepository
+        .observeCompletedSessions()
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
+
     private val _showAddStopDialog = MutableStateFlow(false)
     val showAddStopDialog: StateFlow<Boolean> = _showAddStopDialog.asStateFlow()
 
@@ -123,5 +127,14 @@ class TrackingViewModel @Inject constructor(
 
     fun clearCompletedTrip() {
         _completedTripSummary.value = null
+    }
+
+    fun viewPastTripSummary(sessionId: String) {
+        viewModelScope.launch {
+            val summary = trackingRepository.getTripSummary(sessionId)
+            if (summary != null) {
+                _completedTripSummary.value = summary
+            }
+        }
     }
 }
