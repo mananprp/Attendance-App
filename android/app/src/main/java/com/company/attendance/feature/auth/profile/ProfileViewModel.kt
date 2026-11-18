@@ -84,6 +84,25 @@ class ProfileViewModel @Inject constructor(
         }
 
         viewModelScope.launch {
+            // Check for server-side role promotion (e.g. Employee -> Supervisor/Admin or Supervisor -> Admin)
+            try {
+                val adminUsersResp = apiService.getAdminUsers()
+                if (adminUsersResp.isSuccessful && adminUsersResp.body() != null) {
+                    val myRecord = adminUsersResp.body()!!.find { it.userId.equals(userId, ignoreCase = true) }
+                    if (myRecord != null && !myRecord.role.equals(tokenStorage.getRole(), ignoreCase = true)) {
+                        tokenStorage.updateRole(myRecord.role)
+                        _uiState.update {
+                            it.copy(
+                                isAdmin = myRecord.role.equals("ADMIN", ignoreCase = true),
+                                isSupervisor = myRecord.role.equals("SUPERVISOR", ignoreCase = true)
+                            )
+                        }
+                    }
+                }
+            } catch (_: Exception) {
+                // Silently ignore 403 Forbidden for standard employees
+            }
+
             // Load direct from local database if available
             val localUser = userLocalDao.getUserDirect(userId)
             if (localUser != null) {

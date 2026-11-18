@@ -26,6 +26,7 @@ interface TokenStorage {
     val sessionFlow: StateFlow<UserSession?>
 
     fun saveSession(session: UserSession)
+    fun updateRole(role: String)
     fun updatePhotoChangeUsed(used: Boolean)
     fun updateHasPhoto(hasPhoto: Boolean, version: Int? = null)
     fun clearSession()
@@ -123,6 +124,12 @@ class TokenStorageImpl @Inject constructor(
             }
             commit()
         }
+    }
+
+    override fun updateRole(role: String) {
+        val normalized = role.trim().uppercase()
+        prefs.edit().putString(KEY_ROLE, normalized).apply()
+        _sessionFlow.value = _sessionFlow.value?.copy(role = normalized)
     }
 
     override fun updatePhotoChangeUsed(used: Boolean) {

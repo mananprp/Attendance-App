@@ -51,13 +51,22 @@ class AdminViewModel @Inject constructor(
                 val usersResult = NetworkHelper.parseResponse(usersResponse)
 
                 if (sitesResult.isSuccess && usersResult.isSuccess) {
+                    val usersList = usersResult.getOrDefault(emptyList())
+                    val currentUserId = tokenStorage.getUserId()
+                    val myRecord = usersList.find { it.userId.equals(currentUserId, ignoreCase = true) }
+                    if (myRecord != null && !myRecord.role.equals(tokenStorage.getRole(), ignoreCase = true)) {
+                        tokenStorage.updateRole(myRecord.role)
+                    }
+                    val effectiveRole = myRecord?.role ?: tokenStorage.getRole()
+                    val effectiveIsAdmin = effectiveRole.equals("ADMIN", ignoreCase = true)
+
                     _uiState.update {
                         it.copy(
                             isLoading = false,
                             sites = sitesResult.getOrDefault(emptyList()),
-                            users = usersResult.getOrDefault(emptyList()),
-                            isAdmin = tokenStorage.isAdmin(),
-                            currentRole = tokenStorage.getRole()
+                            users = usersList,
+                            isAdmin = effectiveIsAdmin,
+                            currentRole = effectiveRole
                         )
                     }
                 } else {
@@ -203,7 +212,7 @@ class AdminViewModel @Inject constructor(
             return
         }
 
-        if (!tokenStorage.isAdmin() && role.equals("ADMIN", ignoreCase = true)) {
+        if (!_uiState.value.isAdmin && role.equals("ADMIN", ignoreCase = true)) {
             _uiState.update { it.copy(errorMessage = "Supervisors cannot create Admin users.") }
             return
         }
@@ -292,7 +301,7 @@ class AdminViewModel @Inject constructor(
     }
 
     fun updateUserRole(userId: String, newRole: String) {
-        if (!tokenStorage.isAdmin()) {
+        if (!_uiState.value.isAdmin) {
             if (newRole.equals("ADMIN", ignoreCase = true)) {
                 _uiState.update { it.copy(errorMessage = "Supervisors cannot assign the Admin role.") }
                 return
@@ -345,7 +354,7 @@ class AdminViewModel @Inject constructor(
     }
 
     fun resetUserPassword(userId: String, newPassword: String) {
-        if (!tokenStorage.isAdmin()) {
+        if (!_uiState.value.isAdmin) {
             _uiState.update { it.copy(errorMessage = "Supervisors are not permitted to reset passwords.") }
             return
         }
@@ -432,7 +441,7 @@ class AdminViewModel @Inject constructor(
     }
 
     fun deleteUser(userId: String) {
-        if (!tokenStorage.isAdmin()) {
+        if (!_uiState.value.isAdmin) {
             _uiState.update { it.copy(errorMessage = "Supervisors are not permitted to delete users.") }
             return
         }

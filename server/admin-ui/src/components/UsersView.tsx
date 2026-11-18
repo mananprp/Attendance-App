@@ -12,7 +12,7 @@ export const UsersView: React.FC<UsersViewProps> = ({ sites }) => {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
-  const currentUser = getStoredUser();
+  const [currentUser, setCurrentUser] = useState(getStoredUser());
   const isSupervisor = currentUser?.role === 'SUPERVISOR';
 
   // Create User Modal State
@@ -59,6 +59,15 @@ export const UsersView: React.FC<UsersViewProps> = ({ sites }) => {
       setError(null);
       const data = await api.getUsers();
       setUsers(data);
+
+      if (currentUser?.userId) {
+        const myRecord = data.find((u) => u.user_id.toUpperCase() === currentUser.userId.toUpperCase());
+        if (myRecord && myRecord.role !== currentUser.role) {
+          const updated = { ...currentUser, role: myRecord.role };
+          localStorage.setItem('admin_user', JSON.stringify(updated));
+          setCurrentUser(updated);
+        }
+      }
     } catch (err: any) {
       setError(err.message || 'Failed to load employees');
     } finally {
