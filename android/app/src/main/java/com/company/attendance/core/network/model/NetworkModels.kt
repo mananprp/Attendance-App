@@ -42,7 +42,8 @@ data class AdminSiteDto(
     @SerialName("longitude") val longitude: Double,
     @SerialName("radius_m") val radiusM: Int,
     @SerialName("timezone") val timezone: String,
-    @SerialName("match_threshold") val matchThreshold: Float
+    @SerialName("match_threshold") val matchThreshold: Float,
+    @SerialName("is_active") val isActive: Boolean = true
 )
 
 @Serializable
@@ -104,6 +105,38 @@ data class UpdateUserPasswordRequestDto(
 data class AdminActionResponseDto(
     @SerialName("success") val success: Boolean = true,
     @SerialName("message") val message: String = ""
+)
+
+@Serializable
+data class UpdateSiteRequestDto(
+    @SerialName("name") val name: String? = null,
+    @SerialName("latitude") val latitude: Double? = null,
+    @SerialName("longitude") val longitude: Double? = null,
+    @SerialName("radius_m") val radiusM: Int? = null,
+    @SerialName("timezone") val timezone: String? = null,
+    @SerialName("match_threshold") val matchThreshold: Float? = null
+)
+
+@Serializable
+data class UpdateUserRequestDto(
+    @SerialName("name") val name: String? = null,
+    @SerialName("role") val role: String? = null,
+    @SerialName("site_code") val siteCode: String? = null,
+    @SerialName("site_codes") val siteCodes: List<String>? = null
+)
+
+@Serializable
+data class UserMeResponseDto(
+    @SerialName("user_id") val userId: String,
+    @SerialName("name") val name: String,
+    @SerialName("role") val role: String,
+    @SerialName("site_code") val siteCode: String,
+    @SerialName("site_name") val siteName: String = "",
+    @SerialName("assigned_sites") val assignedSites: List<UserAssignedSiteDto> = emptyList(),
+    @SerialName("has_photo") val hasPhoto: Boolean,
+    @SerialName("photo_version") val photoVersion: Int? = null,
+    @SerialName("photo_hash") val photoHash: String? = null,
+    @SerialName("photo_change_used") val photoChangeUsed: Boolean = false
 )
 
 @Serializable

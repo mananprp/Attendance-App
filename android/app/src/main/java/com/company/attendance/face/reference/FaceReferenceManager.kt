@@ -69,6 +69,45 @@ class FaceReferenceManager @Inject constructor(
         }
     }
 
+    suspend fun clearLocalReference(userId: String) = withContext(Dispatchers.IO) {
+        try {
+            val photoFile = File(context.filesDir, "profile_${userId}.jpg")
+            if (photoFile.exists()) {
+                photoFile.delete()
+            }
+            userLocalDao.clearReference(userId)
+            tokenStorage.updateHasPhoto(false, null, null)
+        } catch (e: Exception) {
+            Log.e(TAG, "Failed to clear local reference for $userId", e)
+        }
+    }
+
+    suspend fun syncPhotoReferenceState(userId: String): Boolean = withContext(Dispatchers.IO) {
+        if (userId.isBlank()) return@withContext false
+        try {
+            val response = apiService.getActivePhoto()
+            if (response.code() == 404 || response.code() == 400) {
+                // Photo was reset on server! Clear local cache immediately
+                clearLocalReference(userId)
+                return@withContext false
+            } else if (response.isSuccessful && response.body() != null) {
+                val serverPhoto = response.body()!!
+                val userEntity = userLocalDao.getUserDirect(userId)
+                val photoFile = File(context.filesDir, "profile_${userId}.jpg")
+                if (!photoFile.exists() || userEntity?.photoHash != serverPhoto.hash || userEntity?.photoVersion != serverPhoto.version) {
+                    // Photo changed on server or missing locally! Re-download
+                    ensureReference(userId)
+                }
+                tokenStorage.updateHasPhoto(true, serverPhoto.version, serverPhoto.hash)
+                return@withContext true
+            }
+            validateLocalReference(userId)
+        } catch (e: Exception) {
+            Log.w(TAG, "Photo sync check failed: ${e.message}")
+            validateLocalReference(userId)
+        }
+    }
+
     suspend fun validateLocalReference(expectedUserId: String): Boolean = withContext(Dispatchers.IO) {
         if (expectedUserId.isBlank()) return@withContext false
 

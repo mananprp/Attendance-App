@@ -15,6 +15,9 @@ import com.company.attendance.core.network.model.CreateSiteRequestDto
 import com.company.attendance.core.network.model.UpdateUserSiteRequestDto
 import com.company.attendance.core.network.model.UpdateUserRoleRequestDto
 import com.company.attendance.core.network.model.UpdateUserPasswordRequestDto
+import com.company.attendance.core.network.model.UpdateUserRequestDto
+import com.company.attendance.core.network.model.UpdateSiteRequestDto
+import com.company.attendance.core.network.model.UserMeResponseDto
 import com.company.attendance.core.network.model.AdminActionResponseDto
 import okhttp3.MultipartBody
 import retrofit2.Response
@@ -38,6 +41,9 @@ interface AttendanceApiService {
 
     @GET("config")
     suspend fun getConfig(): Response<AppConfigResponseDto>
+
+    @GET("users/me")
+    suspend fun getCurrentUserProfile(): Response<UserMeResponseDto>
 
     @Multipart
     @POST("users/me/photo")
@@ -78,12 +84,34 @@ interface AttendanceApiService {
         @Body request: CreateSiteRequestDto
     ): Response<AdminSiteDto>
 
+    @PATCH("admin/sites/{officeId}")
+    suspend fun updateAdminSite(
+        @Path("officeId") officeId: String,
+        @Body request: UpdateSiteRequestDto
+    ): Response<AdminSiteDto>
+
+    @PATCH("admin/sites/{officeId}/deactivate")
+    suspend fun deactivateAdminSite(
+        @Path("officeId") officeId: String
+    ): Response<AdminActionResponseDto>
+
+    @PATCH("admin/sites/{officeId}/activate")
+    suspend fun activateAdminSite(
+        @Path("officeId") officeId: String
+    ): Response<AdminActionResponseDto>
+
     @GET("admin/users")
     suspend fun getAdminUsers(): Response<List<AdminUserDto>>
 
     @POST("admin/users")
     suspend fun createAdminUser(
         @Body request: CreateUserRequestDto
+    ): Response<AdminUserDto>
+
+    @PATCH("admin/users/{userId}")
+    suspend fun updateAdminUser(
+        @Path("userId") userId: String,
+        @Body request: UpdateUserRequestDto
     ): Response<AdminUserDto>
 
     @PATCH("admin/users/{userId}/site")

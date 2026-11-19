@@ -31,6 +31,9 @@ interface UserLocalDao {
         updatedAt: Long = System.currentTimeMillis()
     )
 
+    @Query("UPDATE user_local SET reference_embedding = NULL, has_photo = 0, photo_version = NULL, photo_hash = NULL WHERE user_id = :userId")
+    suspend fun clearReference(userId: String)
+
     @Query("DELETE FROM user_local WHERE user_id != :userId")
     suspend fun deleteAllExcept(userId: String)
 

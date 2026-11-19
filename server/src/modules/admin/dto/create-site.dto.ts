@@ -2,10 +2,10 @@ import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
 import { IsNotEmpty, IsString, IsNumber, IsOptional, Min, Max } from 'class-validator';
 
 export class CreateSiteDto {
-  @ApiProperty({ example: 'REMOTE_SITE_02', description: 'Unique identifier / code for the office site' })
+  @ApiPropertyOptional({ example: 'REMOTE_SITE_02', description: 'Unique identifier / code for the office site (auto-generated if omitted)' })
   @IsString()
-  @IsNotEmpty()
-  office_id: string;
+  @IsOptional()
+  office_id?: string;
 
   @ApiProperty({ example: 'Noida Branch', description: 'Display name of the office site' })
   @IsString()

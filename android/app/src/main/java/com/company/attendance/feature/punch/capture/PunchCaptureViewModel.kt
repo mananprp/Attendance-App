@@ -274,6 +274,20 @@ class PunchCaptureViewModel @Inject constructor(
             }
 
             val userEntity = userLocalDao.getUserDirect(currentUserId)
+
+            // Direct Employee ID cross-check against profile owner
+            if (overrideReferenceEmbeddingBytes == null && userEntity != null && !userEntity.ownerUserId.equals(currentUserId, ignoreCase = true)) {
+                _uiState.update {
+                    it.copy(
+                        step = CaptureStep.FAILURE,
+                        failureTitle = "Account Mismatch",
+                        failureMessage = "Stored face profile does not belong to logged-in employee ($currentUserId). Connect to the internet once to refresh.",
+                        failureReason = "Employee ID mismatch: expected $currentUserId, found ${userEntity.ownerUserId ?: "none"}."
+                    )
+                }
+                return@launch
+            }
+
             val finalEmbeddingBytes = overrideReferenceEmbeddingBytes ?: userEntity?.referenceEmbedding
             if (finalEmbeddingBytes == null || finalEmbeddingBytes.isEmpty()) {
                 _uiState.update {

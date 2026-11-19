@@ -77,6 +77,9 @@ class PunchCaptureViewModelTest {
         photoChangeUsed = false,
         hasPhoto = true,
         referenceEmbedding = sampleEmbeddingBytes,
+        ownerUserId = "EMP1001",
+        photoVersion = 1,
+        photoHash = "hash123",
         updatedAt = System.currentTimeMillis()
     )
 
@@ -152,6 +155,29 @@ class PunchCaptureViewModelTest {
         val state = viewModel.uiState.value
         assertEquals(CaptureStep.FAILURE, state.step)
         assertEquals("Profile Photo Missing", state.failureTitle)
+    }
+
+    @Test
+    fun `employee id mismatch transitions to failure step and blocks matching`() = runTest {
+        val mismatchedUser = testUser.copy(ownerUserId = "EMP2002")
+        coEvery { userLocalDao.getUserDirect("EMP1001") } returns mismatchedUser
+        coEvery { faceReferenceManager.validateLocalReference("EMP1001") } returns true
+
+        val viewModel = createViewModel()
+
+        viewModel.initSession(PunchType.IN, 12.9716, 77.5946, 15f)
+        advanceUntilIdle()
+
+        viewModel.processCapturedFrames()
+        advanceUntilIdle()
+
+        val state = viewModel.uiState.value
+        assertEquals(CaptureStep.FAILURE, state.step)
+        assertEquals("Account Mismatch", state.failureTitle)
+        assertTrue(state.failureReason?.contains("Employee ID mismatch") == true)
+        coVerify(exactly = 0) {
+            punchRepository.recordPunch(any(), any(), any(), any(), any(), any(), any(), any(), any(), any(), any(), any())
+        }
     }
 
     @Test

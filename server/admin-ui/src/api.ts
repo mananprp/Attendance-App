@@ -223,6 +223,18 @@ export const api = {
     });
   },
 
+  async updateUser(userId: string, data: {
+    name?: string;
+    role?: 'EMPLOYEE' | 'SUPERVISOR' | 'ADMIN';
+    site_code?: string;
+    site_codes?: string[];
+  }): Promise<AdminUser> {
+    return request<AdminUser>(`/admin/users/${userId}`, {
+      method: 'PATCH',
+      body: JSON.stringify(data),
+    });
+  },
+
   async updateUserSite(userId: string, siteCode: string, siteCodes?: string[]): Promise<AdminUser> {
     return request<AdminUser>(`/admin/users/${userId}/site`, {
       method: 'PATCH',
@@ -261,7 +273,7 @@ export const api = {
   },
 
   async createSite(data: {
-    office_id: string;
+    office_id?: string;
     name: string;
     latitude: number;
     longitude: number;
@@ -271,6 +283,35 @@ export const api = {
     return request<AdminSite>('/admin/sites', {
       method: 'POST',
       body: JSON.stringify(data),
+    });
+  },
+
+  async updateSite(
+    officeId: string,
+    data: {
+      name?: string;
+      latitude?: number;
+      longitude?: number;
+      radius_m?: number;
+      timezone?: string;
+      match_threshold?: number;
+    },
+  ): Promise<AdminSite> {
+    return request<AdminSite>(`/admin/sites/${officeId}`, {
+      method: 'PATCH',
+      body: JSON.stringify(data),
+    });
+  },
+
+  async deactivateSite(officeId: string): Promise<{ success: boolean; message: string }> {
+    return request<{ success: boolean; message: string }>(`/admin/sites/${officeId}/deactivate`, {
+      method: 'PATCH',
+    });
+  },
+
+  async activateSite(officeId: string): Promise<{ success: boolean; message: string }> {
+    return request<{ success: boolean; message: string }>(`/admin/sites/${officeId}/activate`, {
+      method: 'PATCH',
     });
   },
 

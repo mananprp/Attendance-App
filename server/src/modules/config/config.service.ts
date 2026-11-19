@@ -47,19 +47,21 @@ export class ConfigService {
     let config = assignedOffices.find((o) => o.officeId === siteCode) || assignedOffices[0];
 
     // Fallback to DEFAULT_OFFICE if specific site is not found
-    if (!config && siteCode !== 'DEFAULT_OFFICE') {
+    if (!config) {
       config = await this.officeConfigRepository.findOne({
         where: { officeId: 'DEFAULT_OFFICE' },
       });
     }
 
-    const assignedSitesDto: OfficeSiteDto[] = assignedOffices.map((o) => ({
-      office_id: o.officeId,
-      name: o.name,
-      latitude: Number(o.latitude),
-      longitude: Number(o.longitude),
-      radius_m: o.radiusM,
-    }));
+    const assignedSitesDto: OfficeSiteDto[] = assignedOffices
+      .filter((o) => o.isActive !== false)
+      .map((o) => ({
+        office_id: o.officeId,
+        name: o.name,
+        latitude: Number(o.latitude),
+        longitude: Number(o.longitude),
+        radius_m: o.radiusM,
+      }));
 
     if (config) {
       return {

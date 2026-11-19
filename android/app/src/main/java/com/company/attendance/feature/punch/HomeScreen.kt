@@ -147,6 +147,7 @@ fun HomeScreen(
     viewModel: HomeViewModel = hiltViewModel(),
     onNavigateToPunchCapture: (PunchType, String, Double, Double, Float) -> Unit,
     onNavigateToProfile: () -> Unit,
+    onNavigateToOnboarding: () -> Unit = {},
     modifier: Modifier = Modifier
 ) {
     val uiState by viewModel.uiState.collectAsState()
@@ -212,6 +213,9 @@ fun HomeScreen(
                 }
                 is HomeNavigationEvent.NavigateToProfile -> {
                     onNavigateToProfile()
+                }
+                is HomeNavigationEvent.NavigateToOnboarding -> {
+                    onNavigateToOnboarding()
                 }
             }
         }
@@ -584,6 +588,36 @@ fun HomeScreen(
                         text = "OK",
                         onClick = { viewModel.dismissGeofenceDialog() },
                         modifier = Modifier.width(100.dp)
+                    )
+                },
+                containerColor = AppSurface
+            )
+        }
+        is GeofenceDialogState.PhotoResetRequired -> {
+            AlertDialog(
+                onDismissRequest = { viewModel.dismissGeofenceDialog() },
+                title = {
+                    Text(
+                        text = "Profile Photo Reset",
+                        style = AppTypographyTokens.Title,
+                        color = AppPrimaryText
+                    )
+                },
+                text = {
+                    Text(
+                        text = dialog.formattedMessage,
+                        style = AppTypographyTokens.Body,
+                        color = AppSecondaryText
+                    )
+                },
+                confirmButton = {
+                    PrimaryButton(
+                        text = "Enroll Face Now",
+                        onClick = {
+                            viewModel.dismissGeofenceDialog()
+                            viewModel.onNavigateToEnrollment()
+                        },
+                        modifier = Modifier.width(160.dp)
                     )
                 },
                 containerColor = AppSurface

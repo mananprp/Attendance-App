@@ -98,6 +98,52 @@ class HomeViewModel @Inject constructor(
         locationMonitor.start()
         viewModelScope.launch {
             syncScheduler.refreshPendingCount()
+            triggerForegroundSync()
+        }
+    }
+
+    fun onNavigateToEnrollment() {
+        viewModelScope.launch {
+            _navigationEvents.send(HomeNavigationEvent.NavigateToOnboarding)
+        }
+    }
+
+    fun triggerForegroundSync() {
+        viewModelScope.launch {
+            val userId = tokenStorage.getUserId() ?: return@launch
+
+            // 1. Facet 1: Photo & Biometric Integrity
+            try {
+                val hasPhotoValid = faceReferenceManager.syncPhotoReferenceState(userId)
+                val updatedBmp = if (hasPhotoValid) ImageStorageUtils.loadProfilePhoto(context, userId) else null
+                _uiState.update { it.copy(profilePhotoBitmap = updatedBmp) }
+            } catch (e: Exception) {
+                android.util.Log.w("HomeViewModel", "Photo foreground sync check failed", e)
+            }
+
+            // 2. Facet 2: Geofence radius & site updates
+            try {
+                remoteConfigRepository.fetchAndCacheConfig()
+                locationMonitor.freshFixOrRefresh(maxAgeMs = 0L)
+            } catch (e: Exception) {
+                android.util.Log.w("HomeViewModel", "Config foreground sync check failed", e)
+            }
+
+            // 3. Facet 3: Role and Admin permissions check
+            try {
+                val profileRes = apiService.getCurrentUserProfile()
+                if (profileRes.isSuccessful && profileRes.body() != null) {
+                    val p = profileRes.body()!!
+                    if (!p.role.equals(tokenStorage.getRole(), ignoreCase = true)) {
+                        tokenStorage.updateRole(p.role)
+                    }
+                    if (p.name.isNotBlank() && p.name != tokenStorage.getDisplayName()) {
+                        _uiState.update { it.copy(displayName = p.name) }
+                    }
+                }
+            } catch (e: Exception) {
+                android.util.Log.w("HomeViewModel", "Role/profile foreground sync check failed", e)
+            }
         }
     }
 
@@ -673,8 +719,16 @@ class HomeViewModel @Inject constructor(
             when (locationStatus) {
                 is LocationStatus.Fix -> {
                     if (locationStatus.isInside) {
-                        // If punching in, ensure any prior day's unclosed punches are resolved
                         val userId = tokenStorage.getUserId() ?: ""
+
+                        // Pre-punch photo validation: ensure photo was not reset on server
+                        val isPhotoValid = faceReferenceManager.syncPhotoReferenceState(userId)
+                        if (!isPhotoValid) {
+                            _uiState.update { it.copy(geofenceDialogState = GeofenceDialogState.PhotoResetRequired) }
+                            return@launch
+                        }
+
+                        // If punching in, ensure any prior day's unclosed punches are resolved
                         val todayDateLocal = trustedTimeProvider.getOfficeLocalDate().toString()
                         if (userId.isNotBlank()) {
                             punchRepository.resolvePastMissedPunches(userId, todayDateLocal)

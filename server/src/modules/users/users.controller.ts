@@ -31,6 +31,7 @@ import {
   PhotoUploadResponseDto,
   PhotoDetailResponseDto,
 } from './dto/photo-response.dto';
+import { UserProfileResponseDto } from './dto/user-profile-response.dto';
 
 @ApiTags('users')
 @Controller('users')
@@ -38,6 +39,19 @@ import {
 @ApiBearerAuth()
 export class UsersController {
   constructor(private readonly usersService: UsersService) {}
+
+  @Get('me')
+  @ApiOperation({ summary: 'Get profile, role, site, and photo metadata for current authenticated user' })
+  @ApiResponse({
+    status: 200,
+    description: 'Current user profile details',
+    type: UserProfileResponseDto,
+  })
+  async getMe(
+    @CurrentUser() user: AuthenticatedUser,
+  ): Promise<UserProfileResponseDto> {
+    return this.usersService.getUserProfile(user.userId);
+  }
 
   @Post('me/photo')
   @HttpCode(HttpStatus.CREATED)

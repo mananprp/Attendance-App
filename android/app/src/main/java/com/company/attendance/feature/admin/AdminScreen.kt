@@ -37,6 +37,7 @@ import androidx.compose.material.icons.filled.Refresh
 import androidx.compose.material.icons.filled.Search
 import androidx.compose.material.icons.filled.MoreVert
 import androidx.compose.material.icons.filled.Delete
+import androidx.compose.material.icons.filled.Edit
 import androidx.compose.material.icons.filled.PersonAdd
 import androidx.compose.material3.Checkbox
 import androidx.compose.material3.CheckboxDefaults
@@ -79,6 +80,7 @@ import com.company.attendance.core.network.model.AdminSiteDto
 import com.company.attendance.core.network.model.AdminUserDto
 import com.company.attendance.design.components.AttendanceTextField
 import com.company.attendance.design.components.AttendanceTopAppBar
+import com.company.attendance.design.components.DangerButton
 import com.company.attendance.design.components.PrimaryButton
 import com.company.attendance.design.components.SecondaryButton
 import com.company.attendance.design.theme.AppAccent
@@ -298,6 +300,7 @@ fun AdminScreen(
                         users = uiState.users.filter { it.siteCode == selectedSite!!.officeId || it.assignedSites?.any { s -> s.siteCode == selectedSite!!.officeId } == true },
                         currentUserId = viewModel.getCurrentUserId(),
                         isAdmin = uiState.isAdmin,
+                        onEditUserClick = { user -> viewModel.openEditUserDialog(user) },
                         onChangeSiteClick = { user -> viewModel.openSiteChangeDialog(user) },
                         onChangeRoleClick = { user -> viewModel.openRoleChangeDialog(user) },
                         onResetPasswordClick = { user -> viewModel.openResetPasswordDialog(user) },
@@ -381,6 +384,7 @@ fun AdminScreen(
                             searchQuery = employeeSearchQuery,
                             onSearchQueryChange = { employeeSearchQuery = it },
                             onAddUserClick = { viewModel.openCreateUserDialog(null) },
+                            onEditUserClick = { user -> viewModel.openEditUserDialog(user) },
                             onChangeSiteClick = { user -> viewModel.openSiteChangeDialog(user) },
                             onChangeRoleClick = { user -> viewModel.openRoleChangeDialog(user) },
                             onResetPasswordClick = { user -> viewModel.openResetPasswordDialog(user) },
@@ -394,7 +398,10 @@ fun AdminScreen(
                             searchQuery = siteSearchQuery,
                             onSearchQueryChange = { siteSearchQuery = it },
                             onSiteSelected = { site -> selectedSite = site },
-                            onAddSiteClick = viewModel::openCreateSiteDialog
+                            onAddSiteClick = viewModel::openCreateSiteDialog,
+                            onEditSiteClick = { site -> viewModel.openEditSiteDialog(site) },
+                            onDeactivateSiteClick = { site -> viewModel.openDeactivateSiteDialog(site) },
+                            onActivateSiteClick = { site -> viewModel.activateSite(site.officeId) }
                         )
                     }
                 }
@@ -492,6 +499,47 @@ fun AdminScreen(
             }
         )
     }
+
+    // Edit Site Dialog
+    uiState.selectedSiteForEdit?.let { targetSite ->
+        EditSiteDialog(
+            site = targetSite,
+            isLoading = uiState.isActionLoading,
+            onDismiss = viewModel::closeEditSiteDialog,
+            onFetchLocation = { onCoords ->
+                viewModel.fetchCurrentLocation(onCoords)
+            },
+            onConfirm = { name, lat, lng, radiusM ->
+                viewModel.updateSite(targetSite.officeId, name, lat, lng, radiusM)
+            }
+        )
+    }
+
+    // Deactivate Site Dialog
+    uiState.selectedSiteForDeactivate?.let { targetSite ->
+        DeactivateSiteDialog(
+            site = targetSite,
+            isLoading = uiState.isActionLoading,
+            onDismiss = viewModel::closeDeactivateSiteDialog,
+            onConfirm = {
+                viewModel.deactivateSite(targetSite.officeId)
+            }
+        )
+    }
+
+    // Edit User Dialog
+    uiState.selectedUserForEdit?.let { targetUser ->
+        EditUserDialog(
+            user = targetUser,
+            sites = uiState.sites,
+            isAdmin = uiState.isAdmin,
+            isLoading = uiState.isActionLoading,
+            onDismiss = viewModel::closeEditUserDialog,
+            onConfirm = { name, role, siteCode, siteCodes ->
+                viewModel.updateUser(targetUser.userId, name, role, siteCode, siteCodes)
+            }
+        )
+    }
 }
 
 @Composable
@@ -537,6 +585,7 @@ private fun EmployeesMenuView(
     searchQuery: String,
     onSearchQueryChange: (String) -> Unit,
     onAddUserClick: () -> Unit,
+    onEditUserClick: (AdminUserDto) -> Unit,
     onChangeSiteClick: (AdminUserDto) -> Unit,
     onChangeRoleClick: (AdminUserDto) -> Unit,
     onResetPasswordClick: (AdminUserDto) -> Unit,
@@ -622,6 +671,7 @@ private fun EmployeesMenuView(
                         user = user,
                         isSelf = currentUserId?.equals(user.userId, ignoreCase = true) == true,
                         isAdmin = isAdmin,
+                        onEditUserClick = { onEditUserClick(user) },
                         onChangeSiteClick = { onChangeSiteClick(user) },
                         onChangeRoleClick = { onChangeRoleClick(user) },
                         onResetPasswordClick = { onResetPasswordClick(user) },
@@ -647,7 +697,10 @@ private fun SitesMenuView(
     searchQuery: String,
     onSearchQueryChange: (String) -> Unit,
     onSiteSelected: (AdminSiteDto) -> Unit,
-    onAddSiteClick: () -> Unit
+    onAddSiteClick: () -> Unit,
+    onEditSiteClick: (AdminSiteDto) -> Unit,
+    onDeactivateSiteClick: (AdminSiteDto) -> Unit,
+    onActivateSiteClick: (AdminSiteDto) -> Unit
 ) {
     val filteredSites = remember(sites, searchQuery) {
         if (searchQuery.isBlank()) {
@@ -740,7 +793,10 @@ private fun SitesMenuView(
                     SiteCardItem(
                         site = site,
                         employeeCount = siteEmployeeCount,
-                        onClick = { onSiteSelected(site) }
+                        onClick = { onSiteSelected(site) },
+                        onEditClick = { onEditSiteClick(site) },
+                        onDeactivateClick = { onDeactivateSiteClick(site) },
+                        onActivateClick = { onActivateSiteClick(site) }
                     )
                 }
                 item {
@@ -755,8 +811,14 @@ private fun SitesMenuView(
 private fun SiteCardItem(
     site: AdminSiteDto,
     employeeCount: Int,
-    onClick: () -> Unit
+    onClick: () -> Unit,
+    onEditClick: () -> Unit,
+    onDeactivateClick: () -> Unit,
+    onActivateClick: () -> Unit
 ) {
+    var menuExpanded by remember { mutableStateOf(false) }
+    val isActive = site.isActive
+
     Surface(
         modifier = Modifier
             .fillMaxWidth()
@@ -771,14 +833,14 @@ private fun SiteCardItem(
         ) {
             Surface(
                 shape = CircleShape,
-                color = AppAccentTint,
+                color = if (isActive) AppAccentTint else AppBackground,
                 modifier = Modifier.size(44.dp)
             ) {
                 Box(contentAlignment = Alignment.Center) {
                     Icon(
                         imageVector = Icons.Default.Business,
                         contentDescription = null,
-                        tint = AppAccent,
+                        tint = if (isActive) AppAccent else AppSecondaryText,
                         modifier = Modifier.size(22.dp)
                     )
                 }
@@ -787,25 +849,81 @@ private fun SiteCardItem(
             Spacer(modifier = Modifier.width(AppDimensions.Spacing16))
 
             Column(modifier = Modifier.weight(1f)) {
-                Text(
-                    text = site.name,
-                    style = AppTypographyTokens.SectionHeading,
-                    color = AppPrimaryText
-                )
+                Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                    Text(
+                        text = site.name,
+                        style = AppTypographyTokens.SectionHeading,
+                        color = if (isActive) AppPrimaryText else AppSecondaryText
+                    )
+                    if (!isActive) {
+                        Surface(
+                            shape = RoundedCornerShape(4.dp),
+                            color = AppBackground,
+                            border = BorderStroke(1.dp, AppBorder)
+                        ) {
+                            Text(
+                                text = "DEACTIVATED",
+                                style = AppTypographyTokens.Caption,
+                                color = AppSecondaryText,
+                                modifier = Modifier.padding(horizontal = 4.dp, vertical = 2.dp)
+                            )
+                        }
+                    }
+                }
                 Spacer(modifier = Modifier.height(2.dp))
                 Text(
-                    text = "${employeeCount} active staff • ${site.radiusM}m geofence",
+                    text = "${site.officeId} • ${employeeCount} active staff • ${site.radiusM}m geofence",
                     style = AppTypographyTokens.Caption,
                     color = AppSecondaryText
                 )
             }
 
-            Icon(
-                imageVector = Icons.Outlined.ChevronRight,
-                contentDescription = "Open Site",
-                tint = AppSecondaryText,
-                modifier = Modifier.size(20.dp)
-            )
+            Box {
+                IconButton(
+                    onClick = { menuExpanded = true },
+                    modifier = Modifier.size(36.dp)
+                ) {
+                    Icon(
+                        imageVector = Icons.Default.MoreVert,
+                        contentDescription = "Actions",
+                        tint = AppSecondaryText
+                    )
+                }
+
+                DropdownMenu(
+                    expanded = menuExpanded,
+                    onDismissRequest = { menuExpanded = false },
+                    modifier = Modifier.background(AppSurface)
+                ) {
+                    DropdownMenuItem(
+                        text = { Text("Edit Site", style = AppTypographyTokens.BodyMedium, color = AppPrimaryText) },
+                        leadingIcon = { Icon(Icons.Default.Edit, contentDescription = null, tint = AppAccent) },
+                        onClick = {
+                            menuExpanded = false
+                            onEditClick()
+                        }
+                    )
+                    if (isActive) {
+                        DropdownMenuItem(
+                            text = { Text("Deactivate Site", style = AppTypographyTokens.BodyMedium, color = AppError) },
+                            leadingIcon = { Icon(Icons.Default.Delete, contentDescription = null, tint = AppError) },
+                            onClick = {
+                                menuExpanded = false
+                                onDeactivateClick()
+                            }
+                        )
+                    } else {
+                        DropdownMenuItem(
+                            text = { Text("Activate Site", style = AppTypographyTokens.BodyMedium, color = AppSuccess) },
+                            leadingIcon = { Icon(Icons.Default.Check, contentDescription = null, tint = AppSuccess) },
+                            onClick = {
+                                menuExpanded = false
+                                onActivateClick()
+                            }
+                        )
+                    }
+                }
+            }
         }
     }
 }
@@ -816,6 +934,7 @@ private fun SiteEmployeesView(
     users: List<AdminUserDto>,
     currentUserId: String?,
     isAdmin: Boolean = true,
+    onEditUserClick: (AdminUserDto) -> Unit,
     onChangeSiteClick: (AdminUserDto) -> Unit,
     onChangeRoleClick: (AdminUserDto) -> Unit,
     onResetPasswordClick: (AdminUserDto) -> Unit,
@@ -862,6 +981,7 @@ private fun SiteEmployeesView(
                         user = user,
                         isSelf = currentUserId?.equals(user.userId, ignoreCase = true) == true,
                         isAdmin = isAdmin,
+                        onEditUserClick = { onEditUserClick(user) },
                         onChangeSiteClick = { onChangeSiteClick(user) },
                         onChangeRoleClick = { onChangeRoleClick(user) },
                         onResetPasswordClick = { onResetPasswordClick(user) },
@@ -882,6 +1002,7 @@ private fun UserItemCard(
     user: AdminUserDto,
     isSelf: Boolean,
     isAdmin: Boolean = true,
+    onEditUserClick: () -> Unit,
     onChangeSiteClick: () -> Unit,
     onChangeRoleClick: () -> Unit,
     onResetPasswordClick: () -> Unit,
@@ -995,6 +1116,14 @@ private fun UserItemCard(
                         onDismissRequest = { menuExpanded = false },
                         modifier = Modifier.background(AppSurface)
                     ) {
+                        DropdownMenuItem(
+                            text = { Text("Edit Details", style = AppTypographyTokens.BodyMedium, color = AppPrimaryText) },
+                            leadingIcon = { Icon(Icons.Default.Edit, contentDescription = null, tint = AppAccent) },
+                            onClick = {
+                                menuExpanded = false
+                                onEditUserClick()
+                            }
+                        )
                         DropdownMenuItem(
                             text = { Text("Manage Sites", style = AppTypographyTokens.BodyMedium, color = AppPrimaryText) },
                             leadingIcon = { Icon(Icons.Default.Business, contentDescription = null, tint = AppAccent) },
@@ -1578,7 +1707,6 @@ private fun CreateSiteDialog(
 ) {
     var name by remember { mutableStateOf("") }
     var officeId by remember { mutableStateOf("") }
-    var isCodeManuallyEdited by remember { mutableStateOf(false) }
     var latitudeText by remember { mutableStateOf("") }
     var longitudeText by remember { mutableStateOf("") }
     var radiusText by remember { mutableStateOf("100") }
@@ -1619,12 +1747,10 @@ private fun CreateSiteDialog(
                     value = name,
                     onValueChange = { newName ->
                         name = newName
-                        if (!isCodeManuallyEdited) {
-                            val slug = newName.trim().uppercase()
-                                .replace("[^A-Z0-9]+".toRegex(), "_")
-                                .trim('_')
-                            officeId = if (slug.isNotEmpty()) "SITE_$slug" else ""
-                        }
+                        val slug = newName.trim().uppercase()
+                            .replace("[^A-Z0-9]+".toRegex(), "_")
+                            .trim('_')
+                        officeId = if (slug.isNotEmpty()) "SITE_$slug" else ""
                     },
                     label = "Site Name *",
                     placeholder = "e.g. Noida Branch"
@@ -1632,15 +1758,14 @@ private fun CreateSiteDialog(
 
                 Spacer(modifier = Modifier.height(AppDimensions.Spacing12))
 
-                // 2. Site Code / Office ID
+                // 2. Site Code (Auto-generated, non-editable)
                 AttendanceTextField(
                     value = officeId,
-                    onValueChange = {
-                        officeId = it.uppercase()
-                        isCodeManuallyEdited = true
-                    },
-                    label = "Site Code / Office ID *",
-                    placeholder = "e.g. SITE_NOIDA"
+                    onValueChange = {},
+                    readOnly = true,
+                    enabled = false,
+                    label = "Site Code (Auto-generated)",
+                    placeholder = "Auto-generated from name"
                 )
 
                 Spacer(modifier = Modifier.height(AppDimensions.Spacing12))
@@ -1724,10 +1849,6 @@ private fun CreateSiteDialog(
                     keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number)
                 )
 
-                Spacer(modifier = Modifier.height(AppDimensions.Spacing12))
-
-
-
                 Spacer(modifier = Modifier.height(AppDimensions.Spacing20))
 
                 val parsedLat = latitudeText.toDoubleOrNull()
@@ -1748,6 +1869,504 @@ private fun CreateSiteDialog(
                     },
                     enabled = !isLoading && isFormValid
                 )
+            }
+        }
+    }
+}
+
+/**
+ * Dialog to edit an existing office site.
+ * - Site Code / Office ID is displayed as non-editable
+ * - Site Name is editable
+ * - GPS Latitude and Longitude editable with "Use Current GPS"
+ * - Geofence Radius editable
+ */
+@Composable
+private fun EditSiteDialog(
+    site: AdminSiteDto,
+    isLoading: Boolean,
+    onDismiss: () -> Unit,
+    onFetchLocation: ((Double, Double) -> Unit) -> Unit,
+    onConfirm: (name: String, lat: Double, lng: Double, radiusM: Int) -> Unit
+) {
+    var name by remember { mutableStateOf(site.name) }
+    var latitudeText by remember { mutableStateOf("%.6f".format(Locale.US, site.latitude)) }
+    var longitudeText by remember { mutableStateOf("%.6f".format(Locale.US, site.longitude)) }
+    var radiusText by remember { mutableStateOf(site.radiusM.toString()) }
+    var isFetchingGps by remember { mutableStateOf(false) }
+
+    Dialog(onDismissRequest = onDismiss) {
+        Surface(
+            shape = RoundedCornerShape(AppDimensions.CardCornerRadius),
+            color = AppSurface,
+            border = BorderStroke(1.dp, AppBorder),
+            modifier = Modifier.fillMaxWidth()
+        ) {
+            Column(
+                modifier = Modifier
+                    .padding(AppDimensions.Spacing20)
+                    .verticalScroll(rememberScrollState())
+            ) {
+                // Header
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Text(
+                        text = "Edit Office Site",
+                        style = AppTypographyTokens.Title,
+                        color = AppPrimaryText
+                    )
+                    IconButton(onClick = onDismiss, modifier = Modifier.size(24.dp)) {
+                        Icon(Icons.Default.Close, contentDescription = "Close", tint = AppSecondaryText)
+                    }
+                }
+
+                Spacer(modifier = Modifier.height(AppDimensions.Spacing16))
+
+                // Site Code (Non-editable)
+                AttendanceTextField(
+                    value = site.officeId,
+                    onValueChange = {},
+                    enabled = false,
+                    readOnly = true,
+                    label = "Site Code (Non-editable)",
+                    placeholder = site.officeId
+                )
+
+                Spacer(modifier = Modifier.height(AppDimensions.Spacing12))
+
+                // Site Name
+                AttendanceTextField(
+                    value = name,
+                    onValueChange = { name = it },
+                    label = "Site Name *",
+                    placeholder = "e.g. Noida Branch"
+                )
+
+                Spacer(modifier = Modifier.height(AppDimensions.Spacing12))
+
+                // Coordinates Section with GPS Fetch Button
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Text(
+                        text = "GPS Coordinates *",
+                        style = AppTypographyTokens.CaptionMedium.copy(fontWeight = FontWeight.SemiBold),
+                        color = AppPrimaryText
+                    )
+                    Surface(
+                        modifier = Modifier.clickable(enabled = !isFetchingGps) {
+                            isFetchingGps = true
+                            onFetchLocation { lat, lng ->
+                                latitudeText = "%.6f".format(Locale.US, lat)
+                                longitudeText = "%.6f".format(Locale.US, lng)
+                                isFetchingGps = false
+                            }
+                        },
+                        shape = RoundedCornerShape(AppDimensions.ChipCornerRadius),
+                        color = AppAccentTint,
+                        border = BorderStroke(1.dp, AppAccent)
+                    ) {
+                        Row(
+                            modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp),
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            Icon(
+                                imageVector = Icons.Default.Place,
+                                contentDescription = null,
+                                tint = AppAccent,
+                                modifier = Modifier.size(14.dp)
+                            )
+                            Spacer(modifier = Modifier.width(4.dp))
+                            Text(
+                                text = if (isFetchingGps) "Getting GPS..." else "Use Current GPS",
+                                style = AppTypographyTokens.CaptionMedium,
+                                color = AppAccent
+                            )
+                        }
+                    }
+                }
+
+                Spacer(modifier = Modifier.height(AppDimensions.Spacing8))
+
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.spacedBy(AppDimensions.Spacing8)
+                ) {
+                    AttendanceTextField(
+                        value = latitudeText,
+                        onValueChange = { latitudeText = it },
+                        label = "Latitude",
+                        placeholder = "28.535516",
+                        keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal),
+                        modifier = Modifier.weight(1f)
+                    )
+                    AttendanceTextField(
+                        value = longitudeText,
+                        onValueChange = { longitudeText = it },
+                        label = "Longitude",
+                        placeholder = "77.391026",
+                        keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal),
+                        modifier = Modifier.weight(1f)
+                    )
+                }
+
+                Spacer(modifier = Modifier.height(AppDimensions.Spacing12))
+
+                // Geofence Radius
+                AttendanceTextField(
+                    value = radiusText,
+                    onValueChange = { radiusText = it.filter { ch -> ch.isDigit() } },
+                    label = "Geofence Radius (meters)",
+                    placeholder = "100",
+                    keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number)
+                )
+
+                Spacer(modifier = Modifier.height(AppDimensions.Spacing20))
+
+                val parsedLat = latitudeText.toDoubleOrNull()
+                val parsedLng = longitudeText.toDoubleOrNull()
+                val parsedRadius = radiusText.toIntOrNull() ?: 100
+                val isFormValid = name.isNotBlank() &&
+                        parsedLat != null &&
+                        parsedLng != null &&
+                        parsedRadius in 10..10000
+
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.spacedBy(AppDimensions.Spacing12)
+                ) {
+                    SecondaryButton(
+                        text = "Cancel",
+                        onClick = onDismiss,
+                        modifier = Modifier.weight(1f)
+                    )
+                    PrimaryButton(
+                        text = if (isLoading) "Saving..." else "Save Changes",
+                        onClick = {
+                            if (parsedLat != null && parsedLng != null) {
+                                onConfirm(name.trim(), parsedLat, parsedLng, parsedRadius)
+                            }
+                        },
+                        enabled = !isLoading && isFormValid,
+                        modifier = Modifier.weight(1f)
+                    )
+                }
+            }
+        }
+    }
+}
+
+/**
+ * Confirmation dialog to deactivate a site.
+ * Warns that if employees are assigned to it, deactivation will be rejected.
+ */
+@Composable
+private fun DeactivateSiteDialog(
+    site: AdminSiteDto,
+    isLoading: Boolean,
+    onDismiss: () -> Unit,
+    onConfirm: () -> Unit
+) {
+    Dialog(onDismissRequest = onDismiss) {
+        Surface(
+            shape = RoundedCornerShape(AppDimensions.CardCornerRadius),
+            color = AppSurface,
+            border = BorderStroke(AppDimensions.BorderWidth, AppBorder),
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(AppDimensions.ScreenPadding)
+        ) {
+            Column(modifier = Modifier.padding(AppDimensions.Spacing20)) {
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Text(
+                        text = "Deactivate Site",
+                        style = AppTypographyTokens.SectionHeading,
+                        color = AppPrimaryText
+                    )
+                    IconButton(onClick = onDismiss, modifier = Modifier.size(24.dp)) {
+                        Icon(Icons.Default.Close, contentDescription = "Close", tint = AppSecondaryText)
+                    }
+                }
+
+                Spacer(modifier = Modifier.height(AppDimensions.Spacing12))
+
+                Text(
+                    text = "Are you sure you want to deactivate \"${site.name}\" (${site.officeId})?",
+                    style = AppTypographyTokens.BodyMedium,
+                    color = AppPrimaryText
+                )
+
+                Spacer(modifier = Modifier.height(AppDimensions.Spacing12))
+
+                Surface(
+                    shape = RoundedCornerShape(AppDimensions.CardCornerRadius),
+                    color = AppErrorTint,
+                    border = BorderStroke(1.dp, AppError.copy(alpha = 0.3f)),
+                    modifier = Modifier.fillMaxWidth()
+                ) {
+                    Column(modifier = Modifier.padding(AppDimensions.Spacing12)) {
+                        Text(
+                            text = "Warning: If any employees are currently assigned to this site as their primary or secondary site, deactivation will be blocked until their site assignments are changed.",
+                            style = AppTypographyTokens.Caption,
+                            color = AppError
+                        )
+                    }
+                }
+
+                Spacer(modifier = Modifier.height(AppDimensions.Spacing20))
+
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.spacedBy(AppDimensions.Spacing12)
+                ) {
+                    SecondaryButton(
+                        text = "Cancel",
+                        onClick = onDismiss,
+                        modifier = Modifier.weight(1f)
+                    )
+                    DangerButton(
+                        text = if (isLoading) "Deactivating..." else "Deactivate",
+                        onClick = onConfirm,
+                        enabled = !isLoading,
+                        modifier = Modifier.weight(1f)
+                    )
+                }
+            }
+        }
+    }
+}
+
+/**
+ * Dialog to edit employee details (Full Name, Role, Assigned Sites).
+ * Employee ID is non-editable.
+ */
+@Composable
+private fun EditUserDialog(
+    user: AdminUserDto,
+    sites: List<AdminSiteDto>,
+    isAdmin: Boolean = true,
+    isLoading: Boolean,
+    onDismiss: () -> Unit,
+    onConfirm: (name: String, role: String, siteCode: String, siteCodes: List<String>) -> Unit
+) {
+    var name by remember { mutableStateOf(user.name) }
+    var selectedRole by remember(user, isAdmin) {
+        val initial = user.role.uppercase()
+        mutableStateOf(if (!isAdmin && initial == "ADMIN") "EMPLOYEE" else initial)
+    }
+
+    val allRoles = listOf(
+        Triple("EMPLOYEE", "Regular Staff", "Attendance check-in/out and field tracking"),
+        Triple("SUPERVISOR", "Site Supervisor", "Staff oversight, view attendance, manage site ops"),
+        Triple("ADMIN", "System Administrator", "Full system access, manage all users and sites")
+    )
+    val availableRoles = remember(isAdmin) {
+        if (!isAdmin) allRoles.filter { it.first != "ADMIN" } else allRoles
+    }
+
+    var selectedSiteCodes by remember(user) {
+        val assigned = user.assignedSites?.map { it.siteCode } ?: emptyList()
+        val currentSites = (listOf(user.siteCode) + assigned).filter { it.isNotBlank() }.distinct()
+        mutableStateOf<List<String>>(currentSites.ifEmpty { listOf(sites.firstOrNull()?.officeId ?: "DEFAULT_OFFICE") })
+    }
+
+    Dialog(onDismissRequest = onDismiss) {
+        Surface(
+            shape = RoundedCornerShape(AppDimensions.CardCornerRadius),
+            color = AppSurface,
+            border = BorderStroke(1.dp, AppBorder),
+            modifier = Modifier.fillMaxWidth()
+        ) {
+            Column(
+                modifier = Modifier
+                    .padding(AppDimensions.Spacing20)
+                    .verticalScroll(rememberScrollState())
+            ) {
+                // Header
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Text(
+                        text = "Edit Employee Details",
+                        style = AppTypographyTokens.Title,
+                        color = AppPrimaryText
+                    )
+                    IconButton(onClick = onDismiss, modifier = Modifier.size(24.dp)) {
+                        Icon(Icons.Default.Close, contentDescription = "Close", tint = AppSecondaryText)
+                    }
+                }
+
+                Spacer(modifier = Modifier.height(AppDimensions.Spacing16))
+
+                // Employee ID (read-only)
+                AttendanceTextField(
+                    value = user.userId,
+                    onValueChange = {},
+                    readOnly = true,
+                    enabled = false,
+                    label = "Employee ID (Non-editable)",
+                    placeholder = user.userId
+                )
+
+                Spacer(modifier = Modifier.height(AppDimensions.Spacing12))
+
+                // Full Name
+                AttendanceTextField(
+                    value = name,
+                    onValueChange = { name = it },
+                    label = "Full Name *",
+                    placeholder = "e.g. John Doe"
+                )
+
+                Spacer(modifier = Modifier.height(AppDimensions.Spacing16))
+
+                // Role Selection
+                Text(
+                    text = "Role *",
+                    style = AppTypographyTokens.CaptionMedium.copy(fontWeight = FontWeight.SemiBold),
+                    color = AppPrimaryText
+                )
+                Spacer(modifier = Modifier.height(AppDimensions.Spacing8))
+
+                Column(verticalArrangement = Arrangement.spacedBy(AppDimensions.Spacing8)) {
+                    availableRoles.forEach { (roleKey, roleTitle, roleDesc) ->
+                        val isSelected = selectedRole.equals(roleKey, ignoreCase = true)
+                        Surface(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .clickable { selectedRole = roleKey },
+                            shape = RoundedCornerShape(AppDimensions.ChipCornerRadius),
+                            color = if (isSelected) AppAccentTint else AppBackground,
+                            border = BorderStroke(1.dp, if (isSelected) AppAccent else AppBorder)
+                        ) {
+                            Row(
+                                modifier = Modifier.padding(horizontal = 12.dp, vertical = 8.dp),
+                                verticalAlignment = Alignment.CenterVertically
+                            ) {
+                                Column(modifier = Modifier.weight(1f)) {
+                                    Text(
+                                        text = "$roleKey • $roleTitle",
+                                        style = AppTypographyTokens.BodyMedium.copy(fontWeight = FontWeight.SemiBold),
+                                        color = if (isSelected) AppAccent else AppPrimaryText
+                                    )
+                                    Text(
+                                        text = roleDesc,
+                                        style = AppTypographyTokens.Caption,
+                                        color = AppSecondaryText
+                                    )
+                                }
+                                if (isSelected) {
+                                    Icon(
+                                        Icons.Default.Check,
+                                        contentDescription = null,
+                                        tint = AppAccent,
+                                        modifier = Modifier.size(18.dp)
+                                    )
+                                }
+                            }
+                        }
+                    }
+                }
+
+                Spacer(modifier = Modifier.height(AppDimensions.Spacing16))
+
+                // Assigned Sites (Multi-select)
+                Text(
+                    text = "Assigned Sites *",
+                    style = AppTypographyTokens.CaptionMedium.copy(fontWeight = FontWeight.SemiBold),
+                    color = AppPrimaryText
+                )
+                Spacer(modifier = Modifier.height(AppDimensions.Spacing8))
+
+                val effectiveSites = sites.filter { it.isActive }
+                Column(verticalArrangement = Arrangement.spacedBy(AppDimensions.Spacing8)) {
+                    effectiveSites.forEach { site ->
+                        val isChecked = selectedSiteCodes.contains(site.officeId)
+                        Surface(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .clickable {
+                                    selectedSiteCodes = if (isChecked) {
+                                        if (selectedSiteCodes.size > 1) selectedSiteCodes - site.officeId else selectedSiteCodes
+                                    } else {
+                                        selectedSiteCodes + site.officeId
+                                    }
+                                },
+                            shape = RoundedCornerShape(AppDimensions.ChipCornerRadius),
+                            color = if (isChecked) AppAccentTint else AppBackground,
+                            border = BorderStroke(1.dp, if (isChecked) AppAccent else AppBorder)
+                        ) {
+                            Row(
+                                modifier = Modifier.padding(horizontal = 12.dp, vertical = 8.dp),
+                                verticalAlignment = Alignment.CenterVertically
+                            ) {
+                                Checkbox(
+                                    checked = isChecked,
+                                    onCheckedChange = { checked ->
+                                        selectedSiteCodes = if (checked) {
+                                            selectedSiteCodes + site.officeId
+                                        } else {
+                                            if (selectedSiteCodes.size > 1) selectedSiteCodes - site.officeId else selectedSiteCodes
+                                        }
+                                    },
+                                    colors = CheckboxDefaults.colors(
+                                        checkedColor = AppAccent,
+                                        uncheckedColor = AppSecondaryText
+                                    ),
+                                    modifier = Modifier.size(20.dp)
+                                )
+                                Spacer(modifier = Modifier.width(8.dp))
+                                Column(modifier = Modifier.weight(1f)) {
+                                    Text(
+                                        text = site.name,
+                                        style = AppTypographyTokens.BodyMedium.copy(fontWeight = FontWeight.SemiBold),
+                                        color = if (isChecked) AppAccent else AppPrimaryText
+                                    )
+                                    Text(
+                                        text = "${site.officeId} • ${site.radiusM}m geofence",
+                                        style = AppTypographyTokens.Caption,
+                                        color = AppSecondaryText
+                                    )
+                                }
+                            }
+                        }
+                    }
+                }
+
+                Spacer(modifier = Modifier.height(AppDimensions.Spacing20))
+
+                val isFormValid = name.isNotBlank() && selectedSiteCodes.isNotEmpty()
+                val primarySite = if (selectedSiteCodes.contains(user.siteCode)) user.siteCode else selectedSiteCodes.first()
+
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.spacedBy(AppDimensions.Spacing12)
+                ) {
+                    SecondaryButton(
+                        text = "Cancel",
+                        onClick = onDismiss,
+                        modifier = Modifier.weight(1f)
+                    )
+                    PrimaryButton(
+                        text = if (isLoading) "Saving..." else "Save Changes",
+                        onClick = {
+                            onConfirm(name.trim(), selectedRole, primarySite, selectedSiteCodes)
+                        },
+                        enabled = !isLoading && isFormValid,
+                        modifier = Modifier.weight(1f)
+                    )
+                }
             }
         }
     }

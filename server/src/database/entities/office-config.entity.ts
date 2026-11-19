@@ -100,6 +100,9 @@ export class OfficeConfigEntity {
   })
   matchThreshold: number;
 
+  @Column({ name: 'is_active', type: 'boolean', default: true })
+  isActive: boolean;
+
   @UpdateDateColumn({ name: 'updated_at' })
   updatedAt: Date;
 }

@@ -6,8 +6,11 @@ import com.company.attendance.core.interfaces.LocationChecker
 import com.company.attendance.core.network.AttendanceApiService
 import com.company.attendance.core.network.NetworkHelper
 import com.company.attendance.core.network.model.AdminUserDto
+import com.company.attendance.core.network.model.AdminSiteDto
 import com.company.attendance.core.network.model.CreateSiteRequestDto
 import com.company.attendance.core.network.model.CreateUserRequestDto
+import com.company.attendance.core.network.model.UpdateSiteRequestDto
+import com.company.attendance.core.network.model.UpdateUserRequestDto
 import com.company.attendance.core.network.model.UpdateUserSiteRequestDto
 import com.company.attendance.core.network.model.UpdateUserRoleRequestDto
 import com.company.attendance.core.network.model.UpdateUserPasswordRequestDto
@@ -474,6 +477,181 @@ class AdminViewModel @Inject constructor(
             } catch (e: Exception) {
                 _uiState.update {
                     it.copy(isActionLoading = false, errorMessage = e.message ?: "Failed to delete user.")
+                }
+            }
+        }
+    }
+
+    fun openEditSiteDialog(site: AdminSiteDto) {
+        _uiState.update { it.copy(selectedSiteForEdit = site, errorMessage = null, successMessage = null) }
+    }
+
+    fun closeEditSiteDialog() {
+        _uiState.update { it.copy(selectedSiteForEdit = null) }
+    }
+
+    fun updateSite(
+        officeId: String,
+        name: String,
+        latitude: Double,
+        longitude: Double,
+        radiusM: Int
+    ) {
+        val trimmedName = name.trim()
+        if (trimmedName.isBlank()) {
+            _uiState.update { it.copy(errorMessage = "Site name cannot be blank.") }
+            return
+        }
+
+        viewModelScope.launch {
+            _uiState.update { it.copy(isActionLoading = true, errorMessage = null) }
+            try {
+                val request = UpdateSiteRequestDto(
+                    name = trimmedName,
+                    latitude = latitude,
+                    longitude = longitude,
+                    radiusM = radiusM
+                )
+                val response = apiService.updateAdminSite(officeId, request)
+                val result = NetworkHelper.parseResponse(response)
+
+                result.onSuccess { updatedSite ->
+                    _uiState.update { current ->
+                        current.copy(
+                            isActionLoading = false,
+                            selectedSiteForEdit = null,
+                            sites = current.sites.map { if (it.officeId == officeId) updatedSite else it },
+                            successMessage = "Site '${updatedSite.name}' updated successfully!"
+                        )
+                    }
+                }.onFailure { err ->
+                    _uiState.update {
+                        it.copy(isActionLoading = false, errorMessage = err.message ?: "Failed to update site.")
+                    }
+                }
+            } catch (e: Exception) {
+                _uiState.update {
+                    it.copy(isActionLoading = false, errorMessage = e.message ?: "Failed to update site.")
+                }
+            }
+        }
+    }
+
+    fun openDeactivateSiteDialog(site: AdminSiteDto) {
+        _uiState.update { it.copy(selectedSiteForDeactivate = site, errorMessage = null, successMessage = null) }
+    }
+
+    fun closeDeactivateSiteDialog() {
+        _uiState.update { it.copy(selectedSiteForDeactivate = null) }
+    }
+
+    fun deactivateSite(officeId: String) {
+        viewModelScope.launch {
+            _uiState.update { it.copy(isActionLoading = true, errorMessage = null) }
+            try {
+                val response = apiService.deactivateAdminSite(officeId)
+                val result = NetworkHelper.parseResponse(response)
+
+                result.onSuccess {
+                    _uiState.update { current ->
+                        current.copy(
+                            isActionLoading = false,
+                            selectedSiteForDeactivate = null,
+                            sites = current.sites.map { if (it.officeId == officeId) it.copy(isActive = false) else it },
+                            successMessage = "Site deactivated successfully."
+                        )
+                    }
+                }.onFailure { err ->
+                    _uiState.update {
+                        it.copy(isActionLoading = false, errorMessage = err.message ?: "Failed to deactivate site.")
+                    }
+                }
+            } catch (e: Exception) {
+                _uiState.update {
+                    it.copy(isActionLoading = false, errorMessage = e.message ?: "Failed to deactivate site.")
+                }
+            }
+        }
+    }
+
+    fun activateSite(officeId: String) {
+        viewModelScope.launch {
+            _uiState.update { it.copy(isActionLoading = true, errorMessage = null) }
+            try {
+                val response = apiService.activateAdminSite(officeId)
+                val result = NetworkHelper.parseResponse(response)
+
+                result.onSuccess {
+                    _uiState.update { current ->
+                        current.copy(
+                            isActionLoading = false,
+                            sites = current.sites.map { if (it.officeId == officeId) it.copy(isActive = true) else it },
+                            successMessage = "Site activated successfully."
+                        )
+                    }
+                }.onFailure { err ->
+                    _uiState.update {
+                        it.copy(isActionLoading = false, errorMessage = err.message ?: "Failed to activate site.")
+                    }
+                }
+            } catch (e: Exception) {
+                _uiState.update {
+                    it.copy(isActionLoading = false, errorMessage = e.message ?: "Failed to activate site.")
+                }
+            }
+        }
+    }
+
+    fun openEditUserDialog(user: AdminUserDto) {
+        _uiState.update { it.copy(selectedUserForEdit = user, errorMessage = null, successMessage = null) }
+    }
+
+    fun closeEditUserDialog() {
+        _uiState.update { it.copy(selectedUserForEdit = null) }
+    }
+
+    fun updateUser(
+        userId: String,
+        name: String,
+        role: String,
+        siteCode: String,
+        siteCodes: List<String>
+    ) {
+        val trimmedName = name.trim()
+        if (trimmedName.isBlank()) {
+            _uiState.update { it.copy(errorMessage = "Employee name cannot be blank.") }
+            return
+        }
+
+        viewModelScope.launch {
+            _uiState.update { it.copy(isActionLoading = true, errorMessage = null) }
+            try {
+                val request = UpdateUserRequestDto(
+                    name = trimmedName,
+                    role = role,
+                    siteCode = siteCode,
+                    siteCodes = siteCodes
+                )
+                val response = apiService.updateAdminUser(userId, request)
+                val result = NetworkHelper.parseResponse(response)
+
+                result.onSuccess { updatedUser ->
+                    _uiState.update { current ->
+                        current.copy(
+                            isActionLoading = false,
+                            selectedUserForEdit = null,
+                            users = current.users.map { if (it.userId == userId) updatedUser else it },
+                            successMessage = "Employee '${updatedUser.name}' updated successfully!"
+                        )
+                    }
+                }.onFailure { err ->
+                    _uiState.update {
+                        it.copy(isActionLoading = false, errorMessage = err.message ?: "Failed to update employee.")
+                    }
+                }
+            } catch (e: Exception) {
+                _uiState.update {
+                    it.copy(isActionLoading = false, errorMessage = e.message ?: "Failed to update employee.")
                 }
             }
         }

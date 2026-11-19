@@ -17,6 +17,7 @@ export interface AdminSite {
   radius_m: number;
   timezone: string;
   match_threshold: number;
+  is_active?: boolean;
   created_by?: string;
 }
 

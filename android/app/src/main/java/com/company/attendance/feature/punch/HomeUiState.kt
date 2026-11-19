@@ -114,6 +114,11 @@ sealed interface GeofenceDialogState {
         val formattedMessage: String
             get() = "Unable to determine current location ($reason). Please check your GPS signal and try again."
     }
+
+    data object PhotoResetRequired : GeofenceDialogState {
+        val formattedMessage: String
+            get() = "Your profile photo has been reset by an administrator. Please capture and enroll your photo to continue recording attendance."
+    }
 }
 
 /**
@@ -129,4 +134,5 @@ sealed interface HomeNavigationEvent {
     ) : HomeNavigationEvent
 
     data object NavigateToProfile : HomeNavigationEvent
+    data object NavigateToOnboarding : HomeNavigationEvent
 }

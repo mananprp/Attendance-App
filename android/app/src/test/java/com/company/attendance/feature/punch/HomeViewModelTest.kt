@@ -108,6 +108,8 @@ class HomeViewModelTest {
             hasPhoto = true
         )
         every { tokenStorage.getUserId() } returns "EMP1001"
+        coEvery { faceReferenceManager.syncPhotoReferenceState(any()) } returns true
+        coEvery { faceReferenceManager.validateLocalReference(any()) } returns true
 
         every { trustedTimeProvider.currentTimeFlow } returns timeFlow
         coEvery { trustedTimeProvider.getTrustedTime() } answers { timeFlow.value }

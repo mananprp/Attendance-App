@@ -5,11 +5,15 @@ import * as crypto from 'crypto';
 import { UsersService } from './users.service';
 import { UserEntity } from '../../database/entities/user.entity';
 import { UserPhotoEntity } from '../../database/entities/user-photo.entity';
+import { UserSiteEntity } from '../../database/entities/user-site.entity';
+import { OfficeConfigEntity } from '../../database/entities/office-config.entity';
 
 describe('UsersService', () => {
   let service: UsersService;
   let userRepo: any;
   let photoRepo: any;
+  let userSiteRepo: any;
+  let officeConfigRepo: any;
 
   const validJpegBuffer = Buffer.concat([
     Buffer.from([0xff, 0xd8, 0xff, 0xe0, 0x00, 0x10, 0x4a, 0x46, 0x49, 0x46]),
@@ -57,6 +61,12 @@ describe('UsersService', () => {
       remove: jest.fn().mockResolvedValue([]),
       delete: jest.fn().mockResolvedValue({ affected: 1 }),
     };
+    userSiteRepo = {
+      find: jest.fn().mockResolvedValue([]),
+    };
+    officeConfigRepo = {
+      find: jest.fn().mockResolvedValue([]),
+    };
 
     const module: TestingModule = await Test.createTestingModule({
       providers: [
@@ -68,6 +78,14 @@ describe('UsersService', () => {
         {
           provide: getRepositoryToken(UserPhotoEntity),
           useValue: photoRepo,
+        },
+        {
+          provide: getRepositoryToken(UserSiteEntity),
+          useValue: userSiteRepo,
+        },
+        {
+          provide: getRepositoryToken(OfficeConfigEntity),
+          useValue: officeConfigRepo,
         },
       ],
     }).compile();

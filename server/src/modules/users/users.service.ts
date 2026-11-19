@@ -9,10 +9,13 @@ import { Repository } from 'typeorm';
 import * as crypto from 'crypto';
 import { UserEntity } from '../../database/entities/user.entity';
 import { UserPhotoEntity } from '../../database/entities/user-photo.entity';
+import { UserSiteEntity } from '../../database/entities/user-site.entity';
+import { OfficeConfigEntity } from '../../database/entities/office-config.entity';
 import {
   PhotoUploadResponseDto,
   PhotoDetailResponseDto,
 } from './dto/photo-response.dto';
+import { UserProfileResponseDto } from './dto/user-profile-response.dto';
 
 function validateAndDetectImageType(file: Express.Multer.File): { mimeType: string } {
   if (!file || !file.buffer) {
@@ -61,7 +64,56 @@ export class UsersService {
     private readonly userRepository: Repository<UserEntity>,
     @InjectRepository(UserPhotoEntity)
     private readonly photoRepository: Repository<UserPhotoEntity>,
+    @InjectRepository(UserSiteEntity)
+    private readonly userSiteRepository: Repository<UserSiteEntity>,
+    @InjectRepository(OfficeConfigEntity)
+    private readonly officeConfigRepository: Repository<OfficeConfigEntity>,
   ) {}
+
+  async getUserProfile(userId: string): Promise<UserProfileResponseDto> {
+    const user = await this.userRepository.findOne({ where: { userId } });
+    if (!user) {
+      throw new NotFoundException({
+        code: 'USER_NOT_FOUND',
+        message: 'User not found.',
+      });
+    }
+
+    const primaryOffice = await this.officeConfigRepository.findOne({
+      where: { officeId: user.siteCode },
+    });
+
+    const userSites = await this.userSiteRepository.find({ where: { userId } });
+    const siteCodes = new Set<string>();
+    siteCodes.add(user.siteCode);
+    userSites.forEach((us) => siteCodes.add(us.siteCode));
+
+    const allOffices = await this.officeConfigRepository.find();
+    const officeMap = new Map(allOffices.map((o) => [o.officeId, o.name]));
+
+    const assignedSites = Array.from(siteCodes).map((sc) => ({
+      site_code: sc,
+      site_name: officeMap.get(sc) || (sc === user.siteCode && primaryOffice ? primaryOffice.name : sc),
+    }));
+
+    const activePhoto = await this.photoRepository.findOne({
+      where: { userId, isActive: true },
+      order: { version: 'DESC' },
+    });
+
+    return {
+      user_id: user.userId,
+      name: user.name,
+      role: user.role,
+      site_code: user.siteCode,
+      site_name: primaryOffice?.name || officeMap.get(user.siteCode) || 'Headquarters',
+      assigned_sites: assignedSites,
+      has_photo: !!activePhoto,
+      photo_version: activePhoto?.version,
+      photo_hash: activePhoto?.hash,
+      photo_change_used: user.photoChangeUsed,
+    };
+  }
 
   async uploadPhotoV1(
     userId: string,

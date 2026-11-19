@@ -18,6 +18,9 @@ data class AdminUiState(
     val selectedUserForPasswordReset: AdminUserDto? = null,
     val selectedUserForPhotoReset: AdminUserDto? = null,
     val selectedUserForDelete: AdminUserDto? = null,
+    val selectedSiteForEdit: AdminSiteDto? = null,
+    val selectedSiteForDeactivate: AdminSiteDto? = null,
+    val selectedUserForEdit: AdminUserDto? = null,
     val isAdmin: Boolean = false,
     val currentRole: String = "EMPLOYEE"
 )

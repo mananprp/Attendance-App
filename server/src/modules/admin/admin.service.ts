@@ -3,9 +3,10 @@ import {
   NotFoundException,
   ConflictException,
   BadRequestException,
+  ForbiddenException,
 } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
-import { Repository } from 'typeorm';
+import { Repository, In } from 'typeorm';
 import * as bcrypt from 'bcryptjs';
 import { UserEntity, UserRole, UserStatus } from '../../database/entities/user.entity';
 import { UserSiteEntity } from '../../database/entities/user-site.entity';
@@ -16,6 +17,8 @@ import { AdminUserDto } from './dto/admin-user.dto';
 import { AdminSiteDto } from './dto/admin-site.dto';
 import { CreateUserDto } from './dto/create-user.dto';
 import { CreateSiteDto } from './dto/create-site.dto';
+import { UpdateSiteDto } from './dto/update-site.dto';
+import { UpdateUserDto } from './dto/update-user.dto';
 import { AdminPunchDto } from './dto/admin-punch.dto';
 import { AdminPunchFilterDto } from './dto/admin-punch-filter.dto';
 import { AdminDailyAttendanceDto } from './dto/admin-daily-attendance.dto';
@@ -71,20 +74,41 @@ export class AdminService {
       radius_m: o.radiusM,
       timezone: o.timezone,
       match_threshold: Number(o.matchThreshold) || 0.38,
+      is_active: o.isActive !== false,
       created_by: o.createdBy,
     }));
   }
 
+  private async generateUniqueSiteCode(name: string): Promise<string> {
+    const slug = name
+      .trim()
+      .toUpperCase()
+      .replace(/[^A-Z0-9]+/g, '_')
+      .replace(/^_+|_+$/g, '');
+    const base = 'SITE_' + (slug.length > 0 ? slug.slice(0, 45) : 'OFFICE');
+    let candidate = base;
+    let counter = 1;
+    while (await this.officeConfigRepository.findOne({ where: { officeId: candidate } })) {
+      counter++;
+      candidate = `${base}_${counter}`;
+    }
+    return candidate;
+  }
+
   async createSite(dto: CreateSiteDto, caller?: AuthenticatedUser): Promise<AdminSiteDto> {
-    const officeId = dto.office_id.trim().toUpperCase();
-    const existing = await this.officeConfigRepository.findOne({
-      where: { officeId },
-    });
-    if (existing) {
-      throw new ConflictException({
-        code: 'SITE_ALREADY_EXISTS',
-        message: `Office site with ID '${officeId}' already exists.`,
+    let officeId = dto.office_id ? dto.office_id.trim().toUpperCase() : '';
+    if (!officeId) {
+      officeId = await this.generateUniqueSiteCode(dto.name);
+    } else {
+      const existing = await this.officeConfigRepository.findOne({
+        where: { officeId },
       });
+      if (existing) {
+        throw new ConflictException({
+          code: 'SITE_ALREADY_EXISTS',
+          message: `Office site with ID '${officeId}' already exists.`,
+        });
+      }
     }
 
     const site = this.officeConfigRepository.create({
@@ -96,8 +120,9 @@ export class AdminService {
       timezone: dto.timezone || 'Asia/Kolkata',
       syncWindows: ['16:00', '00:00'],
       syncJitterMinutes: 30,
-      matchThreshold: 0.38,
+      matchThreshold: dto.match_threshold !== undefined ? dto.match_threshold : 0.38,
       createdBy: caller?.userId,
+      isActive: true,
     });
 
     const saved = await this.officeConfigRepository.save(site);
@@ -119,7 +144,154 @@ export class AdminService {
       radius_m: saved.radiusM,
       timezone: saved.timezone,
       match_threshold: Number(saved.matchThreshold) || 0.38,
+      is_active: saved.isActive !== false,
       created_by: saved.createdBy,
+    };
+  }
+
+  async updateSite(
+    officeId: string,
+    dto: UpdateSiteDto,
+    caller?: AuthenticatedUser,
+  ): Promise<AdminSiteDto> {
+    const site = await this.officeConfigRepository.findOne({
+      where: { officeId },
+    });
+    if (!site) {
+      throw new NotFoundException({
+        code: 'SITE_NOT_FOUND',
+        message: `Office site with ID '${officeId}' not found.`,
+      });
+    }
+
+    const accessible = await this.getAccessibleSiteCodes(caller);
+    if (accessible && !accessible.has(officeId) && site.createdBy !== caller?.userId) {
+      throw new ForbiddenException({
+        code: 'FORBIDDEN',
+        message: 'You can only update sites under your supervision.',
+      });
+    }
+
+    if (dto.name !== undefined && dto.name.trim().length > 0) {
+      site.name = dto.name.trim();
+    }
+    if (dto.latitude !== undefined) {
+      site.latitude = dto.latitude;
+    }
+    if (dto.longitude !== undefined) {
+      site.longitude = dto.longitude;
+    }
+    if (dto.radius_m !== undefined) {
+      site.radiusM = dto.radius_m;
+    }
+    if (dto.timezone !== undefined && dto.timezone.trim().length > 0) {
+      site.timezone = dto.timezone.trim();
+    }
+    if (dto.match_threshold !== undefined) {
+      site.matchThreshold = dto.match_threshold;
+    }
+
+    const saved = await this.officeConfigRepository.save(site);
+
+    return {
+      office_id: saved.officeId,
+      name: saved.name,
+      latitude: Number(saved.latitude),
+      longitude: Number(saved.longitude),
+      radius_m: saved.radiusM,
+      timezone: saved.timezone,
+      match_threshold: Number(saved.matchThreshold) || 0.38,
+      is_active: saved.isActive !== false,
+      created_by: saved.createdBy,
+    };
+  }
+
+  async deactivateSite(
+    officeId: string,
+    caller?: AuthenticatedUser,
+  ): Promise<{ success: boolean; message: string }> {
+    const site = await this.officeConfigRepository.findOne({
+      where: { officeId },
+    });
+    if (!site) {
+      throw new NotFoundException({
+        code: 'SITE_NOT_FOUND',
+        message: `Office site with ID '${officeId}' not found.`,
+      });
+    }
+
+    const accessible = await this.getAccessibleSiteCodes(caller);
+    if (accessible && !accessible.has(officeId) && site.createdBy !== caller?.userId) {
+      throw new ForbiddenException({
+        code: 'FORBIDDEN',
+        message: 'You can only deactivate sites under your supervision.',
+      });
+    }
+
+    // Check if any employees are assigned to this site
+    const primaryUsers = await this.userRepository.find({
+      where: { siteCode: officeId },
+    });
+    const secondaryUserSites = await this.userSiteRepository.find({
+      where: { siteCode: officeId },
+    });
+
+    const userIds = new Set<string>();
+    primaryUsers.forEach((u) => userIds.add(u.userId));
+    secondaryUserSites.forEach((us) => userIds.add(us.userId));
+
+    if (userIds.size > 0) {
+      const assignedUsers = await this.userRepository.find({
+        where: { userId: In(Array.from(userIds)) },
+      });
+      const names = assignedUsers
+        .map((u) => `${u.name} (${u.userId})`)
+        .slice(0, 5)
+        .join(', ');
+      const extra = userIds.size > 5 ? ` and ${userIds.size - 5} more` : '';
+      throw new ConflictException({
+        code: 'SITE_HAS_ASSIGNED_EMPLOYEES',
+        message: `Cannot deactivate site: ${userIds.size} employee(s) (${names}${extra}) are assigned to this site. Please reassign their site before deactivating.`,
+      });
+    }
+
+    site.isActive = false;
+    await this.officeConfigRepository.save(site);
+
+    return {
+      success: true,
+      message: `Site '${site.name}' (${officeId}) deactivated successfully.`,
+    };
+  }
+
+  async activateSite(
+    officeId: string,
+    caller?: AuthenticatedUser,
+  ): Promise<{ success: boolean; message: string }> {
+    const site = await this.officeConfigRepository.findOne({
+      where: { officeId },
+    });
+    if (!site) {
+      throw new NotFoundException({
+        code: 'SITE_NOT_FOUND',
+        message: `Office site with ID '${officeId}' not found.`,
+      });
+    }
+
+    const accessible = await this.getAccessibleSiteCodes(caller);
+    if (accessible && !accessible.has(officeId) && site.createdBy !== caller?.userId) {
+      throw new ForbiddenException({
+        code: 'FORBIDDEN',
+        message: 'You can only activate sites under your supervision.',
+      });
+    }
+
+    site.isActive = true;
+    await this.officeConfigRepository.save(site);
+
+    return {
+      success: true,
+      message: `Site '${site.name}' (${officeId}) activated successfully.`,
     };
   }
 
@@ -321,6 +493,126 @@ export class AdminService {
     }
 
     const assignedSitesEntities = await this.userSiteRepository.find({ where: { userId } });
+    const offices = await this.officeConfigRepository.find();
+    const officeMap = new Map(offices.map((o) => [o.officeId, o.name]));
+
+    return {
+      user_id: saved.userId,
+      name: saved.name,
+      role: saved.role,
+      site_code: saved.siteCode,
+      site_name: site?.name || officeMap.get(saved.siteCode) || 'Headquarters',
+      assigned_sites: assignedSitesEntities.map((as) => ({
+        site_code: as.siteCode,
+        site_name: officeMap.get(as.siteCode) || as.siteCode,
+      })),
+      status: saved.status,
+      photo_change_used: saved.photoChangeUsed,
+    };
+  }
+
+  async updateUser(
+    userId: string,
+    dto: UpdateUserDto,
+    caller?: AuthenticatedUser,
+  ): Promise<AdminUserDto> {
+    const user = await this.userRepository.findOne({ where: { userId } });
+    if (!user) {
+      throw new NotFoundException({
+        code: 'USER_NOT_FOUND',
+        message: `User '${userId}' not found.`,
+      });
+    }
+
+    const accessible = await this.getAccessibleSiteCodes(caller);
+    if (accessible) {
+      const currentSites = await this.userSiteRepository.find({ where: { userId } });
+      const inScope =
+        accessible.has(user.siteCode) ||
+        currentSites.some((s) => accessible.has(s.siteCode));
+      if (!inScope) {
+        throw new ForbiddenException({
+          code: 'FORBIDDEN',
+          message: 'You can only manage employees under your assigned sites.',
+        });
+      }
+    }
+
+    if (dto.name !== undefined && dto.name.trim().length > 0) {
+      user.name = dto.name.trim();
+    }
+
+    if (dto.role) {
+      if (caller && caller.role === UserRole.SUPERVISOR) {
+        if (dto.role === UserRole.ADMIN) {
+          throw new ForbiddenException({
+            code: 'FORBIDDEN',
+            message: 'Supervisors cannot promote users to ADMIN.',
+          });
+        }
+        if (user.role === UserRole.ADMIN) {
+          throw new ForbiddenException({
+            code: 'FORBIDDEN',
+            message: 'Supervisors cannot change ADMIN accounts.',
+          });
+        }
+      }
+      user.role = dto.role;
+    }
+
+    if (dto.site_code || (dto.site_codes && dto.site_codes.length > 0)) {
+      const primarySite =
+        dto.site_code ||
+        (dto.site_codes && dto.site_codes.length > 0
+          ? dto.site_codes[0]
+          : user.siteCode);
+
+      if (accessible) {
+        const newSites =
+          dto.site_codes && dto.site_codes.length > 0
+            ? dto.site_codes
+            : [primarySite];
+        if (newSites.some((s) => !accessible.has(s))) {
+          throw new ForbiddenException({
+            code: 'FORBIDDEN',
+            message: 'You can only assign employees to sites you manage.',
+          });
+        }
+      }
+
+      user.siteCode = primarySite;
+
+      if (dto.site_codes && dto.site_codes.length > 0) {
+        await this.userSiteRepository.delete({ userId });
+        for (const sc of dto.site_codes) {
+          await this.userSiteRepository.save({
+            userId,
+            siteCode: sc,
+            assignedBy: caller?.userId,
+          });
+        }
+      } else if (dto.site_code) {
+        const existing = await this.userSiteRepository.findOne({
+          where: { userId, siteCode: dto.site_code },
+        });
+        if (!existing) {
+          await this.userSiteRepository.save({
+            userId,
+            siteCode: dto.site_code,
+            assignedBy: caller?.userId,
+          });
+        }
+      }
+    }
+
+    const saved = await this.userRepository.save(user);
+
+    const site = await this.officeConfigRepository.findOne({
+      where: { officeId: saved.siteCode },
+    });
+    const assignedSitesEntities = await this.userSiteRepository.find({
+      where: { userId },
+    });
     const offices = await this.officeConfigRepository.find();
     const officeMap = new Map(offices.map((o) => [o.officeId, o.name]));
 

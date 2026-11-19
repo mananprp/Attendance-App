@@ -3,18 +3,24 @@ import { getRepositoryToken } from '@nestjs/typeorm';
 import { ConfigService } from './config.service';
 import { OfficeConfigEntity } from '../../database/entities/office-config.entity';
 import { UserEntity } from '../../database/entities/user.entity';
+import { UserSiteEntity } from '../../database/entities/user-site.entity';
 
 describe('ConfigService', () => {
   let service: ConfigService;
   let officeRepo: any;
   let userRepo: any;
+  let userSiteRepo: any;
 
   beforeEach(async () => {
     officeRepo = {
       findOne: jest.fn(),
+      find: jest.fn().mockResolvedValue([]),
     };
     userRepo = {
       findOne: jest.fn(),
+    };
+    userSiteRepo = {
+      find: jest.fn().mockResolvedValue([]),
     };
 
     const module: TestingModule = await Test.createTestingModule({
@@ -28,6 +34,10 @@ describe('ConfigService', () => {
           provide: getRepositoryToken(UserEntity),
           useValue: userRepo,
         },
+        {
+          provide: getRepositoryToken(UserSiteEntity),
+          useValue: userSiteRepo,
+        },
       ],
     }).compile();
 
@@ -35,7 +45,7 @@ describe('ConfigService', () => {
   });
 
   it('should return office config from database when found', async () => {
-    officeRepo.findOne.mockResolvedValue({
+    const defaultOffice = {
       officeId: 'DEFAULT_OFFICE',
       name: 'Headquarters',
       latitude: '28.613939',
@@ -45,7 +55,9 @@ describe('ConfigService', () => {
       syncWindows: ['16:00', '00:00'],
       syncJitterMinutes: 30,
       matchThreshold: '0.5500',
-    });
+    };
+    officeRepo.findOne.mockResolvedValue(defaultOffice);
+    officeRepo.find.mockResolvedValue([defaultOffice]);
 
     const result = await service.getAppConfig();
     expect(result.office_lat).toBe(28.613939);

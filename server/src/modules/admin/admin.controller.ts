@@ -29,6 +29,8 @@ import { AdminUserDto } from './dto/admin-user.dto';
 import { AdminSiteDto } from './dto/admin-site.dto';
 import { CreateUserDto } from './dto/create-user.dto';
 import { CreateSiteDto } from './dto/create-site.dto';
+import { UpdateSiteDto } from './dto/update-site.dto';
+import { UpdateUserDto } from './dto/update-user.dto';
 import { UpdateUserSiteDto } from './dto/update-user-site.dto';
 import { UpdateUserRoleDto } from './dto/update-user-role.dto';
 import { UpdateUserPasswordDto } from './dto/update-user-password.dto';
@@ -60,6 +62,38 @@ export class AdminController {
     return this.adminService.createSite(dto, user);
   }
 
+  @Patch('sites/:officeId')
+  @ApiOperation({ summary: 'Update an existing office site location' })
+  @ApiResponse({ status: 200, type: AdminSiteDto })
+  async updateSite(
+    @Param('officeId') officeId: string,
+    @Body() dto: UpdateSiteDto,
+    @CurrentUser() user: AuthenticatedUser,
+  ): Promise<AdminSiteDto> {
+    return this.adminService.updateSite(officeId, dto, user);
+  }
+
+  @Patch('sites/:officeId/deactivate')
+  @ApiOperation({ summary: 'Deactivate an office site (blocked if employees assigned)' })
+  @ApiResponse({ status: 200, description: 'Site deactivated successfully' })
+  @ApiResponse({ status: 409, description: 'Conflict: Employees currently assigned' })
+  async deactivateSite(
+    @Param('officeId') officeId: string,
+    @CurrentUser() user: AuthenticatedUser,
+  ): Promise<{ success: boolean; message: string }> {
+    return this.adminService.deactivateSite(officeId, user);
+  }
+
+  @Patch('sites/:officeId/activate')
+  @ApiOperation({ summary: 'Re-activate a deactivated office site' })
+  @ApiResponse({ status: 200, description: 'Site activated successfully' })
+  async activateSite(
+    @Param('officeId') officeId: string,
+    @CurrentUser() user: AuthenticatedUser,
+  ): Promise<{ success: boolean; message: string }> {
+    return this.adminService.activateSite(officeId, user);
+  }
+
   @Get('users')
   @ApiOperation({ summary: 'List all users with their roles and assigned sites' })
   @ApiResponse({ status: 200, type: [AdminUserDto] })
@@ -75,6 +109,17 @@ export class AdminController {
     @CurrentUser() user: AuthenticatedUser,
   ): Promise<AdminUserDto> {
     return this.adminService.createUser(dto, user);
+  }
+
+  @Patch('users/:userId')
+  @ApiOperation({ summary: 'Update user name, role, and/or assigned sites' })
+  @ApiResponse({ status: 200, type: AdminUserDto })
+  async updateUser(
+    @Param('userId') userId: string,
+    @Body() dto: UpdateUserDto,
+    @CurrentUser() user: AuthenticatedUser,
+  ): Promise<AdminUserDto> {
+    return this.adminService.updateUser(userId, dto, user);
   }
 
   @Patch('users/:userId/site')

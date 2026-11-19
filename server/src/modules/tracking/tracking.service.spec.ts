@@ -6,6 +6,9 @@ import {
   TrackingSessionStatus,
   TrackingPointEntity,
   TrackingStopEntity,
+  UserEntity,
+  UserSiteEntity,
+  OfficeConfigEntity,
 } from '../../database/entities';
 import { ForbiddenException, NotFoundException } from '@nestjs/common';
 
@@ -14,6 +17,9 @@ describe('TrackingService', () => {
   let sessionRepoMock: any;
   let pointRepoMock: any;
   let stopRepoMock: any;
+  let userRepoMock: any;
+  let userSiteRepoMock: any;
+  let officeConfigRepoMock: any;
 
   beforeEach(async () => {
     sessionRepoMock = {
@@ -35,6 +41,19 @@ describe('TrackingService', () => {
       save: jest.fn((entities) => Promise.resolve(entities)),
     };
 
+    userRepoMock = {
+      findOne: jest.fn(),
+    };
+
+    userSiteRepoMock = {
+      find: jest.fn().mockResolvedValue([]),
+    };
+
+    officeConfigRepoMock = {
+      findOne: jest.fn(),
+      find: jest.fn().mockResolvedValue([]),
+    };
+
     const module: TestingModule = await Test.createTestingModule({
       providers: [
         TrackingService,
@@ -49,6 +68,18 @@ describe('TrackingService', () => {
         {
           provide: getRepositoryToken(TrackingStopEntity),
           useValue: stopRepoMock,
+        },
+        {
+          provide: getRepositoryToken(UserEntity),
+          useValue: userRepoMock,
+        },
+        {
+          provide: getRepositoryToken(UserSiteEntity),
+          useValue: userSiteRepoMock,
+        },
+        {
+          provide: getRepositoryToken(OfficeConfigEntity),
+          useValue: officeConfigRepoMock,
         },
       ],
     }).compile();

@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { api, getStoredUser } from '../api';
 import { AdminUser, AdminSite } from '../types';
-import { UserPlus, Shield, User, MapPin, RefreshCw, X, Key, Trash2, CheckCircle, AlertCircle, Camera, UserCheck } from 'lucide-react';
+import { UserPlus, Shield, User, MapPin, RefreshCw, X, Key, Trash2, CheckCircle, AlertCircle, Camera, UserCheck, Edit2 } from 'lucide-react';
 
 interface UsersViewProps {
   sites: AdminSite[];
@@ -30,6 +30,13 @@ export const UsersView: React.FC<UsersViewProps> = ({ sites }) => {
   const [selectedSiteCode, setSelectedSiteCode] = useState('');
   const [selectedSiteCodes, setSelectedSiteCodes] = useState<string[]>([]);
   const [savingSite, setSavingSite] = useState(false);
+
+  // Full Edit User Modal State
+  const [editingFullUser, setEditingFullUser] = useState<AdminUser | null>(null);
+  const [editUserName, setEditUserName] = useState('');
+  const [editUserRole, setEditUserRole] = useState<'EMPLOYEE' | 'SUPERVISOR' | 'ADMIN'>('EMPLOYEE');
+  const [editUserSiteCodes, setEditUserSiteCodes] = useState<string[]>([]);
+  const [savingFullUser, setSavingFullUser] = useState(false);
 
   // Edit Role Modal State
   const [roleUser, setRoleUser] = useState<AdminUser | null>(null);
@@ -192,6 +199,46 @@ export const UsersView: React.FC<UsersViewProps> = ({ sites }) => {
     }
   };
 
+  const handleOpenEditFullUser = (user: AdminUser) => {
+    if (isSupervisor && user.role === 'ADMIN') {
+      alert('Supervisors cannot modify Administrator accounts.');
+      return;
+    }
+    setEditingFullUser(user);
+    setEditUserName(user.name);
+    setEditUserRole(user.role);
+    const existing = user.assigned_sites?.map((s) => s.site_code) || [user.site_code];
+    setEditUserSiteCodes(existing.length > 0 ? existing : [user.site_code]);
+  };
+
+  const handleSaveFullUser = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!editingFullUser) return;
+    if (isSupervisor && editUserRole === 'ADMIN') {
+      alert('Supervisors cannot assign the Admin role.');
+      return;
+    }
+    if (editUserSiteCodes.length === 0) {
+      alert('Please select at least one assigned office site.');
+      return;
+    }
+    try {
+      setSavingFullUser(true);
+      await api.updateUser(editingFullUser.user_id, {
+        name: editUserName.trim(),
+        role: editUserRole,
+        site_code: editUserSiteCodes[0],
+        site_codes: editUserSiteCodes,
+      });
+      setEditingFullUser(null);
+      await loadUsers();
+    } catch (err: any) {
+      alert(`Failed to update employee details: ${err.message}`);
+    } finally {
+      setSavingFullUser(false);
+    }
+  };
+
   const handleOpenDeleteModal = (user: AdminUser) => {
     setDeletingUser(user);
   };
@@ -345,6 +392,14 @@ export const UsersView: React.FC<UsersViewProps> = ({ sites }) => {
                         </span>
                       ) : (
                         <>
+                          <button
+                            onClick={() => handleOpenEditFullUser(u)}
+                            className="btn btn-secondary btn-sm"
+                            title="Edit employee name, role, and assigned sites"
+                            style={{ display: 'inline-flex', alignItems: 'center', gap: 4 }}
+                          >
+                            <Edit2 size={13} /> Edit
+                          </button>
                           <button
                             onClick={() => handleOpenSiteModal(u)}
                             className="btn btn-secondary btn-sm"
@@ -935,6 +990,130 @@ export const UsersView: React.FC<UsersViewProps> = ({ sites }) => {
                 </button>
               )}
             </div>
+          </div>
+        </div>
+      )}
+
+      {/* Edit Full User Modal */}
+      {editingFullUser && (
+        <div className="modal-overlay">
+          <div className="modal-content">
+            <div className="modal-header">
+              <div>
+                <h3 style={{ fontSize: '1.1rem', fontWeight: 700 }}>Edit Employee Details</h3>
+                <span style={{ fontSize: '0.78rem', fontFamily: 'monospace', color: 'var(--text-secondary)' }}>
+                  ID: {editingFullUser.user_id} (Locked)
+                </span>
+              </div>
+              <button
+                onClick={() => setEditingFullUser(null)}
+                style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--text-secondary)' }}
+              >
+                <X size={20} />
+              </button>
+            </div>
+            <form onSubmit={handleSaveFullUser}>
+              <div className="modal-body">
+                <div className="filter-group">
+                  <label className="filter-label">Full Name</label>
+                  <input
+                    type="text"
+                    className="input"
+                    value={editUserName}
+                    onChange={(e) => setEditUserName(e.target.value)}
+                    required
+                  />
+                </div>
+
+                <div className="filter-group">
+                  <label className="filter-label">Access Role</label>
+                  <select
+                    className="select"
+                    value={editUserRole}
+                    onChange={(e) => setEditUserRole(e.target.value as any)}
+                  >
+                    <option value="EMPLOYEE">EMPLOYEE (Standard Access)</option>
+                    <option value="SUPERVISOR">SUPERVISOR (Site Management)</option>
+                    {!isSupervisor && <option value="ADMIN">ADMIN (Full Console Access)</option>}
+                  </select>
+                </div>
+
+                <div className="filter-group">
+                  <label className="filter-label">Assigned Office Site Locations</label>
+                  <div
+                    style={{
+                      maxHeight: 180,
+                      overflowY: 'auto',
+                      border: '1px solid var(--border)',
+                      borderRadius: 8,
+                      padding: 10,
+                      display: 'flex',
+                      flexDirection: 'column',
+                      gap: 8,
+                      background: '#fff',
+                    }}
+                  >
+                    {sites.map((s) => {
+                      const checked = editUserSiteCodes.includes(s.office_id);
+                      return (
+                        <label
+                          key={s.office_id}
+                          style={{
+                            display: 'flex',
+                            alignItems: 'center',
+                            gap: 10,
+                            fontSize: '0.88rem',
+                            cursor: 'pointer',
+                          }}
+                        >
+                          <input
+                            type="checkbox"
+                            checked={checked}
+                            onChange={(e) => {
+                              if (e.target.checked) {
+                                setEditUserSiteCodes([...editUserSiteCodes, s.office_id]);
+                              } else {
+                                if (editUserSiteCodes.length > 1) {
+                                  setEditUserSiteCodes(editUserSiteCodes.filter((c) => c !== s.office_id));
+                                } else {
+                                  alert('Employee must be assigned to at least one site.');
+                                }
+                              }
+                            }}
+                          />
+                          <div>
+                            <span style={{ fontWeight: 600 }}>{s.name}</span>
+                            <span style={{ fontSize: '0.75rem', color: 'var(--text-secondary)', marginLeft: 6 }}>
+                              ({s.office_id})
+                            </span>
+                          </div>
+                        </label>
+                      );
+                    })}
+                  </div>
+                  <span style={{ fontSize: '0.75rem', color: 'var(--text-secondary)', marginTop: 4 }}>
+                    The first selected site serves as the primary office site.
+                  </span>
+                </div>
+              </div>
+
+              <div className="modal-footer">
+                <button
+                  type="button"
+                  onClick={() => setEditingFullUser(null)}
+                  className="btn btn-secondary"
+                >
+                  Cancel
+                </button>
+                <button
+                  type="submit"
+                  disabled={savingFullUser || !editUserName.trim()}
+                  className="btn btn-primary"
+                >
+                  {savingFullUser ? 'Saving...' : 'Save Employee Details'}
+                </button>
+              </div>
+            </form>
           </div>
         </div>
       )}

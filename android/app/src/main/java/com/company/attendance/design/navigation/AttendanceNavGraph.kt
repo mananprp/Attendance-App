@@ -122,6 +122,9 @@ fun AttendanceNavGraph(
                     },
                     onNavigateToProfile = {
                         navController.navigate(Screen.ProfileSettings.route)
+                    },
+                    onNavigateToOnboarding = {
+                        navController.navigate(Screen.OnboardingWizard.route)
                     }
                 )
             }
