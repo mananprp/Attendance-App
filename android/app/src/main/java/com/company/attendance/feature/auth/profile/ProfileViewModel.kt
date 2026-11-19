@@ -27,7 +27,10 @@ import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asSharedFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.update
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.NonCancellable
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
 import okhttp3.OkHttpClient
 import javax.inject.Inject
 
@@ -333,14 +336,20 @@ class ProfileViewModel @Inject constructor(
 
     fun signOut() {
         viewModelScope.launch {
-            tokenStorage.clearSession()
-            userLocalDao.clearAll()
-            punchDao.clearAll()
-            daySummaryDao.clearAll()
-            trackingDao.clearAllSessions()
-            trackingDao.clearAllPoints()
-            trackingDao.clearAllStops()
-            ImageStorageUtils.deleteAllProfilePhotos(context)
+            withContext(Dispatchers.IO + NonCancellable) {
+                tokenStorage.clearSession()
+                userLocalDao.clearAll()
+                punchDao.clearAll()
+                daySummaryDao.clearAll()
+                trackingDao.clearAllSessions()
+                trackingDao.clearAllPoints()
+                trackingDao.clearAllStops()
+                ImageStorageUtils.deleteAllUserData(context)
+                try {
+                    okHttpClient.connectionPool.evictAll()
+                    okHttpClient.cache?.evictAll()
+                } catch (_: Exception) {}
+            }
             _navigationEvent.emit(ProfileNavigationEvent.NavigateToLogin)
         }
     }

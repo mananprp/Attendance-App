@@ -69,6 +69,27 @@ object ImageStorageUtils {
         }
     }
 
+    fun deleteAllUserData(context: Context) {
+        try {
+            // 1. Delete all profile photos
+            deleteAllProfilePhotos(context)
+
+            // 2. Delete all punch capture frames
+            val filesDir = context.filesDir
+            if (filesDir != null) {
+                val punchesDir = File(filesDir, "punches")
+                if (punchesDir.exists()) {
+                    punchesDir.deleteRecursively()
+                }
+            }
+
+            // 3. Delete all cached image/network files
+            context.cacheDir?.listFiles()?.forEach { it.deleteRecursively() }
+        } catch (e: Exception) {
+            Log.e(TAG, "Error deleting user data: ${e.message}", e)
+        }
+    }
+
     suspend fun fetchAndSaveProfilePhoto(
         context: Context,
         userId: String,
@@ -76,12 +97,16 @@ object ImageStorageUtils {
         okHttpClient: OkHttpClient
     ): Bitmap? = withContext(defaultDispatcher) {
         val targetUrl = BackendConfig.getFileUrl(photoUrl)
-        Log.d(TAG, "Fetching profile photo for user $userId from URL: $targetUrl")
+        val separator = if (targetUrl.contains("?")) "&" else "?"
+        val cacheBustedUrl = "$targetUrl${separator}uid=$userId&t=${System.currentTimeMillis()}"
+        Log.d(TAG, "Fetching profile photo for user $userId from URL: $cacheBustedUrl")
 
         try {
             val request = Request.Builder()
-                .url(targetUrl)
+                .url(cacheBustedUrl)
                 .header("Accept", "image/*, */*")
+                .header("Cache-Control", "no-cache, no-store, must-revalidate")
+                .header("Pragma", "no-cache")
                 .build()
 
             val response = okHttpClient.newCall(request).execute()

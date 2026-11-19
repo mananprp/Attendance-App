@@ -57,7 +57,8 @@ class PunchCaptureViewModel @Inject constructor(
     private var targetDistanceMeters: Float = 0.0f
     private var targetLocationType: String = "OFFICE"
 
-    private var cachedReferenceEmbedding: ByteArray? = null
+    private data class UserBoundEmbedding(val userId: String, val embedding: ByteArray)
+    private var cachedReferenceEmbedding: UserBoundEmbedding? = null
     private var currentStreamingSession: com.company.attendance.face.verifier.StreamingPunchSession? = null
     private var sampledFramesCount: Int = 0
     private var captureStartTimeMs: Long = 0L
@@ -87,6 +88,7 @@ class PunchCaptureViewModel @Inject constructor(
         targetLongitude = longitude
         targetDistanceMeters = distanceMeters
         targetLocationType = locationType
+        cachedReferenceEmbedding = null
 
         _uiState.update {
             it.copy(
@@ -124,7 +126,7 @@ class PunchCaptureViewModel @Inject constructor(
             val userId = tokenStorage.getUserId() ?: ""
             if (userId.isNotBlank()) {
                 val user = userLocalDao.getUserDirect(userId)
-                cachedReferenceEmbedding = user?.referenceEmbedding
+                cachedReferenceEmbedding = user?.referenceEmbedding?.let { UserBoundEmbedding(userId, it) }
 
                 // Automatic self-healing: If reference embedding is missing, recover from disk photo or server
                 if (cachedReferenceEmbedding == null) {
@@ -151,7 +153,7 @@ class PunchCaptureViewModel @Inject constructor(
                             extractResult.onSuccess { floats ->
                                 val bytes = CameraCaptureUtils.floatArrayToByteArray(floats)
                                 userLocalDao.updateReferenceEmbedding(userId, bytes)
-                                cachedReferenceEmbedding = bytes
+                                cachedReferenceEmbedding = UserBoundEmbedding(userId, bytes)
                             }
                         } catch (_: Exception) {}
                     }
@@ -247,16 +249,17 @@ class PunchCaptureViewModel @Inject constructor(
         _uiState.update { it.copy(step = CaptureStep.PROCESSING, captureProgress = 1f) }
 
         viewModelScope.launch {
-            var referenceEmbeddingBytes = overrideReferenceEmbeddingBytes ?: cachedReferenceEmbedding ?: run {
-                val userId = tokenStorage.getUserId() ?: ""
-                if (userId.isNotBlank()) userLocalDao.getUserDirect(userId)?.referenceEmbedding else null
+            val currentUserId = tokenStorage.getUserId() ?: ""
+            val validCachedEmbedding = cachedReferenceEmbedding?.takeIf { it.userId == currentUserId }?.embedding
+
+            var referenceEmbeddingBytes = overrideReferenceEmbeddingBytes ?: validCachedEmbedding ?: run {
+                if (currentUserId.isNotBlank()) userLocalDao.getUserDirect(currentUserId)?.referenceEmbedding else null
             }
 
             // If still missing, attempt immediate self-healing
             if (referenceEmbeddingBytes == null || referenceEmbeddingBytes.isEmpty()) {
-                val userId = tokenStorage.getUserId() ?: ""
-                if (userId.isNotBlank()) {
-                    var photoBmp = ImageStorageUtils.loadProfilePhoto(context, userId)
+                if (currentUserId.isNotBlank()) {
+                    var photoBmp = ImageStorageUtils.loadProfilePhoto(context, currentUserId)
                     if (photoBmp == null) {
                         try {
                             val response = apiService.getActivePhoto()
@@ -264,7 +267,7 @@ class PunchCaptureViewModel @Inject constructor(
                             result.onSuccess { photoDto ->
                                 photoBmp = ImageStorageUtils.fetchAndSaveProfilePhoto(
                                     context = context,
-                                    userId = userId,
+                                    userId = currentUserId,
                                     photoUrl = photoDto.photoUrl,
                                     okHttpClient = okHttpClient
                                 )
@@ -278,8 +281,8 @@ class PunchCaptureViewModel @Inject constructor(
                             val extractResult = faceVerifier.extractReferenceEmbedding(bmpToExtract)
                             extractResult.onSuccess { floats ->
                                 val bytes = CameraCaptureUtils.floatArrayToByteArray(floats)
-                                userLocalDao.updateReferenceEmbedding(userId, bytes)
-                                cachedReferenceEmbedding = bytes
+                                userLocalDao.updateReferenceEmbedding(currentUserId, bytes)
+                                cachedReferenceEmbedding = UserBoundEmbedding(currentUserId, bytes)
                                 referenceEmbeddingBytes = bytes
                             }
                         } catch (_: Exception) {}

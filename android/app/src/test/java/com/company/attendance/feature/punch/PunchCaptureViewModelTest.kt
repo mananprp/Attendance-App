@@ -376,4 +376,24 @@ class PunchCaptureViewModelTest {
             assertEquals(PunchCaptureNavigationEvent.FinishCancel, awaitItem())
         }
     }
+
+    @Test
+    fun `processCapturedFrames validates user bound embedding against active tokenStorage user`() = runTest {
+        val viewModel = createViewModel()
+
+        // Initialize for EMP1001
+        viewModel.initSession(PunchType.IN, 12.9716, 77.5946, 10f)
+        advanceUntilIdle()
+
+        // Now user switches to EMP2002 without recreating ViewModel
+        every { tokenStorage.getUserId() } returns "EMP2002"
+        coEvery { userLocalDao.getUserDirect("EMP2002") } returns null
+
+        viewModel.processCapturedFrames()
+        advanceUntilIdle()
+
+        // Since EMP2002 has no embedding, it must NOT use EMP1001's cached embedding, and fail with Profile Photo Missing
+        assertEquals(CaptureStep.FAILURE, viewModel.uiState.value.step)
+        assertEquals("Profile Photo Missing", viewModel.uiState.value.failureTitle)
+    }
 }

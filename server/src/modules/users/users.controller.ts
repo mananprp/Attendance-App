@@ -140,7 +140,9 @@ export class UsersController {
     const clientEtag = req.headers['if-none-match'];
 
     res.setHeader('ETag', etag);
-    res.setHeader('Cache-Control', 'private, max-age=0, must-revalidate');
+    res.setHeader('Cache-Control', 'no-store, no-cache, must-revalidate, max-age=0');
+    res.setHeader('Pragma', 'no-cache');
+    res.setHeader('Expires', '0');
 
     if (clientEtag && (clientEtag === etag || clientEtag === photo.hash)) {
       res.status(HttpStatus.NOT_MODIFIED).send();

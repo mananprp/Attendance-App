@@ -78,8 +78,10 @@ describe('UsersController', () => {
       expect(setHeader).toHaveBeenCalledWith('ETag', '"mockhash123"');
       expect(setHeader).toHaveBeenCalledWith(
         'Cache-Control',
-        'private, max-age=0, must-revalidate',
+        'no-store, no-cache, must-revalidate, max-age=0',
       );
+      expect(setHeader).toHaveBeenCalledWith('Pragma', 'no-cache');
+      expect(setHeader).toHaveBeenCalledWith('Expires', '0');
       expect(setHeader).toHaveBeenCalledWith('Content-Type', 'image/jpeg');
       expect(status).toHaveBeenCalledWith(HttpStatus.OK);
       expect(send).toHaveBeenCalledWith(Buffer.from('photo_bytes'));

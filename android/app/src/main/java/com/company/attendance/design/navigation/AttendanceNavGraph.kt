@@ -190,24 +190,24 @@ fun AttendanceNavGraph(
         }
 
         composable(Screen.ProfileSettings.route) {
+            val context = androidx.compose.ui.platform.LocalContext.current
+            val performSignOutRestart = {
+                val intent = android.content.Intent(context, com.company.attendance.MainActivity::class.java).apply {
+                    flags = android.content.Intent.FLAG_ACTIVITY_NEW_TASK or android.content.Intent.FLAG_ACTIVITY_CLEAR_TASK
+                }
+                context.startActivity(intent)
+            }
+
             if (profileSettingsScreen != null) {
                 profileSettingsScreen(
-                    onSignOut = {
-                        navController.navigate(Screen.Login.route) {
-                            popUpTo(0) { inclusive = true }
-                        }
-                    },
+                    onSignOut = performSignOutRestart,
                     onNavigateToGallery = {
                         navController.navigate(Screen.ComponentGallery.route)
                     }
                 )
             } else {
                 com.company.attendance.feature.auth.profile.ProfileScreen(
-                    onSignOut = {
-                        navController.navigate(Screen.Login.route) {
-                            popUpTo(0) { inclusive = true }
-                        }
-                    },
+                    onSignOut = performSignOutRestart,
                     onNavigateToGallery = {
                         navController.navigate(Screen.ComponentGallery.route)
                     },

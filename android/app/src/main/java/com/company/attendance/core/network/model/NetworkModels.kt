@@ -80,7 +80,7 @@ data class CreateSiteRequestDto(
     @SerialName("longitude") val longitude: Double,
     @SerialName("radius_m") val radiusM: Int = 100,
     @SerialName("timezone") val timezone: String = "Asia/Kolkata",
-    @SerialName("match_threshold") val matchThreshold: Float = 0.38f
+    @SerialName("match_threshold") val matchThreshold: Float = 0.46f
 )
 
 @Serializable
