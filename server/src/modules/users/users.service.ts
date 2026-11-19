@@ -123,6 +123,7 @@ export class UsersService {
       version: 1,
       photo_url: photoUrl,
       photo_change_used: user.photoChangeUsed,
+      hash,
     };
   }
 
@@ -190,6 +191,7 @@ export class UsersService {
       version: 2,
       photo_url: photoUrl,
       photo_change_used: true,
+      hash,
     };
   }
 
@@ -210,6 +212,7 @@ export class UsersService {
     }
 
     return {
+      user_id: photo.userId,
       version: photo.version,
       photo_url: photo.imagePath,
       uploaded_at: photo.uploadedAt.toISOString(),

@@ -232,6 +232,7 @@ describe('UsersService', () => {
   describe('getActivePhoto', () => {
     it('should return active photo details when photo with image data exists', async () => {
       mockQueryBuilder.getOne.mockResolvedValue({
+        userId: 'EMP1001',
         version: 1,
         imagePath: '/v1/users/me/photo/file',
         uploadedAt: new Date('2026-09-30T09:00:00.000Z'),
@@ -239,6 +240,7 @@ describe('UsersService', () => {
       });
 
       const result = await service.getActivePhoto('EMP1001');
+      expect(result.user_id).toBe('EMP1001');
       expect(result.version).toBe(1);
       expect(result.photo_url).toBe('/v1/users/me/photo/file');
       expect(result.hash).toBe('mockhash');

@@ -50,6 +50,7 @@ class LoginViewModelTest {
     private val context: android.content.Context = mockk(relaxed = true)
     private val okHttpClient: okhttp3.OkHttpClient = mockk(relaxed = true)
     private val faceVerifier: com.company.attendance.core.interfaces.FaceVerifier = mockk(relaxed = true)
+    private val faceReferenceManager: com.company.attendance.face.reference.FaceReferenceManager = mockk(relaxed = true)
     private val apiService: AttendanceApiService = mockk()
     private val tokenStorage: TokenStorage = mockk(relaxed = true)
     private val userLocalDao: UserLocalDao = mockk(relaxed = true)
@@ -62,6 +63,7 @@ class LoginViewModelTest {
     fun setUp() {
         Dispatchers.setMain(testDispatcher)
         coEvery { apiService.getActivePhoto() } returns Response.success(mockk(relaxed = true))
+        coEvery { faceReferenceManager.validateLocalReference(any()) } returns true
         viewModel = LoginViewModel(
             context = context,
             apiService = apiService,
@@ -69,6 +71,7 @@ class LoginViewModelTest {
             tokenStorage = tokenStorage,
             userLocalDao = userLocalDao,
             faceVerifier = faceVerifier,
+            faceReferenceManager = faceReferenceManager,
             remoteConfigRepository = remoteConfigRepository,
             punchRepository = punchRepository
         )

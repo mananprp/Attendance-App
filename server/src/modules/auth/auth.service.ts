@@ -117,6 +117,7 @@ export class AuthService {
         photo_change_used: user.photoChangeUsed,
         has_photo: !!activePhoto,
         active_photo_version: activePhoto ? activePhoto.version : null,
+        active_photo_hash: activePhoto ? activePhoto.hash : null,
       },
     };
   }

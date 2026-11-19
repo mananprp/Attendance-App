@@ -25,7 +25,10 @@ data class ProfileUiState(
     val isAdmin: Boolean = false,
     val isSupervisor: Boolean = false,
     val siteCode: String = "",
-    val successMessage: String? = null
+    val successMessage: String? = null,
+    val isSigningOut: Boolean = false,
+    val showUnsyncedLogoutDialog: Boolean = false,
+    val unsyncedCount: Int = 0
 ) {
     val canChangePhoto: Boolean
         get() = !photoChangeUsed && hasPhoto
@@ -54,6 +57,12 @@ data class ProfileUiState(
             if (!extractedNewEmbedding.contentEquals(other.extractedNewEmbedding)) return false
         } else if (other.extractedNewEmbedding != null) return false
         if (successMessage != other.successMessage) return false
+        if (isAdmin != other.isAdmin) return false
+        if (isSupervisor != other.isSupervisor) return false
+        if (siteCode != other.siteCode) return false
+        if (isSigningOut != other.isSigningOut) return false
+        if (showUnsyncedLogoutDialog != other.showUnsyncedLogoutDialog) return false
+        if (unsyncedCount != other.unsyncedCount) return false
 
         return true
     }
@@ -74,6 +83,12 @@ data class ProfileUiState(
         result = 31 * result + (capturedNewBitmap?.hashCode() ?: 0)
         result = 31 * result + (extractedNewEmbedding?.contentHashCode() ?: 0)
         result = 31 * result + (successMessage?.hashCode() ?: 0)
+        result = 31 * result + isAdmin.hashCode()
+        result = 31 * result + isSupervisor.hashCode()
+        result = 31 * result + siteCode.hashCode()
+        result = 31 * result + isSigningOut.hashCode()
+        result = 31 * result + showUnsyncedLogoutDialog.hashCode()
+        result = 31 * result + unsyncedCount.hashCode()
         return result
     }
 }

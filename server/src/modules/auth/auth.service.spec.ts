@@ -64,7 +64,7 @@ describe('AuthService', () => {
       photoChangeUsed: false,
     };
     userRepo.findOne.mockResolvedValue(mockUser);
-    mockQueryBuilder.getOne.mockResolvedValue({ version: 1, isActive: true, imageData: Buffer.from('data') });
+    mockQueryBuilder.getOne.mockResolvedValue({ version: 1, isActive: true, imageData: Buffer.from('data'), hash: 'mockhash123' });
 
     const result = await service.login({
       user_id: 'EMP1001',
@@ -76,6 +76,7 @@ describe('AuthService', () => {
     expect(result.user.display_name).toBe('Alice Sharma');
     expect(result.user.has_photo).toBe(true);
     expect(result.user.active_photo_version).toBe(1);
+    expect(result.user.active_photo_hash).toBe('mockhash123');
     expect(result.user.photo_change_used).toBe(false);
   });
 
@@ -99,6 +100,7 @@ describe('AuthService', () => {
 
     expect(result.user.has_photo).toBe(false);
     expect(result.user.active_photo_version).toBeNull();
+    expect(result.user.active_photo_hash).toBeNull();
   });
 
   it('should throw UnauthorizedException on invalid password', async () => {

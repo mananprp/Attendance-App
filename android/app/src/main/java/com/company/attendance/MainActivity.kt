@@ -1,5 +1,6 @@
 package com.company.attendance
 
+import android.content.Context
 import android.os.Bundle
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
@@ -30,6 +31,13 @@ class MainActivity : ComponentActivity() {
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
+
+        // One-time cleanup after update to migration 6: wipe unverified legacy profile photos
+        val upgradePrefs = getSharedPreferences("app_upgrade_prefs", Context.MODE_PRIVATE)
+        if (!upgradePrefs.getBoolean("photo_cache_cleaned_v6", false)) {
+            com.company.attendance.core.util.ImageStorageUtils.deleteAllProfilePhotos(this)
+            upgradePrefs.edit().putBoolean("photo_cache_cleaned_v6", true).apply()
+        }
 
         // On app launch, silently check if user's role on server was promoted
         if (!tokenStorage.getToken().isNullOrBlank()) {

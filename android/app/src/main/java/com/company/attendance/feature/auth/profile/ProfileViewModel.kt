@@ -27,6 +27,12 @@ import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asSharedFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.update
+import androidx.room.withTransaction
+import com.company.attendance.core.database.AppDatabase
+import com.company.attendance.core.interfaces.SyncScheduler
+import com.company.attendance.face.reference.FaceReferenceManager
+import com.company.attendance.face.reference.ReferenceResult
+import kotlinx.coroutines.CoroutineDispatcher
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.NonCancellable
 import kotlinx.coroutines.launch
@@ -44,7 +50,11 @@ class ProfileViewModel @Inject constructor(
     private val daySummaryDao: DaySummaryDao,
     private val trackingDao: TrackingDao,
     private val apiService: AttendanceApiService,
-    private val faceVerifier: FaceVerifier
+    private val faceVerifier: FaceVerifier,
+    private val faceReferenceManager: FaceReferenceManager,
+    private val appDatabase: AppDatabase,
+    private val syncScheduler: SyncScheduler,
+    private val ioDispatcher: CoroutineDispatcher = Dispatchers.IO
 ) : ViewModel() {
 
     private val _uiState = MutableStateFlow(ProfileUiState())
@@ -118,65 +128,36 @@ class ProfileViewModel @Inject constructor(
                 }
             }
 
-            // Fetch active photo URL from server if photo exists
             if (hasPhoto) {
                 try {
-                    val response = apiService.getActivePhoto()
-                    val result = NetworkHelper.parseResponse(response)
-                    result.onSuccess { photoDetail ->
-                        var photoBmp = _uiState.value.profilePhotoBitmap
-                        if (photoBmp == null) {
-                            photoBmp = ImageStorageUtils.fetchAndSaveProfilePhoto(
-                                context = context,
-                                userId = userId,
-                                photoUrl = photoDetail.photoUrl,
-                                okHttpClient = okHttpClient
-                            )
-                        }
-
-                        if (photoBmp != null) {
-                            val userRecord = userLocalDao.getUserDirect(userId)
-                            if (userRecord?.referenceEmbedding == null) {
-                                val extractResult = faceVerifier.extractReferenceEmbedding(photoBmp)
-                                extractResult.onSuccess { floats ->
-                                    val bytes = EmbeddingUtils.floatArrayToByteArray(floats)
-                                    userLocalDao.updateReferenceEmbedding(userId, bytes)
-                                }
+                    val isValid = faceReferenceManager.validateLocalReference(userId)
+                    if (!isValid) {
+                        val refResult = faceReferenceManager.ensureReference(userId)
+                        if (refResult is ReferenceResult.Success) {
+                            _uiState.update {
+                                it.copy(
+                                    profilePhotoBitmap = refResult.bitmap,
+                                    activePhotoVersion = refResult.photoVersion,
+                                    isLoadingProfile = false
+                                )
                             }
                         } else {
-                            // Rule: The source of truth for has_photo is the server's login response.
-                            // A failed download only means showing the placeholder avatar.
-                            // Do NOT clear has_photo locally.
-                            android.util.Log.w("ProfileViewModel", "Profile photo download failed for $userId – keeping has_photo as set by server")
+                            _uiState.update { it.copy(isLoadingProfile = false) }
                         }
-
+                    } else {
+                        val localBmp = ImageStorageUtils.loadProfilePhoto(context, userId)
                         _uiState.update {
                             it.copy(
-                                photoUrl = photoDetail.photoUrl,
-                                activePhotoVersion = photoDetail.version,
-                                profilePhotoBitmap = photoBmp,
+                                profilePhotoBitmap = localBmp,
+                                activePhotoVersion = photoVersion,
                                 isLoadingProfile = false
                             )
                         }
-                    }.onFailure {
-                        _uiState.update { it.copy(isLoadingProfile = false) }
                     }
                 } catch (_: Exception) {
                     _uiState.update { it.copy(isLoadingProfile = false) }
                 }
             } else {
-                // If local photo exists, make sure embedding is also cached
-                val localBmp = _uiState.value.profilePhotoBitmap
-                if (localBmp != null) {
-                    val userRecord = userLocalDao.getUserDirect(userId)
-                    if (userRecord?.referenceEmbedding == null) {
-                        val extractResult = faceVerifier.extractReferenceEmbedding(localBmp)
-                        extractResult.onSuccess { floats ->
-                            val bytes = EmbeddingUtils.floatArrayToByteArray(floats)
-                            userLocalDao.updateReferenceEmbedding(userId, bytes)
-                        }
-                    }
-                }
                 _uiState.update { it.copy(isLoadingProfile = false) }
             }
         }
@@ -272,15 +253,22 @@ class ProfileViewModel @Inject constructor(
 
                 parseResult.onSuccess { uploadDto ->
                     val embeddingBytes = EmbeddingUtils.floatArrayToByteArray(embedding)
+                    val photoHash = uploadDto.hash ?: FaceReferenceManager.computeSha256Hex(ImageUtils.bitmapToJpegBytes(bitmap))
 
                     if (userId.isNotBlank()) {
-                        userLocalDao.updateReferenceEmbedding(userId, embeddingBytes)
+                        userLocalDao.updateReferenceEmbeddingAndProof(
+                            userId = userId,
+                            embedding = embeddingBytes,
+                            ownerUserId = userId,
+                            photoVersion = uploadDto.version,
+                            photoHash = photoHash
+                        )
                         userLocalDao.updatePhotoChangeUsed(userId, true)
                         ImageStorageUtils.saveProfilePhoto(context, userId, bitmap)
                     }
 
                     tokenStorage.updatePhotoChangeUsed(true)
-                    tokenStorage.updateHasPhoto(hasPhoto = true, version = uploadDto.version)
+                    tokenStorage.updateHasPhoto(hasPhoto = true, version = uploadDto.version, hash = photoHash)
 
                     _uiState.update {
                         it.copy(
@@ -336,22 +324,84 @@ class ProfileViewModel @Inject constructor(
 
     fun signOut() {
         viewModelScope.launch {
-            withContext(Dispatchers.IO + NonCancellable) {
-                tokenStorage.clearSession()
+            _uiState.update { it.copy(isSigningOut = true) }
+            val pendingCount = withContext(ioDispatcher) {
+                val punches = punchDao.getAllPendingPunches().size
+                val tracking = trackingDao.getUnsyncedCompletedSessions().size
+                punches + tracking
+            }
+
+            if (pendingCount > 0) {
+                // Try automatic sync first
+                runCatching { syncScheduler.triggerSyncNow() }
+                val remainingCount = withContext(ioDispatcher) {
+                    val punches = punchDao.getAllPendingPunches().size
+                    val tracking = trackingDao.getUnsyncedCompletedSessions().size
+                    punches + tracking
+                }
+
+                if (remainingCount > 0) {
+                    // Block logout and show popup
+                    _uiState.update {
+                        it.copy(
+                            isSigningOut = false,
+                            showUnsyncedLogoutDialog = true,
+                            unsyncedCount = remainingCount
+                        )
+                    }
+                    return@launch
+                }
+            }
+
+            performDeepSignOut()
+        }
+    }
+
+    fun dismissUnsyncedDialog() {
+        _uiState.update { it.copy(showUnsyncedLogoutDialog = false) }
+    }
+
+    fun retrySyncAndSignOut() {
+        _uiState.update { it.copy(showUnsyncedLogoutDialog = false) }
+        signOut()
+    }
+
+    fun forceSignOut() {
+        _uiState.update { it.copy(showUnsyncedLogoutDialog = false) }
+        viewModelScope.launch {
+            performDeepSignOut()
+        }
+    }
+
+    private suspend fun performDeepSignOut() {
+        withContext(ioDispatcher + NonCancellable) {
+            // 1. Cancel in-flight reference work
+            faceReferenceManager.cancelAll()
+
+            // 2. Clear database inside single Room transaction
+            appDatabase.withTransaction {
                 userLocalDao.clearAll()
                 punchDao.clearAll()
                 daySummaryDao.clearAll()
                 trackingDao.clearAllSessions()
                 trackingDao.clearAllPoints()
                 trackingDao.clearAllStops()
-                ImageStorageUtils.deleteAllUserData(context)
-                try {
-                    okHttpClient.connectionPool.evictAll()
-                    okHttpClient.cache?.evictAll()
-                } catch (_: Exception) {}
             }
-            _navigationEvent.emit(ProfileNavigationEvent.NavigateToLogin)
+
+            // 3. Delete user files (punches, profile photos, caches)
+            ImageStorageUtils.deleteAllUserData(context)
+
+            // 4. Synchronously clear session
+            tokenStorage.clearSession()
+
+            // 5. Evict network caches & pools
+            try {
+                okHttpClient.connectionPool.evictAll()
+                okHttpClient.cache?.evictAll()
+            } catch (_: Exception) {}
         }
+        _uiState.update { it.copy(isSigningOut = false) }
+        _navigationEvent.emit(ProfileNavigationEvent.NavigateToLogin)
     }
 
     private fun mapFaceErrorToGuidance(error: String?): String {

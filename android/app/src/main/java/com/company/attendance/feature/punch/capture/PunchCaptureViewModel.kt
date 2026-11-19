@@ -24,6 +24,8 @@ import kotlinx.coroutines.launch
 import com.company.attendance.core.network.AttendanceApiService
 import com.company.attendance.core.network.NetworkHelper
 import com.company.attendance.core.util.ImageStorageUtils
+import com.company.attendance.face.reference.FaceReferenceManager
+import com.company.attendance.face.reference.ReferenceResult
 import okhttp3.OkHttpClient
 import java.time.Instant
 import java.time.ZoneId
@@ -42,7 +44,8 @@ class PunchCaptureViewModel @Inject constructor(
     private val okHttpClient: OkHttpClient,
     private val trustedTimeProvider: TrustedTimeProvider,
     private val remoteConfigRepository: RemoteConfigRepository,
-    private val punchRepository: PunchRepository
+    private val punchRepository: PunchRepository,
+    private val faceReferenceManager: FaceReferenceManager
 ) : ViewModel() {
 
     private val _uiState = MutableStateFlow(PunchCaptureUiState())
@@ -57,8 +60,6 @@ class PunchCaptureViewModel @Inject constructor(
     private var targetDistanceMeters: Float = 0.0f
     private var targetLocationType: String = "OFFICE"
 
-    private data class UserBoundEmbedding(val userId: String, val embedding: ByteArray)
-    private var cachedReferenceEmbedding: UserBoundEmbedding? = null
     private var currentStreamingSession: com.company.attendance.face.verifier.StreamingPunchSession? = null
     private var sampledFramesCount: Int = 0
     private var captureStartTimeMs: Long = 0L
@@ -88,7 +89,6 @@ class PunchCaptureViewModel @Inject constructor(
         targetLongitude = longitude
         targetDistanceMeters = distanceMeters
         targetLocationType = locationType
-        cachedReferenceEmbedding = null
 
         _uiState.update {
             it.copy(
@@ -122,41 +122,33 @@ class PunchCaptureViewModel @Inject constructor(
             // Warm up ONNX runtime sessions in parallel with embedding retrieval
             faceVerifier.prepare()
 
-            // 2. Fetch reference embedding from local database
+            // 2. Validate reference face proof via FaceReferenceManager (Fail-closed)
             val userId = tokenStorage.getUserId() ?: ""
-            if (userId.isNotBlank()) {
-                val user = userLocalDao.getUserDirect(userId)
-                cachedReferenceEmbedding = user?.referenceEmbedding?.let { UserBoundEmbedding(userId, it) }
+            if (userId.isBlank()) {
+                _uiState.update {
+                    it.copy(
+                        step = CaptureStep.FAILURE,
+                        failureTitle = "Authentication Required",
+                        failureMessage = "Please log in again.",
+                        failureReason = "User ID missing."
+                    )
+                }
+                return@launch
+            }
 
-                // Automatic self-healing: If reference embedding is missing, recover from disk photo or server
-                if (cachedReferenceEmbedding == null) {
-                    var localBmp = ImageStorageUtils.loadProfilePhoto(context, userId)
-
-                    if (localBmp == null) {
-                        try {
-                            val response = apiService.getActivePhoto()
-                            val result = NetworkHelper.parseResponse(response)
-                            result.onSuccess { photoDto ->
-                                localBmp = ImageStorageUtils.fetchAndSaveProfilePhoto(
-                                    context = context,
-                                    userId = userId,
-                                    photoUrl = photoDto.photoUrl,
-                                    okHttpClient = okHttpClient
-                                )
-                            }
-                        } catch (_: Exception) {}
+            val isValid = faceReferenceManager.validateLocalReference(userId)
+            if (!isValid) {
+                val ensureResult = faceReferenceManager.ensureReference(userId)
+                if (ensureResult !is ReferenceResult.Success) {
+                    _uiState.update {
+                        it.copy(
+                            step = CaptureStep.FAILURE,
+                            failureTitle = "Face Profile Required",
+                            failureMessage = "Your face profile needs to refresh. Connect to the internet once and try again.",
+                            failureReason = "Face profile proof could not be verified."
+                        )
                     }
-
-                    if (localBmp != null) {
-                        try {
-                            val extractResult = faceVerifier.extractReferenceEmbedding(localBmp!!)
-                            extractResult.onSuccess { floats ->
-                                val bytes = CameraCaptureUtils.floatArrayToByteArray(floats)
-                                userLocalDao.updateReferenceEmbedding(userId, bytes)
-                                cachedReferenceEmbedding = UserBoundEmbedding(userId, bytes)
-                            }
-                        } catch (_: Exception) {}
-                    }
+                    return@launch
                 }
             }
 
@@ -250,47 +242,39 @@ class PunchCaptureViewModel @Inject constructor(
 
         viewModelScope.launch {
             val currentUserId = tokenStorage.getUserId() ?: ""
-            val validCachedEmbedding = cachedReferenceEmbedding?.takeIf { it.userId == currentUserId }?.embedding
-
-            var referenceEmbeddingBytes = overrideReferenceEmbeddingBytes ?: validCachedEmbedding ?: run {
-                if (currentUserId.isNotBlank()) userLocalDao.getUserDirect(currentUserId)?.referenceEmbedding else null
+            if (currentUserId.isBlank()) {
+                _uiState.update {
+                    it.copy(
+                        step = CaptureStep.FAILURE,
+                        failureTitle = "Authentication Required",
+                        failureMessage = "Please log in again.",
+                        failureReason = "User ID missing."
+                    )
+                }
+                return@launch
             }
 
-            // If still missing, attempt immediate self-healing
-            if (referenceEmbeddingBytes == null || referenceEmbeddingBytes.isEmpty()) {
-                if (currentUserId.isNotBlank()) {
-                    var photoBmp = ImageStorageUtils.loadProfilePhoto(context, currentUserId)
-                    if (photoBmp == null) {
-                        try {
-                            val response = apiService.getActivePhoto()
-                            val result = NetworkHelper.parseResponse(response)
-                            result.onSuccess { photoDto ->
-                                photoBmp = ImageStorageUtils.fetchAndSaveProfilePhoto(
-                                    context = context,
-                                    userId = currentUserId,
-                                    photoUrl = photoDto.photoUrl,
-                                    okHttpClient = okHttpClient
-                                )
-                            }
-                        } catch (_: Exception) {}
-                    }
-
-                    val bmpToExtract = photoBmp
-                    if (bmpToExtract != null) {
-                        try {
-                            val extractResult = faceVerifier.extractReferenceEmbedding(bmpToExtract)
-                            extractResult.onSuccess { floats ->
-                                val bytes = CameraCaptureUtils.floatArrayToByteArray(floats)
-                                userLocalDao.updateReferenceEmbedding(currentUserId, bytes)
-                                cachedReferenceEmbedding = UserBoundEmbedding(currentUserId, bytes)
-                                referenceEmbeddingBytes = bytes
-                            }
-                        } catch (_: Exception) {}
+            // Strictly validate reference against proof
+            if (overrideReferenceEmbeddingBytes == null) {
+                val isValid = faceReferenceManager.validateLocalReference(currentUserId)
+                if (!isValid) {
+                    val ensureResult = faceReferenceManager.ensureReference(currentUserId)
+                    if (ensureResult !is ReferenceResult.Success) {
+                        _uiState.update {
+                            it.copy(
+                                step = CaptureStep.FAILURE,
+                                failureTitle = "Face Profile Required",
+                                failureMessage = "Your face profile needs to refresh. Connect to the internet once and try again.",
+                                failureReason = "Face profile proof could not be verified."
+                            )
+                        }
+                        return@launch
                     }
                 }
             }
 
-            val finalEmbeddingBytes = referenceEmbeddingBytes
+            val userEntity = userLocalDao.getUserDirect(currentUserId)
+            val finalEmbeddingBytes = overrideReferenceEmbeddingBytes ?: userEntity?.referenceEmbedding
             if (finalEmbeddingBytes == null || finalEmbeddingBytes.isEmpty()) {
                 _uiState.update {
                     it.copy(
@@ -341,6 +325,7 @@ class PunchCaptureViewModel @Inject constructor(
 
                 // 3. Record punch in Room database
                 val userId = tokenStorage.getUserId() ?: ""
+                val userEntity = if (userId.isNotBlank()) userLocalDao.getUserDirect(userId) else null
                 _uiState.update { it.copy(isSavingPunch = true) }
 
                 val recordResult = punchRepository.recordPunch(
@@ -352,7 +337,10 @@ class PunchCaptureViewModel @Inject constructor(
                     distanceMeters = targetDistanceMeters,
                     matchScore = result.score,
                     capturedImagePath = imagePath,
-                    locationType = targetLocationType
+                    locationType = targetLocationType,
+                    refUserId = userEntity?.ownerUserId ?: userId,
+                    refPhotoHash = userEntity?.photoHash,
+                    refPhotoVersion = userEntity?.photoVersion
                 )
 
                 _uiState.update { it.copy(isSavingPunch = false) }

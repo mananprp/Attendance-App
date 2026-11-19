@@ -58,7 +58,10 @@ class PunchRepositoryImpl @Inject constructor(
         distanceMeters: Float,
         matchScore: Float,
         capturedImagePath: String?,
-        locationType: String
+        locationType: String,
+        refUserId: String?,
+        refPhotoHash: String?,
+        refPhotoVersion: Int?
     ): Result<Punch> {
         return try {
             val zoneId = ZoneId.of(time.timezoneId)
@@ -112,7 +115,10 @@ class PunchRepositoryImpl @Inject constructor(
                 syncAttempts = 0,
                 createdAt = System.currentTimeMillis(),
                 locationType = locationType,
-                shiftType = shiftType
+                shiftType = shiftType,
+                refUserId = refUserId,
+                refPhotoHash = refPhotoHash,
+                refPhotoVersion = refPhotoVersion
             )
             punchDao.insertPunch(punchEntity)
 

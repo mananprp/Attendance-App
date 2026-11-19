@@ -22,6 +22,15 @@ data class UserLocalEntity(
     @ColumnInfo(name = "reference_embedding")
     val referenceEmbedding: ByteArray?,
 
+    @ColumnInfo(name = "owner_user_id")
+    val ownerUserId: String? = null,
+
+    @ColumnInfo(name = "photo_version")
+    val photoVersion: Int? = null,
+
+    @ColumnInfo(name = "photo_hash")
+    val photoHash: String? = null,
+
     @ColumnInfo(name = "updated_at")
     val updatedAt: Long
 ) {

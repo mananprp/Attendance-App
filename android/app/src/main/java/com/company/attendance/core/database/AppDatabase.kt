@@ -28,7 +28,7 @@ import androidx.sqlite.db.SupportSQLiteDatabase
         TrackingPointEntity::class,
         TrackingStopEntity::class
     ],
-    version = 5,
+    version = 6,
     exportSchema = false
 )
 abstract class AppDatabase : RoomDatabase() {
@@ -100,6 +100,18 @@ abstract class AppDatabase : RoomDatabase() {
         val MIGRATION_4_5 = object : Migration(4, 5) {
             override fun migrate(db: SupportSQLiteDatabase) {
                 db.execSQL("ALTER TABLE app_config ADD COLUMN assigned_sites_json TEXT NOT NULL DEFAULT '[]'")
+            }
+        }
+
+        val MIGRATION_5_6 = object : Migration(5, 6) {
+            override fun migrate(db: SupportSQLiteDatabase) {
+                db.execSQL("ALTER TABLE user_local ADD COLUMN owner_user_id TEXT")
+                db.execSQL("ALTER TABLE user_local ADD COLUMN photo_version INTEGER")
+                db.execSQL("ALTER TABLE user_local ADD COLUMN photo_hash TEXT")
+                db.execSQL("UPDATE user_local SET reference_embedding = NULL")
+                db.execSQL("ALTER TABLE punches ADD COLUMN ref_user_id TEXT")
+                db.execSQL("ALTER TABLE punches ADD COLUMN ref_photo_hash TEXT")
+                db.execSQL("ALTER TABLE punches ADD COLUMN ref_photo_version INTEGER")
             }
         }
     }

@@ -64,6 +64,7 @@ class HomeViewModelTest {
     private val okHttpClient: okhttp3.OkHttpClient = mockk(relaxed = true)
     private val locationMonitor: com.company.attendance.core.location.LocationMonitor = mockk(relaxed = true)
     private val faceVerifier: com.company.attendance.core.interfaces.FaceVerifier = mockk(relaxed = true)
+    private val faceReferenceManager: com.company.attendance.face.reference.FaceReferenceManager = mockk(relaxed = true)
 
     private fun createViewModel() = HomeViewModel(
         context = context,
@@ -77,7 +78,8 @@ class HomeViewModelTest {
         locationChecker = locationChecker,
         locationMonitor = locationMonitor,
         syncScheduler = syncScheduler,
-        faceVerifier = faceVerifier
+        faceVerifier = faceVerifier,
+        faceReferenceManager = faceReferenceManager
     )
 
     private val timeFlow = MutableStateFlow(createTrustedTime(2026, 9, 30, 9, 30, 0))

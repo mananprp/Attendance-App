@@ -28,6 +28,7 @@ import android.content.Context
 import com.company.attendance.core.interfaces.FaceVerifier
 import com.company.attendance.core.interfaces.SyncScheduler
 import com.company.attendance.core.util.ImageStorageUtils
+import com.company.attendance.face.reference.FaceReferenceManager
 import com.company.attendance.feature.punch.capture.CameraCaptureUtils
 import dagger.hilt.android.qualifiers.ApplicationContext
 import okhttp3.OkHttpClient
@@ -44,6 +45,7 @@ class LoginViewModel @Inject constructor(
     private val tokenStorage: TokenStorage,
     private val userLocalDao: UserLocalDao,
     private val faceVerifier: FaceVerifier,
+    private val faceReferenceManager: FaceReferenceManager,
     private val remoteConfigRepository: RemoteConfigRepository,
     private val punchRepository: PunchRepository,
     private val locationMonitor: com.company.attendance.core.location.LocationMonitor? = null,
@@ -115,6 +117,12 @@ class LoginViewModel @Inject constructor(
 
                 result.onSuccess { loginResponse ->
                     val userDto = loginResponse.user
+                    // 0. Pre-login purge: purge any stale user_local rows and profile photos of other users
+                    userLocalDao.deleteAllExcept(userDto.userId)
+                    context.filesDir.listFiles()
+                        ?.filter { it.name.startsWith("profile_") && !it.name.equals("profile_${userDto.userId}.jpg") }
+                        ?.forEach { it.delete() }
+
                     val userSession = UserSession(
                         userId = userDto.userId,
                         displayName = userDto.displayName,
@@ -123,7 +131,8 @@ class LoginViewModel @Inject constructor(
                         siteCode = userDto.siteCode,
                         photoChangeUsed = userDto.photoChangeUsed,
                         hasPhoto = userDto.hasPhoto,
-                        activePhotoVersion = userDto.activePhotoVersion
+                        activePhotoVersion = userDto.activePhotoVersion,
+                        activePhotoHash = userDto.activePhotoHash
                     )
 
                     // 1. Save session in EncryptedSharedPreferences
@@ -132,15 +141,24 @@ class LoginViewModel @Inject constructor(
                     // Warm up location monitor asynchronously
                     locationMonitor?.warmUp()
 
-                    // 2. Cache user profile in Room user_local (preserve existing embedding)
+                    // 2. Cache user profile in Room user_local (validate proof before preserving existing embedding)
                     val existingUser = userLocalDao.getUserDirect(userDto.userId)
-                    val existingEmbedding = existingUser?.referenceEmbedding
+                    val isProofValid = existingUser != null &&
+                        existingUser.ownerUserId?.equals(userDto.userId, ignoreCase = true) == true &&
+                        existingUser.referenceEmbedding != null &&
+                        existingUser.referenceEmbedding.isNotEmpty() &&
+                        (userDto.activePhotoVersion == null || existingUser.photoVersion == userDto.activePhotoVersion) &&
+                        (!userDto.activePhotoHash.isNullOrBlank() && existingUser.photoHash?.equals(userDto.activePhotoHash, ignoreCase = true) == true)
+
                     val userEntity = UserLocalEntity(
                         userId = userDto.userId,
                         displayName = userDto.displayName,
                         photoChangeUsed = userDto.photoChangeUsed,
                         hasPhoto = userDto.hasPhoto,
-                        referenceEmbedding = existingEmbedding,
+                        referenceEmbedding = if (isProofValid) existingUser?.referenceEmbedding else null,
+                        ownerUserId = if (isProofValid) existingUser?.ownerUserId else null,
+                        photoVersion = if (isProofValid) existingUser?.photoVersion else null,
+                        photoHash = if (isProofValid) existingUser?.photoHash else null,
                         updatedAt = System.currentTimeMillis()
                     )
                     userLocalDao.insertOrUpdate(userEntity)
@@ -216,41 +234,11 @@ class LoginViewModel @Inject constructor(
 
     private suspend fun fetchAndCacheProfilePhotoAndEmbedding(userId: String) {
         runCatching {
-            // First check if photo is already cached on disk
-            var bitmap = ImageStorageUtils.loadProfilePhoto(context, userId)
-
-            // If not on disk, download from active photo endpoint
-            if (bitmap == null) {
-                android.util.Log.d("LoginViewModel", "Fetching active photo from API for " + userId)
-                val response = apiService.getActivePhoto()
-                val parsed = NetworkHelper.parseResponse(response)
-                parsed.onSuccess { photoDto ->
-                    android.util.Log.d("LoginViewModel", "Got photo URL: " + photoDto.photoUrl)
-                    bitmap = ImageStorageUtils.fetchAndSaveProfilePhoto(
-                        context = context,
-                        userId = userId,
-                        photoUrl = photoDto.photoUrl,
-                        okHttpClient = okHttpClient
-                    )
-                }.onFailure { err ->
-                    android.util.Log.e("LoginViewModel", "getActivePhoto error: " + err.message)
-                }
-            }
-
-            if (bitmap != null) {
-                val extractResult = faceVerifier.extractReferenceEmbedding(bitmap!!)
-                extractResult.onSuccess { floats ->
-                    val bytes = CameraCaptureUtils.floatArrayToByteArray(floats)
-                    userLocalDao.updateReferenceEmbedding(userId, bytes)
-                    android.util.Log.d("LoginViewModel", "Reference embedding updated for " + userId)
-                }.onFailure { err ->
-                    android.util.Log.e("LoginViewModel", "extractReferenceEmbedding error: " + err.message)
-                }
+            if (!faceReferenceManager.validateLocalReference(userId)) {
+                android.util.Log.d("LoginViewModel", "Ensuring reference face proof for $userId")
+                faceReferenceManager.ensureReference(userId)
             } else {
-                // Rule: The source of truth for has_photo is the server's login response.
-                // A failed download only means show the placeholder avatar and retry next time (e.g. on Home screen).
-                // Do NOT clear has_photo locally.
-                android.util.Log.w("LoginViewModel", "Profile photo download failed or missing for $userId – keeping has_photo as set by server")
+                android.util.Log.d("LoginViewModel", "Local reference face proof valid for $userId")
             }
         }.onFailure { e ->
             android.util.Log.e("LoginViewModel", "fetchAndCacheProfilePhotoAndEmbedding failed", e)

@@ -14,6 +14,7 @@ import com.company.attendance.feature.onboarding.model.OnboardingStep
 import com.company.attendance.feature.onboarding.model.OnboardingUiState
 import android.content.Context
 import com.company.attendance.core.util.ImageStorageUtils
+import com.company.attendance.face.reference.FaceReferenceManager
 import dagger.hilt.android.qualifiers.ApplicationContext
 import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.flow.MutableSharedFlow
@@ -116,14 +117,21 @@ class OnboardingViewModel @Inject constructor(
                 parseResult.onSuccess { uploadDto ->
                     val userId = tokenStorage.getUserId() ?: ""
                     val embeddingBytes = EmbeddingUtils.floatArrayToByteArray(embedding)
+                    val photoHash = uploadDto.hash ?: FaceReferenceManager.computeSha256Hex(ImageUtils.bitmapToJpegBytes(bitmap))
 
                     if (userId.isNotBlank()) {
-                        userLocalDao.updateReferenceEmbedding(userId, embeddingBytes)
+                        userLocalDao.updateReferenceEmbeddingAndProof(
+                            userId = userId,
+                            embedding = embeddingBytes,
+                            ownerUserId = userId,
+                            photoVersion = uploadDto.version,
+                            photoHash = photoHash
+                        )
                         userLocalDao.updatePhotoChangeUsed(userId, uploadDto.photoChangeUsed)
                         ImageStorageUtils.saveProfilePhoto(context, userId, bitmap)
                     }
 
-                    tokenStorage.updateHasPhoto(hasPhoto = true, version = uploadDto.version)
+                    tokenStorage.updateHasPhoto(hasPhoto = true, version = uploadDto.version, hash = photoHash)
                     tokenStorage.updatePhotoChangeUsed(uploadDto.photoChangeUsed)
 
                     _uiState.update {

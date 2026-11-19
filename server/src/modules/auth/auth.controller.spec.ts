@@ -16,6 +16,7 @@ describe('AuthController', () => {
           photo_change_used: false,
           has_photo: true,
           active_photo_version: 1,
+          active_photo_hash: 'mockhash123',
         },
       }),
     };

@@ -9,6 +9,7 @@ import dagger.hilt.android.qualifiers.ApplicationContext
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
+import java.util.UUID
 import javax.inject.Inject
 import javax.inject.Singleton
 
@@ -19,6 +20,8 @@ interface TokenStorage {
     fun isPhotoChangeUsed(): Boolean
     fun hasPhoto(): Boolean
     fun getActivePhotoVersion(): Int?
+    fun getActivePhotoHash(): String?
+    fun getSessionId(): String?
     fun getRole(): String
     fun isAdmin(): Boolean
     fun getSiteCode(): String
@@ -28,7 +31,7 @@ interface TokenStorage {
     fun saveSession(session: UserSession)
     fun updateRole(role: String)
     fun updatePhotoChangeUsed(used: Boolean)
-    fun updateHasPhoto(hasPhoto: Boolean, version: Int? = null)
+    fun updateHasPhoto(hasPhoto: Boolean, version: Int? = null, hash: String? = null)
     fun clearSession()
 }
 
@@ -70,8 +73,10 @@ class TokenStorageImpl @Inject constructor(
         val photoChangeUsed = prefs.getBoolean(KEY_PHOTO_CHANGE_USED, false)
         val hasPhoto = prefs.getBoolean(KEY_HAS_PHOTO, false)
         val version = if (prefs.contains(KEY_ACTIVE_PHOTO_VERSION)) prefs.getInt(KEY_ACTIVE_PHOTO_VERSION, 1) else null
+        val hash = prefs.getString(KEY_ACTIVE_PHOTO_HASH, null)
         val role = prefs.getString(KEY_ROLE, "EMPLOYEE") ?: "EMPLOYEE"
         val siteCode = prefs.getString(KEY_SITE_CODE, "DEFAULT_OFFICE") ?: "DEFAULT_OFFICE"
+        val sessionId = prefs.getString(KEY_SESSION_ID, null)
 
         return UserSession(
             userId = userId,
@@ -81,7 +86,9 @@ class TokenStorageImpl @Inject constructor(
             siteCode = siteCode,
             photoChangeUsed = photoChangeUsed,
             hasPhoto = hasPhoto,
-            activePhotoVersion = version
+            activePhotoVersion = version,
+            activePhotoHash = hash,
+            sessionId = sessionId
         )
     }
 
@@ -99,6 +106,10 @@ class TokenStorageImpl @Inject constructor(
         return if (prefs.contains(KEY_ACTIVE_PHOTO_VERSION)) prefs.getInt(KEY_ACTIVE_PHOTO_VERSION, 1) else null
     }
 
+    override fun getActivePhotoHash(): String? = _sessionFlow.value?.activePhotoHash ?: prefs.getString(KEY_ACTIVE_PHOTO_HASH, null)
+
+    override fun getSessionId(): String? = _sessionFlow.value?.sessionId ?: prefs.getString(KEY_SESSION_ID, null)
+
     override fun getRole(): String = prefs.getString(KEY_ROLE, "EMPLOYEE") ?: "EMPLOYEE"
 
     override fun isAdmin(): Boolean = getRole().equals("ADMIN", ignoreCase = true)
@@ -108,51 +119,64 @@ class TokenStorageImpl @Inject constructor(
     override fun getUserSession(): UserSession? = _sessionFlow.value
 
     override fun saveSession(session: UserSession) {
-        _sessionFlow.value = session
+        val resolvedSessionId = session.sessionId?.ifBlank { UUID.randomUUID().toString() } ?: UUID.randomUUID().toString()
+        val finalSession = session.copy(sessionId = resolvedSessionId)
+        _sessionFlow.value = finalSession
+
         prefs.edit().apply {
-            putString(KEY_TOKEN, session.token)
-            putString(KEY_USER_ID, session.userId)
-            putString(KEY_DISPLAY_NAME, session.displayName)
-            putString(KEY_ROLE, session.role)
-            putString(KEY_SITE_CODE, session.siteCode)
-            putBoolean(KEY_PHOTO_CHANGE_USED, session.photoChangeUsed)
-            putBoolean(KEY_HAS_PHOTO, session.hasPhoto)
-            if (session.activePhotoVersion != null) {
-                putInt(KEY_ACTIVE_PHOTO_VERSION, session.activePhotoVersion)
+            putString(KEY_TOKEN, finalSession.token)
+            putString(KEY_USER_ID, finalSession.userId)
+            putString(KEY_DISPLAY_NAME, finalSession.displayName)
+            putString(KEY_ROLE, finalSession.role)
+            putString(KEY_SITE_CODE, finalSession.siteCode)
+            putBoolean(KEY_PHOTO_CHANGE_USED, finalSession.photoChangeUsed)
+            putBoolean(KEY_HAS_PHOTO, finalSession.hasPhoto)
+            if (finalSession.activePhotoVersion != null) {
+                putInt(KEY_ACTIVE_PHOTO_VERSION, finalSession.activePhotoVersion)
             } else {
                 remove(KEY_ACTIVE_PHOTO_VERSION)
             }
+            if (!finalSession.activePhotoHash.isNullOrBlank()) {
+                putString(KEY_ACTIVE_PHOTO_HASH, finalSession.activePhotoHash)
+            } else {
+                remove(KEY_ACTIVE_PHOTO_HASH)
+            }
+            putString(KEY_SESSION_ID, resolvedSessionId)
             commit()
         }
     }
 
     override fun updateRole(role: String) {
         val normalized = role.trim().uppercase()
-        prefs.edit().putString(KEY_ROLE, normalized).apply()
+        prefs.edit().putString(KEY_ROLE, normalized).commit()
         _sessionFlow.value = _sessionFlow.value?.copy(role = normalized)
     }
 
     override fun updatePhotoChangeUsed(used: Boolean) {
-        prefs.edit().putBoolean(KEY_PHOTO_CHANGE_USED, used).apply()
+        prefs.edit().putBoolean(KEY_PHOTO_CHANGE_USED, used).commit()
         _sessionFlow.value = _sessionFlow.value?.copy(photoChangeUsed = used)
     }
 
-    override fun updateHasPhoto(hasPhoto: Boolean, version: Int?) {
+    override fun updateHasPhoto(hasPhoto: Boolean, version: Int?, hash: String?) {
         prefs.edit().apply {
             putBoolean(KEY_HAS_PHOTO, hasPhoto)
             if (version != null) {
                 putInt(KEY_ACTIVE_PHOTO_VERSION, version)
             }
-            apply()
+            if (hash != null) {
+                putString(KEY_ACTIVE_PHOTO_HASH, hash)
+            }
+            commit()
         }
         _sessionFlow.value = _sessionFlow.value?.copy(
             hasPhoto = hasPhoto,
-            activePhotoVersion = version ?: _sessionFlow.value?.activePhotoVersion
+            activePhotoVersion = version ?: _sessionFlow.value?.activePhotoVersion,
+            activePhotoHash = hash ?: _sessionFlow.value?.activePhotoHash
         )
     }
 
     override fun clearSession() {
-        prefs.edit().clear().apply()
+        prefs.edit().clear().commit()
         _sessionFlow.value = null
     }
 
@@ -166,5 +190,7 @@ class TokenStorageImpl @Inject constructor(
         private const val KEY_PHOTO_CHANGE_USED = "auth_photo_change_used"
         private const val KEY_HAS_PHOTO = "auth_has_photo"
         private const val KEY_ACTIVE_PHOTO_VERSION = "auth_active_photo_version"
+        private const val KEY_ACTIVE_PHOTO_HASH = "auth_active_photo_hash"
+        private const val KEY_SESSION_ID = "auth_session_id"
     }
 }

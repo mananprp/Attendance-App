@@ -99,5 +99,21 @@ describe('UsersController', () => {
       expect(status).toHaveBeenCalledWith(HttpStatus.NOT_MODIFIED);
       expect(send).toHaveBeenCalled();
     });
+
+    it('should strictly query the authenticated user id from the token, preventing user A from receiving user B photo', async () => {
+      const userA = { userId: 'USER_A', role: 'EMPLOYEE' } as any;
+      const setHeader = jest.fn();
+      const send = jest.fn();
+      const status = jest.fn().mockReturnValue({ send });
+      const mockRes = { setHeader, status, send } as any;
+      const mockReq = { headers: {} } as any;
+
+      await controller.getActivePhoto(userA);
+      expect(usersService.getActivePhoto).toHaveBeenCalledWith('USER_A');
+
+      await controller.getActivePhotoFile(userA, mockReq, mockRes);
+      expect(usersService.getActivePhotoFile).toHaveBeenCalledWith('USER_A');
+      expect(usersService.getActivePhotoFile).not.toHaveBeenCalledWith('USER_B');
+    });
   });
 });

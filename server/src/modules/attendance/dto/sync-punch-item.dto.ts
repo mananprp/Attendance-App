@@ -73,4 +73,19 @@ export class SyncPunchItemDto {
   @IsString()
   @IsOptional()
   image_file_name?: string | null;
+
+  @ApiProperty({ example: 'EMP1001', required: false, nullable: true })
+  @IsString()
+  @IsOptional()
+  ref_user_id?: string | null;
+
+  @ApiProperty({ example: 'e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855', required: false, nullable: true })
+  @IsString()
+  @IsOptional()
+  ref_photo_hash?: string | null;
+
+  @ApiProperty({ example: 1, required: false, nullable: true })
+  @IsNumber()
+  @IsOptional()
+  ref_photo_version?: number | null;
 }

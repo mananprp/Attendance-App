@@ -1,6 +1,7 @@
 import {
   Injectable,
   BadRequestException,
+  Logger,
 } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository, Like } from 'typeorm';
@@ -34,7 +35,7 @@ import {
 
 @Injectable()
 export class AttendanceService {
-
+  private readonly logger = new Logger(AttendanceService.name);
 
   constructor(
     @InjectRepository(AttendancePunchEntity)
@@ -140,6 +141,12 @@ export class AttendanceService {
       }
 
       // Persist punch
+      if (item.ref_user_id && item.ref_user_id.toUpperCase() !== userId.toUpperCase()) {
+        this.logger.warn(
+          `REFERENCE_MISMATCH: Punch ${item.punch_uuid} for user ${userId} used reference owner ${item.ref_user_id}`,
+        );
+      }
+
       const punchEntity = this.punchRepository.create({
         punchUuid: item.punch_uuid,
         userId: userId,

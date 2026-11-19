@@ -50,7 +50,10 @@ interface PunchRepository {
         distanceMeters: Float,
         matchScore: Float,
         capturedImagePath: String?,
-        locationType: String = "OFFICE"
+        locationType: String = "OFFICE",
+        refUserId: String? = null,
+        refPhotoHash: String? = null,
+        refPhotoVersion: Int? = null
     ): Result<Punch>
 
     /**

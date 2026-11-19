@@ -42,6 +42,8 @@ import com.company.attendance.core.location.LocationStatus
 import com.company.attendance.core.interfaces.FaceVerifier
 import com.company.attendance.core.database.dao.UserLocalDao
 import com.company.attendance.core.model.DayStatus
+import com.company.attendance.face.reference.FaceReferenceManager
+import com.company.attendance.face.reference.ReferenceResult
 import com.company.attendance.feature.punch.capture.CameraCaptureUtils
 import com.company.attendance.design.components.CenterPunchState
 import com.company.attendance.design.components.WorkRingState
@@ -65,7 +67,8 @@ class HomeViewModel @Inject constructor(
     private val locationChecker: LocationChecker,
     private val locationMonitor: LocationMonitor,
     private val syncScheduler: SyncScheduler,
-    private val faceVerifier: FaceVerifier
+    private val faceVerifier: FaceVerifier,
+    private val faceReferenceManager: FaceReferenceManager
 ) : ViewModel() {
 
     private val _uiState = MutableStateFlow(HomeUiState())
@@ -198,38 +201,16 @@ class HomeViewModel @Inject constructor(
                 // 1. Synchronize monthly history to ensure today's punches & calendar are up to date
                 fetchAndCacheMonthlyHistory(userId)
 
-                // 2. Self-healing photo & face embedding verification
-                val userEntity = userLocalDao.getUserDirect(userId)
+                // 2. Verified reference proof self-healing via FaceReferenceManager
                 try {
-                    var activeBmp = localPhoto
-                    if (activeBmp == null) {
-                        val response = apiService.getActivePhoto()
-                        val result = NetworkHelper.parseResponse(response)
-                        result.onSuccess { photoDetail ->
-                            activeBmp = ImageStorageUtils.fetchAndSaveProfilePhoto(
-                                context = context,
-                                userId = userId,
-                                photoUrl = photoDetail.photoUrl,
-                                okHttpClient = okHttpClient
-                            )
-                            if (activeBmp != null) {
-                                tokenStorage.updateHasPhoto(true, photoDetail.version)
-                                _uiState.update { it.copy(profilePhotoBitmap = activeBmp) }
-                            } else {
-                                // Rule: The source of truth for has_photo is the server's login response.
-                                // A failed download only means showing the placeholder avatar; Home will retry next session.
-                                // Do NOT clear has_photo locally.
-                                android.util.Log.w("HomeViewModel", "Profile photo download failed for $userId – keeping has_photo as set by server")
-                            }
+                    val isValid = faceReferenceManager.validateLocalReference(userId)
+                    if (!isValid) {
+                        val refResult = faceReferenceManager.ensureReference(userId)
+                        if (refResult is ReferenceResult.Success) {
+                            _uiState.update { it.copy(profilePhotoBitmap = refResult.bitmap) }
                         }
-                    }
-
-                    if (activeBmp != null && userEntity?.referenceEmbedding == null) {
-                        val extractResult = faceVerifier.extractReferenceEmbedding(activeBmp!!)
-                        extractResult.onSuccess { floats ->
-                            val bytes = CameraCaptureUtils.floatArrayToByteArray(floats)
-                            userLocalDao.updateReferenceEmbedding(userId, bytes)
-                        }
+                    } else if (localPhoto != null) {
+                        _uiState.update { it.copy(profilePhotoBitmap = localPhoto) }
                     }
                 } catch (e: Exception) {
                     android.util.Log.e("HomeViewModel", "Photo/embedding sync error", e)

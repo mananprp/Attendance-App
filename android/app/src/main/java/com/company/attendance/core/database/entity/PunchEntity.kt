@@ -63,6 +63,15 @@ data class PunchEntity(
     val locationType: String = "OFFICE", // OFFICE, NEW_LOCATION
 
     @ColumnInfo(name = "shift_type")
-    val shiftType: String = "GENERAL" // GENERAL, EVENING, NIGHT
+    val shiftType: String = "GENERAL", // GENERAL, EVENING, NIGHT
+
+    @ColumnInfo(name = "ref_user_id")
+    val refUserId: String? = null,
+
+    @ColumnInfo(name = "ref_photo_hash")
+    val refPhotoHash: String? = null,
+
+    @ColumnInfo(name = "ref_photo_version")
+    val refPhotoVersion: Int? = null
 )
 

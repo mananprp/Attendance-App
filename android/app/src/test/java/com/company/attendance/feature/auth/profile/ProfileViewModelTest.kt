@@ -39,6 +39,13 @@ import org.junit.Before
 import org.junit.Test
 import retrofit2.Response
 
+import io.mockk.mockkStatic
+import io.mockk.unmockkStatic
+import androidx.room.withTransaction
+import com.company.attendance.core.database.AppDatabase
+import com.company.attendance.face.reference.FaceReferenceManager
+import com.company.attendance.core.interfaces.SyncScheduler
+
 @OptIn(ExperimentalCoroutinesApi::class)
 class ProfileViewModelTest {
 
@@ -53,6 +60,9 @@ class ProfileViewModelTest {
     private val faceVerifier: FaceVerifier = mockk()
     private val context: android.content.Context = mockk(relaxed = true)
     private val okHttpClient: okhttp3.OkHttpClient = mockk(relaxed = true)
+    private val faceReferenceManager: FaceReferenceManager = mockk(relaxed = true)
+    private val appDatabase: AppDatabase = mockk(relaxed = true)
+    private val syncScheduler: SyncScheduler = mockk(relaxed = true)
 
     private lateinit var viewModel: ProfileViewModel
 
@@ -69,6 +79,12 @@ class ProfileViewModelTest {
     fun setUp() {
         Dispatchers.setMain(testDispatcher)
         ImageStorageUtils.defaultDispatcher = testDispatcher
+        mockkStatic("androidx.room.RoomDatabaseKt")
+        coEvery { appDatabase.withTransaction(any<suspend () -> Unit>()) } coAnswers {
+            val block = invocation.args[1] as suspend () -> Unit
+            block.invoke()
+        }
+        coEvery { faceReferenceManager.validateLocalReference(any()) } returns true
         every { tokenStorage.getUserSession() } returns initialSession
         every { tokenStorage.getUserId() } returns initialSession.userId
         every { tokenStorage.getDisplayName() } returns initialSession.displayName
@@ -105,6 +121,7 @@ class ProfileViewModelTest {
 
     @After
     fun tearDown() {
+        unmockkStatic("androidx.room.RoomDatabaseKt")
         ImageStorageUtils.defaultDispatcher = Dispatchers.IO
         Dispatchers.resetMain()
     }
@@ -119,7 +136,11 @@ class ProfileViewModelTest {
             daySummaryDao = daySummaryDao,
             trackingDao = trackingDao,
             apiService = apiService,
-            faceVerifier = faceVerifier
+            faceVerifier = faceVerifier,
+            faceReferenceManager = faceReferenceManager,
+            appDatabase = appDatabase,
+            syncScheduler = syncScheduler,
+            ioDispatcher = testDispatcher
         )
     }
 
@@ -133,7 +154,6 @@ class ProfileViewModelTest {
         assertFalse(viewModel.uiState.value.photoChangeUsed)
         assertTrue(viewModel.uiState.value.hasPhoto)
         assertEquals(1, viewModel.uiState.value.activePhotoVersion)
-        assertEquals("/uploads/profile_1.jpg", viewModel.uiState.value.photoUrl)
         assertTrue(viewModel.uiState.value.canChangePhoto)
     }
 
@@ -143,7 +163,14 @@ class ProfileViewModelTest {
         val noPhotoSession = initialSession.copy(hasPhoto = false, activePhotoVersion = null)
         every { tokenStorage.getUserSession() } returns noPhotoSession
         every { tokenStorage.hasPhoto() } returns false
-        coEvery { userLocalDao.getUserDirect(any()) } returns UserLocalEntity("EMP1001", "Alice Smith", false, false, null, System.currentTimeMillis())
+        coEvery { userLocalDao.getUserDirect(any()) } returns UserLocalEntity(
+            userId = "EMP1001",
+            displayName = "Alice Smith",
+            photoChangeUsed = false,
+            hasPhoto = false,
+            referenceEmbedding = null,
+            updatedAt = System.currentTimeMillis()
+        )
 
         viewModel = createViewModel()
         advanceUntilIdle()
@@ -169,7 +196,14 @@ class ProfileViewModelTest {
         val usedSession = initialSession.copy(photoChangeUsed = true, activePhotoVersion = 2)
         every { tokenStorage.getUserSession() } returns usedSession
         every { tokenStorage.isPhotoChangeUsed() } returns true
-        coEvery { userLocalDao.getUserDirect(any()) } returns UserLocalEntity("EMP1001", "Alice Smith", true, true, null, System.currentTimeMillis())
+        coEvery { userLocalDao.getUserDirect(any()) } returns UserLocalEntity(
+            userId = "EMP1001",
+            displayName = "Alice Smith",
+            photoChangeUsed = true,
+            hasPhoto = true,
+            referenceEmbedding = null,
+            updatedAt = System.currentTimeMillis()
+        )
 
         viewModel = createViewModel()
         advanceUntilIdle()
@@ -235,10 +269,10 @@ class ProfileViewModelTest {
         assertNotNull(viewModel.uiState.value.successMessage)
 
         verify { tokenStorage.updatePhotoChangeUsed(true) }
-        verify { tokenStorage.updateHasPhoto(true, 2) }
+        verify { tokenStorage.updateHasPhoto(true, 2, any()) }
 
         val embeddingSlot = slot<ByteArray>()
-        coVerify { userLocalDao.updateReferenceEmbedding("EMP1001", capture(embeddingSlot), any()) }
+        coVerify { userLocalDao.updateReferenceEmbeddingAndProof("EMP1001", capture(embeddingSlot), "EMP1001", 2, any(), any()) }
         coVerify { userLocalDao.updatePhotoChangeUsed("EMP1001", true, any()) }
     }
 
@@ -296,5 +330,21 @@ class ProfileViewModelTest {
             coVerify { trackingDao.clearAllPoints() }
             coVerify { trackingDao.clearAllStops() }
         }
+    }
+
+    @Test
+    fun `signOut with pending punches blocks logout and shows dialog if unsynced items remain`() = runTest {
+        val dummyPendingPunch = mockk<com.company.attendance.core.database.entity.PunchEntity>(relaxed = true)
+        coEvery { punchDao.getAllPendingPunches() } returns listOf(dummyPendingPunch)
+        viewModel = createViewModel()
+        advanceUntilIdle()
+
+        viewModel.signOut()
+        advanceUntilIdle()
+
+        assertTrue(viewModel.uiState.value.showUnsyncedLogoutDialog)
+        assertEquals(1, viewModel.uiState.value.unsyncedCount)
+        coVerify { syncScheduler.triggerSyncNow() }
+        verify(exactly = 0) { tokenStorage.clearSession() }
     }
 }

@@ -33,7 +33,9 @@ data class UserSession(
     val siteCode: String = "DEFAULT_OFFICE",
     val photoChangeUsed: Boolean,
     val hasPhoto: Boolean,
-    val activePhotoVersion: Int? = null
+    val activePhotoVersion: Int? = null,
+    val activePhotoHash: String? = null,
+    val sessionId: String? = null
 )
 
 @kotlinx.serialization.Serializable
@@ -80,7 +82,10 @@ data class Punch(
     val syncAttempts: Int = 0,
     val createdAtEpochMs: Long = System.currentTimeMillis(),
     val locationType: String = "OFFICE", // OFFICE, NEW_LOCATION
-    val shiftType: ShiftType = ShiftType.GENERAL
+    val shiftType: ShiftType = ShiftType.GENERAL,
+    val refUserId: String? = null,
+    val refPhotoHash: String? = null,
+    val refPhotoVersion: Int? = null
 )
 
 data class DaySummary(

@@ -88,7 +88,10 @@ object EntityMappers {
             syncAttempts = syncAttempts,
             createdAtEpochMs = createdAt,
             locationType = locationType,
-            shiftType = try { ShiftType.valueOf(shiftType) } catch (_: Exception) { ShiftType.GENERAL }
+            shiftType = try { ShiftType.valueOf(shiftType) } catch (_: Exception) { ShiftType.GENERAL },
+            refUserId = refUserId,
+            refPhotoHash = refPhotoHash,
+            refPhotoVersion = refPhotoVersion
         )
     }
 
@@ -110,7 +113,10 @@ object EntityMappers {
             syncAttempts = syncAttempts,
             createdAt = createdAtEpochMs,
             locationType = locationType,
-            shiftType = shiftType.name
+            shiftType = shiftType.name,
+            refUserId = refUserId,
+            refPhotoHash = refPhotoHash,
+            refPhotoVersion = refPhotoVersion
         )
     }
 

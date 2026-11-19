@@ -24,7 +24,8 @@ data class UserProfileDto(
     @SerialName("site_code") val siteCode: String = "DEFAULT_OFFICE",
     @SerialName("photo_change_used") val photoChangeUsed: Boolean,
     @SerialName("has_photo") val hasPhoto: Boolean,
-    @SerialName("active_photo_version") val activePhotoVersion: Int? = null
+    @SerialName("active_photo_version") val activePhotoVersion: Int? = null,
+    @SerialName("active_photo_hash") val activePhotoHash: String? = null
 )
 
 @Serializable
@@ -130,11 +131,13 @@ data class AppConfigResponseDto(
 data class PhotoUploadResponseDto(
     @SerialName("version") val version: Int = 1,
     @SerialName("photo_url") val photoUrl: String,
-    @SerialName("photo_change_used") val photoChangeUsed: Boolean = false
+    @SerialName("photo_change_used") val photoChangeUsed: Boolean = false,
+    @SerialName("hash") val hash: String? = null
 )
 
 @Serializable
 data class PhotoDetailResponseDto(
+    @SerialName("user_id") val userId: String? = null,
     @SerialName("version") val version: Int = 1,
     @SerialName("photo_url") val photoUrl: String,
     @SerialName("uploaded_at") val uploadedAt: String? = null,
@@ -156,7 +159,10 @@ data class SyncPunchItemDto(
     @SerialName("match_score") val matchScore: Float,
     @SerialName("image_file_name") val imageFileName: String? = null,
     @SerialName("location_type") val locationType: String = "OFFICE",
-    @SerialName("shift_type") val shiftType: String = "GENERAL"
+    @SerialName("shift_type") val shiftType: String = "GENERAL",
+    @SerialName("ref_user_id") val refUserId: String? = null,
+    @SerialName("ref_photo_hash") val refPhotoHash: String? = null,
+    @SerialName("ref_photo_version") val refPhotoVersion: Int? = null
 )
 
 @Serializable

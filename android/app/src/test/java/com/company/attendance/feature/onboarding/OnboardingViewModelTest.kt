@@ -168,11 +168,11 @@ class OnboardingViewModelTest {
         assertEquals(1, viewModel.uiState.value.activePhotoVersion)
         assertEquals(OnboardingStep.LOCATION_PERMISSION, viewModel.uiState.value.currentStep)
 
-        verify { tokenStorage.updateHasPhoto(true, 1) }
+        verify { tokenStorage.updateHasPhoto(true, 1, any()) }
         verify { tokenStorage.updatePhotoChangeUsed(false) }
 
         val embeddingSlot = slot<ByteArray>()
-        coVerify { userLocalDao.updateReferenceEmbedding("EMP1001", capture(embeddingSlot), any()) }
+        coVerify { userLocalDao.updateReferenceEmbeddingAndProof("EMP1001", capture(embeddingSlot), "EMP1001", 1, any(), any()) }
         assertTrue(embeddingSlot.captured.isNotEmpty())
     }
 

@@ -136,6 +136,44 @@ fun ProfileScreen(
             onConfirmReplacement = viewModel::confirmPhotoReplacement
         )
     }
+
+    if (uiState.showUnsyncedLogoutDialog) {
+        androidx.compose.material3.AlertDialog(
+            onDismissRequest = viewModel::dismissUnsyncedDialog,
+            title = {
+                Text(
+                    text = "Unsynced Data Detected",
+                    style = AppTypographyTokens.Title,
+                    color = Color.White
+                )
+            },
+            text = {
+                Text(
+                    text = "You have ${uiState.unsyncedCount} unsynced punch/tracking record(s) on this device. Logging out now will permanently delete them. Please connect to the internet and tap 'Sync Now'.",
+                    style = AppTypographyTokens.BodyMedium,
+                    color = Color.White.copy(alpha = 0.8f)
+                )
+            },
+            confirmButton = {
+                androidx.compose.material3.Button(
+                    onClick = viewModel::retrySyncAndSignOut,
+                    colors = androidx.compose.material3.ButtonDefaults.buttonColors(
+                        containerColor = com.company.attendance.design.theme.AppAccent
+                    )
+                ) {
+                    Text("Sync Now", color = Color.White)
+                }
+            },
+            dismissButton = {
+                androidx.compose.material3.TextButton(
+                    onClick = viewModel::dismissUnsyncedDialog
+                ) {
+                    Text("Cancel", color = Color.White.copy(alpha = 0.7f))
+                }
+            },
+            containerColor = Color(0xFF1E293B)
+        )
+    }
 }
 
 @Composable

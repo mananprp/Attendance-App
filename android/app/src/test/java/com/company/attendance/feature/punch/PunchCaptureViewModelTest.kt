@@ -56,6 +56,7 @@ class PunchCaptureViewModelTest {
     private val trustedTimeProvider: TrustedTimeProvider = mockk(relaxed = true)
     private val remoteConfigRepository: RemoteConfigRepository = mockk(relaxed = true)
     private val punchRepository: PunchRepository = mockk(relaxed = true)
+    private val faceReferenceManager: com.company.attendance.face.reference.FaceReferenceManager = mockk(relaxed = true)
 
     private val testConfig = AppConfig(
         officeLat = 12.9716,
@@ -96,6 +97,7 @@ class PunchCaptureViewModelTest {
         val filesDir = File.createTempFile("test_punches", "dir").parentFile
         every { context.filesDir } returns filesDir
         every { tokenStorage.getUserId() } returns "EMP1001"
+        coEvery { faceReferenceManager.validateLocalReference(any()) } returns true
         coEvery { userLocalDao.getUserDirect("EMP1001") } returns testUser
         coEvery { remoteConfigRepository.getConfig() } returns testConfig
         coEvery { faceVerifier.areModelsReady() } returns true
@@ -115,7 +117,8 @@ class PunchCaptureViewModelTest {
     private fun createViewModel() = PunchCaptureViewModel(
         context, tokenStorage, userLocalDao, faceVerifier,
         apiService, okHttpClient,
-        trustedTimeProvider, remoteConfigRepository, punchRepository
+        trustedTimeProvider, remoteConfigRepository, punchRepository,
+        faceReferenceManager
     )
 
     @Test
@@ -187,7 +190,11 @@ class PunchCaptureViewModelTest {
                 longitude = 77.5946,
                 distanceMeters = 15f,
                 matchScore = 0.88f,
-                capturedImagePath = any()
+                capturedImagePath = any(),
+                locationType = any(),
+                refUserId = any(),
+                refPhotoHash = any(),
+                refPhotoVersion = any()
             )
         } returns Result.success(dummyPunch)
 
@@ -224,7 +231,11 @@ class PunchCaptureViewModelTest {
                 longitude = 77.5946,
                 distanceMeters = 15f,
                 matchScore = 0.88f,
-                capturedImagePath = any()
+                capturedImagePath = any(),
+                locationType = any(),
+                refUserId = any(),
+                refPhotoHash = any(),
+                refPhotoVersion = any()
             )
         }
     }
@@ -255,7 +266,7 @@ class PunchCaptureViewModelTest {
         assertEquals(0.41f, state.matchScore ?: 0f, 0.01f)
 
         coVerify(exactly = 0) {
-            punchRepository.recordPunch(any(), any(), any(), any(), any(), any(), any(), any())
+            punchRepository.recordPunch(any(), any(), any(), any(), any(), any(), any(), any(), any(), any(), any(), any())
         }
     }
 
@@ -280,7 +291,7 @@ class PunchCaptureViewModelTest {
         assertEquals("No Face Detected", state.failureTitle)
 
         coVerify(exactly = 0) {
-            punchRepository.recordPunch(any(), any(), any(), any(), any(), any(), any(), any())
+            punchRepository.recordPunch(any(), any(), any(), any(), any(), any(), any(), any(), any(), any(), any(), any())
         }
     }
 
@@ -306,7 +317,7 @@ class PunchCaptureViewModelTest {
         assertTrue(state.failureMessage?.contains("2 faces") == true)
 
         coVerify(exactly = 0) {
-            punchRepository.recordPunch(any(), any(), any(), any(), any(), any(), any(), any())
+            punchRepository.recordPunch(any(), any(), any(), any(), any(), any(), any(), any(), any(), any(), any(), any())
         }
     }
 
@@ -332,7 +343,7 @@ class PunchCaptureViewModelTest {
         assertTrue(state.failureReason?.contains("No natural eye blinks") == true)
 
         coVerify(exactly = 0) {
-            punchRepository.recordPunch(any(), any(), any(), any(), any(), any(), any(), any())
+            punchRepository.recordPunch(any(), any(), any(), any(), any(), any(), any(), any(), any(), any(), any(), any())
         }
     }
 

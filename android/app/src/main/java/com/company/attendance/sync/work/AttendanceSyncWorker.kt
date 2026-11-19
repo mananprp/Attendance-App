@@ -87,7 +87,10 @@ class AttendanceSyncWorker @AssistedInject constructor(
                 matchScore = punch.matchScore,
                 imageFileName = imageFileName,
                 locationType = punch.locationType,
-                shiftType = punch.shiftType.name
+                shiftType = punch.shiftType.name,
+                refUserId = punch.refUserId,
+                refPhotoHash = punch.refPhotoHash,
+                refPhotoVersion = punch.refPhotoVersion
             )
         }
 
